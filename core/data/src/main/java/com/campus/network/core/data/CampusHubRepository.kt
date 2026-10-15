@@ -6,6 +6,7 @@ import com.campus.network.core.database.entity.MicroGigEntity
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import com.campus.network.core.network.OpenRouterAiClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.withContext
  */
 class CampusHubRepository(
     private val database: CampusDatabase,
+    private val aiClient: OpenRouterAiClient = OpenRouterAiClient(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val itemDao = database.marketItemDao()
@@ -89,6 +91,13 @@ class CampusHubRepository(
         )
         gigDao.insertGigs(listOf(entity))
         return@withContext entity.toDomain()
+    }
+
+    /**
+     * Queries OpenRouter AI for real-time search suggestions.
+     */
+    suspend fun getAiSearchSuggestions(query: String): List<String> {
+        return aiClient.getSearchSuggestions(query)
     }
 
     private fun MarketItemEntity.toDomain() = MarketItem(

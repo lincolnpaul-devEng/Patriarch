@@ -6,6 +6,8 @@ import com.campus.network.core.data.CampusHubRepository
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,13 +25,19 @@ data class HubUiState(
     val marketplaceItems: List<MarketItem> = emptyList(),
     val microGigs: List<MicroGig> = emptyList(),
     val isPostDialogOpen: Boolean = false,
-    val filterCategory: String? = null
+    val filterCategory: String? = null,
+    val searchQuery: String = "",
+    val aiSuggestions: List<String> = emptyList(),
+    val isAiLoading: Boolean = false
 )
 
 sealed interface HubEvent {
     data class SwitchViewMode(val mode: HubViewMode) : HubEvent
     data class FilterCategory(val category: String?) : HubEvent
     data class TogglePostDialog(val open: Boolean) : HubEvent
+    data class UpdateSearchQuery(val query: String) : HubEvent
+    data class SelectAiSuggestion(val suggestion: String) : HubEvent
+    data object ClearSearch : HubEvent
     data class PostItem(
         val title: String,
         val price: Double,
@@ -54,6 +62,11 @@ class HubViewModel(
     private val _viewMode = MutableStateFlow(HubViewMode.MARKETPLACE_GRID)
     private val _filterCategory = MutableStateFlow<String?>(null)
     private val _isPostDialogOpen = MutableStateFlow(false)
+    private val _searchQuery = MutableStateFlow("")
+    private val _aiSuggestions = MutableStateFlow<List<String>>(emptyList())
+    private val _isAiLoading = MutableStateFlow(false)
+
+    private var aiSearchJob: Job? = null
 
     val uiState: StateFlow<HubUiState> = combine(
         _viewMode,
@@ -62,14 +75,51 @@ class HubViewModel(
         _filterCategory,
         _isPostDialogOpen
     ) { mode, items, gigs, category, isPostOpen ->
-        val filteredItems = if (category == null) items else items.filter { it.category == category }
-        HubUiState(
-            activeViewMode = mode,
-            marketplaceItems = filteredItems,
-            microGigs = gigs,
-            isPostDialogOpen = isPostOpen,
-            filterCategory = category
-        )
+        CombinedBaseData(mode, items, gigs, category, isPostOpen)
+    }.let { baseFlow ->
+        combine(
+            baseFlow,
+            _searchQuery,
+            _aiSuggestions,
+            _isAiLoading
+        ) { base, query, suggestions, aiLoading ->
+            val categoryFilteredItems = if (base.category == null || base.category == "All") {
+                base.items
+            } else {
+                base.items.filter { it.category.equals(base.category, ignoreCase = true) }
+            }
+
+            val searchFilteredItems = if (query.isBlank()) {
+                categoryFilteredItems
+            } else {
+                categoryFilteredItems.filter {
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.category.contains(query, ignoreCase = true) ||
+                    it.campusHallLocation.contains(query, ignoreCase = true)
+                }
+            }
+
+            val searchFilteredGigs = if (query.isBlank()) {
+                base.gigs
+            } else {
+                base.gigs.filter {
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.description.contains(query, ignoreCase = true) ||
+                    it.tag.contains(query, ignoreCase = true)
+                }
+            }
+
+            HubUiState(
+                activeViewMode = base.mode,
+                marketplaceItems = searchFilteredItems,
+                microGigs = searchFilteredGigs,
+                isPostDialogOpen = base.isPostOpen,
+                filterCategory = base.category,
+                searchQuery = query,
+                aiSuggestions = suggestions,
+                isAiLoading = aiLoading
+            )
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -81,6 +131,18 @@ class HubViewModel(
             is HubEvent.SwitchViewMode -> _viewMode.value = event.mode
             is HubEvent.FilterCategory -> _filterCategory.value = event.category
             is HubEvent.TogglePostDialog -> _isPostDialogOpen.value = event.open
+            is HubEvent.UpdateSearchQuery -> {
+                _searchQuery.value = event.query
+                triggerAiSuggestions(event.query)
+            }
+            is HubEvent.SelectAiSuggestion -> {
+                _searchQuery.value = event.suggestion
+                _aiSuggestions.value = emptyList()
+            }
+            is HubEvent.ClearSearch -> {
+                _searchQuery.value = ""
+                _aiSuggestions.value = emptyList()
+            }
             is HubEvent.PostItem -> {
                 viewModelScope.launch {
                     repository.postMarketItem(
@@ -110,4 +172,34 @@ class HubViewModel(
             }
         }
     }
+
+    private fun triggerAiSuggestions(query: String) {
+        aiSearchJob?.cancel()
+        if (query.isBlank()) {
+            _aiSuggestions.value = emptyList()
+            _isAiLoading.value = false
+            return
+        }
+
+        aiSearchJob = viewModelScope.launch {
+            _isAiLoading.value = true
+            delay(350L)
+            try {
+                val suggestions = repository.getAiSearchSuggestions(query)
+                _aiSuggestions.value = suggestions
+            } catch (e: Exception) {
+                _aiSuggestions.value = emptyList()
+            } finally {
+                _isAiLoading.value = false
+            }
+        }
+    }
+
+    private data class CombinedBaseData(
+        val mode: HubViewMode,
+        val items: List<MarketItem>,
+        val gigs: List<MicroGig>,
+        val category: String?,
+        val isPostOpen: Boolean
+    )
 }

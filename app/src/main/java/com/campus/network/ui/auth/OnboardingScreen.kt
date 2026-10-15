@@ -120,13 +120,13 @@ fun OnboardingScreen(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    NotificationCheckItem(text = "Departure reminders, gate changes and delays")
+                    NotificationCheckItem(text = "Flash meets, campus events, and study sprints")
                     Spacer(modifier = Modifier.height(12.dp))
-                    NotificationCheckItem(text = "Surveys about your travel experience")
+                    NotificationCheckItem(text = "Peer chat messages and study channel updates")
                     Spacer(modifier = Modifier.height(12.dp))
-                    NotificationCheckItem(text = "Account updates")
+                    NotificationCheckItem(text = "Campus marketplace inquiries and gig alerts")
                     Spacer(modifier = Modifier.height(12.dp))
-                    NotificationCheckItem(text = "Special promotions, offers and news")
+                    NotificationCheckItem(text = "Campus safety notices and academic news")
 
                     Spacer(modifier = Modifier.height(20.dp))
 
@@ -266,7 +266,7 @@ private fun PhoneMockupVisual(modifier: Modifier = Modifier) {
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = "Now boarding at gate B6",
+                        text = "Flash Meet starting in 5 min",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
@@ -275,7 +275,7 @@ private fun PhoneMockupVisual(modifier: Modifier = Modifier) {
                     Spacer(modifier = Modifier.height(1.dp))
 
                     Text(
-                        text = "You may now board your flight to SJC. Welcome aboard!",
+                        text = "CS Finals Study Sprint at Central Quad Pod #4. Join now!",
                         fontSize = 10.5.sp,
                         color = Color(0xFF475569),
                         lineHeight = 14.sp

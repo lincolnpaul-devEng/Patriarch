@@ -314,7 +314,7 @@ private fun MapExplorationContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Filter Row ("everyone ⌵", "open now", GPS FAB)
+                // Filter Row (Audience dropdown, "open now", GPS FAB)
                 MapFilterRow(
                     audienceFilter = uiState.audienceFilter,
                     isOpenNowOnly = uiState.isOpenNowOnly,

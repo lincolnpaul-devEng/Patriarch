@@ -1,6 +1,7 @@
 package com.campus.network.feature.hub
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -29,6 +30,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
@@ -44,8 +48,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -53,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +69,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -69,8 +87,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -97,7 +113,6 @@ fun HubScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var isAiDialogOpen by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("All") }
     var isPostDialogOpen by remember { mutableStateOf(false) }
 
@@ -115,6 +130,11 @@ fun HubScreen(
             // -------------------------------------------------------------
             item {
                 HeroScenicHeader(
+                    searchQuery = uiState.searchQuery,
+                    onSearchQueryChange = { viewModel.onEvent(HubEvent.UpdateSearchQuery(it)) },
+                    aiSuggestions = uiState.aiSuggestions,
+                    onSelectSuggestion = { viewModel.onEvent(HubEvent.SelectAiSuggestion(it)) },
+                    isAiLoading = uiState.isAiLoading,
                     onLogoClick = {
                         scope.launch {
                             snackbarHostState.showSnackbar("Campus Network: Premium Student Session Active")
@@ -130,13 +150,58 @@ fun HubScreen(
                     },
                     onLocationClick = {
                         scope.launch {
-                            snackbarHostState.showSnackbar("Current Campus Sector: Cancun / Global Study Hub")
+                            snackbarHostState.showSnackbar("Current Campus Sector: North Quad Academic Commons")
                         }
-                    },
-                    onAiBarClick = {
-                        isAiDialogOpen = true
                     }
                 )
+            }
+
+            // Search Filter Active Pill
+            if (uiState.searchQuery.isNotEmpty()) {
+                item {
+                    Surface(
+                        color = Color(0xFFF1F5F9),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = BrandBluePrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Filtered by \"${uiState.searchQuery}\"",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandBluePrimary
+                                )
+                            }
+                            TextButton(
+                                onClick = { viewModel.onEvent(HubEvent.ClearSearch) },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = "Clear",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEF4444)
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // -------------------------------------------------------------
@@ -146,11 +211,11 @@ fun HubScreen(
                 MemberLoyaltyCard(
                     memberName = "Ben",
                     memberIdMasked = "•••• 4829",
-                    milesCount = "0",
-                    loyaltyPoints = "0",
+                    meritPoints = "1,450 pts",
+                    trustScore = "96 / 100",
                     onCardClick = {
                         scope.launch {
-                            snackbarHostState.showSnackbar("AAdvantage® Tier: Campus Verified Explorer")
+                            snackbarHostState.showSnackbar("Patriarch Honor Status: Campus Verified Scholar")
                         }
                     }
                 )
@@ -237,19 +302,6 @@ fun HubScreen(
                 .padding(bottom = 90.dp)
         )
 
-        // AI Travel / Campus Inspiration Dialog
-        if (isAiDialogOpen) {
-            AiDiscoveryDialog(
-                onDismiss = { isAiDialogOpen = false },
-                onSearch = { query ->
-                    isAiDialogOpen = false
-                    scope.launch {
-                        snackbarHostState.showSnackbar("AI Query: \"$query\" - Curating campus experiences...")
-                    }
-                }
-            )
-        }
-
         // Post New Item / Gig Dialog
         if (isPostDialogOpen) {
             PostItemDialog(
@@ -278,20 +330,68 @@ fun HubScreen(
  * Scenic Hero Header Section:
  * Features full-bleed scenic photograph, distant flying birds Canvas layer,
  * the transparent logo replacing the "100" logo, circular glass action buttons,
- * the floating location pill ("Nairobi, Kenya"), and the AI discovery capsule.
+ * the floating location pill ("Nairobi, Kenya"), and the interactive in-place AI Search Bar
+ * with typewriter animated suggestions, soft keyboard auto-popup, and live AI suggestions dropdown.
  */
 @Composable
 private fun HeroScenicHeader(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    aiSuggestions: List<String>,
+    onSelectSuggestion: (String) -> Unit,
+    isAiLoading: Boolean,
     onLogoClick: () -> Unit,
     onChatClick: () -> Unit,
     onNotificationClick: () -> Unit,
-    onLocationClick: () -> Unit,
-    onAiBarClick: () -> Unit
+    onLocationClick: () -> Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    var isFocused by remember { mutableStateOf(false) }
+
+    val typewriterSuggestions = remember {
+        listOf(
+            "Central Quad study pods open late",
+            "Quiet quad study pods open late",
+            "Engineering laptops and monitors",
+            "High-payout campus coding gigs",
+            "Used textbooks and class notes",
+            "Calculus and physics study groups"
+        )
+    }
+
+    var displayedSuggestion by remember { mutableStateOf("") }
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty()) return@LaunchedEffect
+        var sIndex = 0
+        while (isActive) {
+            val target = typewriterSuggestions[sIndex % typewriterSuggestions.size]
+            for (i in 1..target.length) {
+                displayedSuggestion = target.substring(0, i)
+                delay(45L)
+            }
+            delay(2400L)
+            for (i in target.length downTo 0) {
+                displayedSuggestion = target.substring(0, i)
+                delay(20L)
+            }
+            delay(300L)
+            sIndex++
+        }
+    }
+
+    val showSuggestions = isFocused && aiSuggestions.isNotEmpty()
+    val headerHeight by animateDpAsState(
+        targetValue = if (showSuggestions) 470.dp else 390.dp,
+        label = "heroHeaderHeight"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(390.dp)
+            .height(headerHeight)
     ) {
         // 1. Scenic Photography Backdrop
         Image(
@@ -319,7 +419,7 @@ private fun HeroScenicHeader(
                 )
             )
 
-            // Avian flight curves in upper center sky (matching reference)
+            // Soaring birds in upper center sky (matching reference)
             val birdColor = Color(0x66202428)
             val birdStroke = Stroke(width = 2.2f)
 
@@ -417,7 +517,7 @@ private fun HeroScenicHeader(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 80.dp)
+                .padding(end = 18.dp, bottom = if (showSuggestions) 140.dp else 80.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(HeroLocationDark)
                 .clickable { onLocationClick() }
@@ -442,48 +542,191 @@ private fun HeroScenicHeader(
             }
         }
 
-        // 5. Floating AI Inspiration Capsule (Bottom of Hero Scene)
+        // 5. Interactive In-Place AI Search Bar (Bottom of Hero Scene)
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(if (showSuggestions) 22.dp else 28.dp),
             color = AIBarBackground,
-            shadowElevation = 6.dp
+            shadowElevation = 8.dp,
+            border = if (isFocused) BorderStroke(1.5.dp, BrandBluePrimary) else null
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onAiBarClick() }
-                    .padding(horizontal = 20.dp, vertical = 15.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Four-point AI Star Icon
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "AI Sparkle",
-                    tint = BrandBluePrimary,
-                    modifier = Modifier.size(20.dp)
-                )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Four-point AI Sparkle Icon
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "AI Sparkle",
+                        tint = BrandBluePrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                Text(
-                    text = "Travel inspiration with AIˢᵐ",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DarkCardTextPrimary
-                )
+                    // Real in-place text input field with typewriter placeholder
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (searchQuery.isEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = displayedSuggestion.ifEmpty { "Search campus with AI" },
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (displayedSuggestion.isNotEmpty() && !isFocused) {
+                                    Text(
+                                        text = "|",
+                                        fontSize = 14.5.sp,
+                                        color = BrandBluePrimary.copy(alpha = 0.8f),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
 
-                Spacer(modifier = Modifier.weight(1f))
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = onSearchQueryChange,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { isFocused = it.isFocused },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DarkCardTextPrimary
+                            ),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
+                                }
+                            )
+                        )
+                    }
 
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = "Open AI",
-                    tint = BrandBluePrimary,
-                    modifier = Modifier.size(20.dp)
-                )
+                    // Trailing Action: Spinner / Clear X / Search Lens
+                    if (isAiLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = BrandBluePrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                onSearchQueryChange("")
+                                focusRequester.requestFocus()
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear Search",
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = {
+                                focusRequester.requestFocus()
+                                keyboardController?.show()
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = BrandBluePrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // AI Suggested Searches Dropdown
+                if (showSuggestions) {
+                    HorizontalDivider(
+                        color = Color(0x1F000000),
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(horizontal = 14.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = BrandBluePrimary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "AI Search Suggestions",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+
+                        aiSuggestions.take(3).forEach { suggestion ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onSelectSuggestion(suggestion)
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                    }
+                                    .padding(vertical = 7.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = BrandBluePrimary.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = suggestion,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E293B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -491,15 +734,15 @@ private fun HeroScenicHeader(
 
 /**
  * Member Status / Loyalty Card:
- * Deep blue gradient card displaying member identity, masked member ID,
- * AAdvantage® miles, and loyalty points with zero rectangular layout artifacts.
+ * Deep blue gradient card displaying member identity, masked student ID,
+ * campus merit points, and trust score with zero rectangular layout artifacts.
  */
 @Composable
 private fun MemberLoyaltyCard(
     memberName: String,
     memberIdMasked: String,
-    milesCount: String,
-    loyaltyPoints: String,
+    meritPoints: String,
+    trustScore: String,
     onCardClick: () -> Unit
 ) {
     Surface(
@@ -527,8 +770,8 @@ private fun MemberLoyaltyCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Aerodynamic Wing Emblem (Canvas drawing)
-                    AerodynamicWingEmblem(modifier = Modifier.size(36.dp))
+                    // Academic Honor Emblem (Canvas drawing)
+                    AcademicHonorEmblem(modifier = Modifier.size(36.dp))
 
                     Spacer(modifier = Modifier.width(14.dp))
 
@@ -544,7 +787,7 @@ private fun MemberLoyaltyCard(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "AAdvantage® member #",
+                                text = "Patriarch Student ID #",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = Color.White.copy(alpha = 0.85f)
@@ -583,48 +826,48 @@ private fun MemberLoyaltyCard(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Bottom Loyalty & Miles Stats
+                // Bottom Merit & Trust Stats
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Miles Row
+                    // Merit Points Row
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Outlined.Public,
-                            contentDescription = "Globe",
+                            imageVector = Icons.Outlined.Stars,
+                            contentDescription = "Campus Merit",
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "AAdvantage® miles: ",
+                            text = "Campus Merit Points: ",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
                             color = Color.White.copy(alpha = 0.9f)
                         )
                         Text(
-                            text = milesCount,
+                            text = meritPoints,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
 
-                    // Loyalty Points Row
+                    // Trust Score Row
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Outlined.Stars,
-                            contentDescription = "Loyalty Stars",
+                            imageVector = Icons.Outlined.Public,
+                            contentDescription = "Trust Score",
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Loyalty Points: ",
+                            text = "Trust Score: ",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
                             color = Color.White.copy(alpha = 0.9f)
                         )
                         Text(
-                            text = loyaltyPoints,
+                            text = trustScore,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -637,34 +880,36 @@ private fun MemberLoyaltyCard(
 }
 
 /**
- * Aerodynamic Wing Emblem:
- * Precision canvas vector representing the modern brand flight wing in soft sky blue.
+ * Academic Honor Emblem:
+ * Precision canvas vector representing the Patriarch scholar crest in sky blue with inner radiance.
  */
 @Composable
-private fun AerodynamicWingEmblem(modifier: Modifier = Modifier) {
+private fun AcademicHonorEmblem(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
 
-        val wingColor = Color(0xFF6BB9F8)
+        val crestColor = Color(0xFF6BB9F8)
         val path = Path().apply {
-            moveTo(w * 0.15f, h * 0.2f)
-            lineTo(w * 0.85f, h * 0.45f)
-            lineTo(w * 0.72f, h * 0.85f)
-            lineTo(w * 0.42f, h * 0.65f)
-            lineTo(w * 0.25f, h * 0.75f)
+            moveTo(w * 0.2f, h * 0.15f)
+            lineTo(w * 0.8f, h * 0.15f)
+            lineTo(w * 0.8f, h * 0.55f)
+            cubicTo(w * 0.8f, h * 0.8f, w * 0.5f, h * 0.95f, w * 0.5f, h * 0.95f)
+            cubicTo(w * 0.5f, h * 0.95f, w * 0.2f, h * 0.8f, w * 0.2f, h * 0.55f)
             close()
         }
-        drawPath(path = path, color = wingColor)
+        drawPath(path = path, color = crestColor)
 
-        // Accent streak
-        val streak = Path().apply {
-            moveTo(w * 0.2f, h * 0.45f)
-            lineTo(w * 0.7f, h * 0.6f)
-            lineTo(w * 0.55f, h * 0.8f)
+        // Inner crest accent highlight
+        val innerPath = Path().apply {
+            moveTo(w * 0.32f, h * 0.25f)
+            lineTo(w * 0.68f, h * 0.25f)
+            lineTo(w * 0.68f, h * 0.52f)
+            cubicTo(w * 0.68f, h * 0.72f, w * 0.5f, h * 0.82f, w * 0.5f, h * 0.82f)
+            cubicTo(w * 0.5f, h * 0.82f, w * 0.32f, h * 0.72f, w * 0.32f, h * 0.52f)
             close()
         }
-        drawPath(path = streak, color = Color.White.copy(alpha = 0.35f))
+        drawPath(path = innerPath, color = Color.White.copy(alpha = 0.3f))
     }
 }
 
@@ -678,23 +923,23 @@ private fun FeaturedStoriesCarousel(onStoryClick: (String) -> Unit) {
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Story Card 1: Celebrating Small Businesses / Student Founders
+        // Story Card 1: Celebrating Student Founders
         item {
             StoryCard(
                 imageRes = R.drawable.card_student_founder,
-                title = "Celebrating small businesses",
-                subtitle = "Earn 10,000 AAdvantage® bonus miles for your company. Register for free today",
-                onClick = { onStoryClick("Celebrating small businesses") }
+                title = "Celebrating student founders",
+                subtitle = "Earn 500 Patriarch Campus Merit Points for your project. Register your team today",
+                onClick = { onStoryClick("Celebrating student founders") }
             )
         }
 
-        // Story Card 2: International Journey & Study Abroad
+        // Story Card 2: Academic Research & Sprints
         item {
             StoryCard(
                 imageRes = R.drawable.card_campus_landmark,
-                title = "Start your next journey",
-                subtitle = "Earn 15,000 bonus miles with partner programs worldwide. Required enrollment open now.",
-                onClick = { onStoryClick("Start your next journey") }
+                title = "Academic Research & Sprints",
+                subtitle = "Earn verified honors and peer badges with campus labs worldwide. Registration open now.",
+                onClick = { onStoryClick("Academic Research & Sprints") }
             )
         }
 
@@ -1118,96 +1363,6 @@ private fun MicroGigCard(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
-            }
-        }
-    }
-}
-
-/**
- * AI Travel & Campus Exploration Dialog.
- */
-@Composable
-private fun AiDiscoveryDialog(
-    onDismiss: () -> Unit,
-    onSearch: (String) -> Unit
-) {
-    var query by remember { mutableStateOf("") }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(modifier = Modifier.padding(22.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = BrandBluePrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "AI Campus & Travel Discovery",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF111827)
-                        )
-                    }
-
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color(0xFF6B7280),
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { onDismiss() }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = "Ask for student exchange destinations, quiet study spots, or high-value campus gigs:",
-                    fontSize = 13.sp,
-                    color = Color(0xFF4B5563)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("e.g., Best student travel deals for Fall...", fontSize = 13.sp) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Button(
-                    onClick = {
-                        if (query.isNotBlank()) onSearch(query)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Explore with AI", fontWeight = FontWeight.Bold)
-                }
             }
         }
     }

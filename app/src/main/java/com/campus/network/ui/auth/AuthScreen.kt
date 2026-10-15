@@ -259,7 +259,7 @@ fun AuthScreen(
                         color = Color(0xFF0F172A)
                     )
                     Text(
-                        text = "Sign in to access your flight paths, perks and channels.",
+                        text = "Sign in to access your campus circle, flash meets, and channels.",
                         fontSize = 14.sp,
                         color = Color(0xFF64748B),
                         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
@@ -331,13 +331,13 @@ fun AuthScreen(
                         .navigationBarsPadding()
                 ) {
                     Text(
-                        text = "Join Patriarch Program",
+                        text = "Join Patriarch Network",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
                     )
                     Text(
-                        text = "Earn miles, track campus flights, and unlock priority boarding.",
+                        text = "Earn campus trust, discover live flash meets, and collaborate with peers.",
                         fontSize = 14.sp,
                         color = Color(0xFF64748B),
                         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)

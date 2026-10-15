@@ -186,7 +186,7 @@ fun MapTopControls(
 
 /**
  * Filter strip resting above the category dock:
- * "everyone ⌵" dropdown, "open now" status pill, and GPS re-center FAB.
+ * "everyone" dropdown, "open now" status pill, and GPS re-center FAB.
  */
 @Composable
 fun MapFilterRow(
@@ -207,7 +207,7 @@ fun MapFilterRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // 1. Audience Filter Dropdown ("everyone ⌵")
+            // 1. Audience Filter Dropdown ("everyone")
             Box {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
