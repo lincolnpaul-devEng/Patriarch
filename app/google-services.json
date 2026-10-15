@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "273384584177",
+    "project_id": "modified-silo-476908-b3",
+    "storage_bucket": "modified-silo-476908-b3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:273384584177:android:cb9c4fcbe7417528e38a50",
+        "android_client_info": {
+          "package_name": "com.unihub.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.campus.network.app-mergeDebugResources-83:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/7bd2120b533d2788c66f9a98af5244b4/transformed/appcompat-1.6.1/res/values-v16/values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    }
+                }
+            ]
+        }
+    ]
+}

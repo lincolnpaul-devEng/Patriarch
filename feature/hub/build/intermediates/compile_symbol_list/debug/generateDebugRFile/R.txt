@@ -1,0 +1,4 @@
+int drawable card_campus_landmark 0x0
+int drawable card_student_founder 0x0
+int drawable hero_campus_scenic 0x0
+int drawable ic_logo_transparent 0x0

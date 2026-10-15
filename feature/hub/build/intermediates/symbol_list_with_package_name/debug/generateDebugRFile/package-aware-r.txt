@@ -1,0 +1,5 @@
+com.campus.network.feature.hub
+drawable card_campus_landmark
+drawable card_student_founder
+drawable hero_campus_scenic
+drawable ic_logo_transparent
