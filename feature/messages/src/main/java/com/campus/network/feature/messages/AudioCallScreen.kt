@@ -136,7 +136,7 @@ fun AudioCallScreen(
                     )
                 }
 
-                // Peer Name & End-to-end Encrypted indicator
+                // Peer Name, Call Status & End-to-end Encrypted indicator
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -145,6 +145,17 @@ fun AudioCallScreen(
                         fontSize = 19.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = when (callState.status) {
+                            CallStatus.CALLING -> "Calling"
+                            CallStatus.RINGING -> "Ringing"
+                            CallStatus.CONNECTED -> formatCallDuration(callState.durationSeconds)
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (callState.status == CallStatus.CONNECTED) BrandGreen else Color(0xCCFFFFFF)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(
@@ -161,17 +172,6 @@ fun AudioCallScreen(
                             text = "End-to-end encrypted",
                             fontSize = 12.sp,
                             color = Color(0xB3FFFFFF)
-                        )
-                    }
-
-                    if (callState.durationSeconds > 0) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = formatCallDuration(callState.durationSeconds),
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Medium,
-                            color = BrandGreen
                         )
                     }
                 }

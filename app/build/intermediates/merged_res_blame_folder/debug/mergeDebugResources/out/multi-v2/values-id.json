@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-83:/values-id/values-id.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-id/values-id.xml",
             "map": [
                 {
                     "source": "/home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/res/values-id/values-id.xml",

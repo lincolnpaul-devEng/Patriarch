@@ -14,7 +14,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MessagesViewModel(
-    private val streamChatEngine: StreamChatEngine? = null
+    private val streamChatEngine: StreamChatEngine? = null,
+    private val telecomCallManager: CampusTelecomCallManager? = null
 ) : ViewModel() {
 
     private var callTimerJob: Job? = null
@@ -409,7 +410,9 @@ class MessagesViewModel(
             is MessagesEvent.ToggleSpeaker -> {
                 _uiState.update { state ->
                     state.callState?.let { call ->
-                        state.copy(callState = call.copy(isSpeakerOn = !call.isSpeakerOn))
+                        val nextSpeaker = !call.isSpeakerOn
+                        telecomCallManager?.setSpeakerOn(nextSpeaker)
+                        state.copy(callState = call.copy(isSpeakerOn = nextSpeaker))
                     } ?: state
                 }
             }
@@ -426,6 +429,15 @@ class MessagesViewModel(
                 _uiState.update { state ->
                     state.callState?.let { call ->
                         state.copy(callState = call.copy(isFrontCamera = !call.isFrontCamera))
+                    } ?: state
+                }
+            }
+
+            is MessagesEvent.AcceptCall -> {
+                telecomCallManager?.setCallConnected()
+                _uiState.update { state ->
+                    state.callState?.let { call ->
+                        state.copy(callState = call.copy(status = CallStatus.CONNECTED))
                     } ?: state
                 }
             }
@@ -505,16 +517,19 @@ class MessagesViewModel(
 
     private fun startCall(thread: ConversationThread, type: CallType) {
         callTimerJob?.cancel()
+        val initialStatus = if (thread.isOnline) CallStatus.RINGING else CallStatus.CALLING
         val newCallState = CallUiState(
             peerName = thread.peerName,
             peerHandle = thread.peerHandle,
             peerInitials = thread.avatarInitials,
             callType = type,
+            status = initialStatus,
             durationSeconds = 0,
             isMuted = false,
             isSpeakerOn = true,
             isVideoEnabled = (type == CallType.VIDEO),
-            isFrontCamera = true
+            isFrontCamera = true,
+            isPeerOnline = thread.isOnline
         )
 
         val nextMode = if (type == CallType.AUDIO) {
@@ -530,12 +545,28 @@ class MessagesViewModel(
             )
         }
 
+        telecomCallManager?.startOutgoingCall(
+            peerName = thread.peerName,
+            peerHandle = thread.peerHandle,
+            isVideo = (type == CallType.VIDEO),
+            onDisconnectBySystem = {
+                stopCall()
+            }
+        )
+
         callTimerJob = viewModelScope.launch {
+            // The call remains in CALLING (offline peer) or RINGING (online peer)
+            // until the remote participant accepts (MessagesEvent.AcceptCall / remote signaling).
+            // Duration timer increments strictly while in CONNECTED status.
             while (true) {
                 delay(1000L)
                 _uiState.update { state ->
                     state.callState?.let { call ->
-                        state.copy(callState = call.copy(durationSeconds = call.durationSeconds + 1))
+                        if (call.status == CallStatus.CONNECTED) {
+                            state.copy(callState = call.copy(durationSeconds = call.durationSeconds + 1))
+                        } else {
+                            state
+                        }
                     } ?: state
                 }
             }
@@ -543,6 +574,7 @@ class MessagesViewModel(
     }
 
     private fun stopCall() {
+        telecomCallManager?.endCall()
         callTimerJob?.cancel()
         callTimerJob = null
         _uiState.update {
@@ -555,6 +587,7 @@ class MessagesViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        telecomCallManager?.endCall()
         callTimerJob?.cancel()
     }
 }

@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-83:/values-en-rGB/values-en-rGB.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-en-rGB/values-en-rGB.xml",
             "map": [
                 {
                     "source": "/home/lincoln/.gradle/caches/transforms-4/bc817a90541543329d589717e8e8d290/transformed/material-1.9.0/res/values-en-rGB/values-en-rGB.xml",

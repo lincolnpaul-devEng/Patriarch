@@ -4,6 +4,7 @@ drawable avatar_andrew
 drawable avatar_clin
 drawable avatar_eliza
 drawable avatar_junebog
+drawable avatar_lincoln
 drawable avatar_me
 drawable banner_welcome_perk
 drawable cat_bars
@@ -52,6 +53,18 @@ drawable pin_steak
 drawable place_photo_1
 drawable place_photo_2
 drawable place_photo_3
+drawable server_ai_brain
+drawable server_avatar2
+drawable server_codesistency
+drawable server_curly
+drawable server_dragon
+drawable server_eureka
+drawable server_gradient
+drawable server_home_cluster
+drawable server_logo2
+drawable server_nvidia
+drawable server_owl
+drawable server_w_red
 drawable student_andrew
 drawable student_clin
 drawable student_eliza

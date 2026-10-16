@@ -1,11 +1,20 @@
 package com.campus.network.feature.messages
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.view.ViewGroup
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,18 +26,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
-import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.Icon
@@ -36,19 +51,28 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import com.campus.network.core.ui.theme.AlertRed
-import com.campus.network.core.ui.theme.BrandBlueAction
 import com.campus.network.core.ui.theme.BrandBlueMid
 import com.campus.network.core.ui.theme.BrandBluePrimary
 import com.campus.network.core.ui.theme.BrandGreen
@@ -60,349 +84,306 @@ fun VideoCallScreen(
     onEvent: (MessagesEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "VideoCallAmbient")
-
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 0.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "PulseAlpha"
-    )
-
-    val gradientOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "GradientShift"
-    )
+    // When connected, user can tap PiP to swap who is fullscreen vs in the floating PiP window.
+    // Default when connected: remote caller is fullscreen, local camera is in PiP (isLocalFullscreen = false).
+    // While CALLING or RINGING: local camera preview fills the entire screen, and PiP is completely hidden.
+    var isLocalFullscreen by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF030712))
+            .background(Color.Black)
     ) {
-        // 1. Full-screen Remote Participant Video Stream Viewport
-        Box(
+        // 1. Fullscreen Media Viewport
+        val showLocalInFullscreen = (callState.status != CallStatus.CONNECTED) || isLocalFullscreen
+
+        if (showLocalInFullscreen) {
+            CameraPreviewSurface(
+                isFrontCamera = callState.isFrontCamera,
+                isVideoEnabled = callState.isVideoEnabled,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            RemoteParticipantSurface(
+                callState = callState,
+                isPip = false,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // 2. Picture-in-Picture (PiP) Window
+        // Strictly displayed ONLY after the other caller accepts the call (CallStatus.CONNECTED)
+        AnimatedVisibility(
+            visible = callState.status == CallStatus.CONNECTED,
+            enter = fadeIn() + slideInHorizontally(),
+            exit = fadeOut() + slideOutHorizontally(),
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF1E3A5F).copy(alpha = 0.85f + 0.15f * gradientOffset),
-                            Color(0xFF0F172A),
-                            Color(0xFF020617)
-                        )
-                    )
-                )
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(top = 70.dp, start = 16.dp)
         ) {
-            // Simulated Camera Video Content Overlay
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(110.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(BrandBluePrimary, BrandBlueMid)
-                            )
-                        )
-                        .border(3.dp, Color(0x66FFFFFF), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = callState.peerInitials,
-                        fontSize = 38.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextWhite
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = callState.peerName,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextWhite
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Live Stream Video • 60 FPS HD",
-                    fontSize = 12.sp,
-                    color = Color(0xCCFFFFFF)
-                )
-            }
-
-            // Remote Participant Tag (Bottom Left of Video)
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0x990F172A),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1E293B),
+                shadowElevation = 10.dp,
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0x66FFFFFF)),
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 20.dp, bottom = 120.dp)
+                    .size(width = 105.dp, height = 150.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable {
+                        isLocalFullscreen = !isLocalFullscreen
+                    }
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(BrandGreen)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "${callState.peerName} (Remote)",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextWhite
-                    )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (isLocalFullscreen) {
+                        // Remote is in PiP
+                        RemoteParticipantSurface(
+                            callState = callState,
+                            isPip = true,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0x99000000),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 6.dp)
+                        ) {
+                            Text(
+                                text = callState.peerName,
+                                fontSize = 9.sp,
+                                color = TextWhite,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        // Local Camera is in PiP
+                        CameraPreviewSurface(
+                            isFrontCamera = callState.isFrontCamera,
+                            isVideoEnabled = callState.isVideoEnabled,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0x99000000),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 6.dp)
+                        ) {
+                            Text(
+                                text = "You",
+                                fontSize = 9.sp,
+                                color = TextWhite,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // 2. Floating Local Participant Preview (Picture-in-Picture)
+        // 3. Top Left: Minimize / Return
         Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 80.dp, end = 16.dp)
-                .size(width = 110.dp, height = 150.dp)
-                .shadow(12.dp, RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    if (callState.isVideoEnabled) {
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF2563EB), Color(0xFF1E3A8A))
-                        )
-                    } else {
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF1F2937), Color(0xFF111827))
-                        )
-                    }
-                )
-                .border(2.dp, BrandBlueAction, RoundedCornerShape(16.dp))
-                .clickable { onEvent(MessagesEvent.FlipCamera) }
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(top = 16.dp, start = 16.dp)
         ) {
-            if (callState.isVideoEnabled) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Cameraswitch,
-                            contentDescription = "Flip Camera",
-                            tint = TextWhite,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x33FFFFFF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "YOU",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextWhite
-                        )
-                    }
-
-                    Text(
-                        text = if (callState.isFrontCamera) "Front Cam" else "Rear Cam",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextWhite
-                    )
-                }
-            } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.VideocamOff,
-                            contentDescription = "Camera Off",
-                            tint = Color(0x99FFFFFF),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Cam Off",
-                            fontSize = 10.sp,
-                            color = Color(0x99FFFFFF)
-                        )
-                    }
-                }
+            IconButton(
+                onClick = { onEvent(MessagesEvent.EndCall) },
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x80181F26))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Minimize Call",
+                    tint = TextWhite,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
 
-        // 3. Top Bar Overlay (Call Header)
-        Box(
+        // 4. Top Center: Peer Name + Call Status / Duration
+        Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xE6000000), Color.Transparent)
+                .statusBarsPadding()
+                .padding(top = 16.dp, start = 68.dp, end = 68.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = callState.peerName,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextWhite,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                style = TextStyle(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.75f),
+                        blurRadius = 8f
                     )
                 )
-                .padding(horizontal = 20.dp, vertical = 24.dp)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = when (callState.status) {
+                    CallStatus.CALLING -> "Calling"
+                    CallStatus.RINGING -> "Ringing"
+                    CallStatus.CONNECTED -> formatCallDuration(callState.durationSeconds)
+                },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color(0xEEFFFFFF),
+                style = TextStyle(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.75f),
+                        blurRadius = 8f
+                    )
+                )
+            )
+        }
+
+        // 5. Top Right: Vertical action buttons (Add Participant + Camera Switch)
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 16.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            IconButton(
+                onClick = { /* Add participant */ },
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xB3181F26))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PersonAdd,
+                    contentDescription = "Add Participant",
+                    tint = TextWhite,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { onEvent(MessagesEvent.FlipCamera) },
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xB3181F26))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Cameraswitch,
+                    contentDescription = "Flip Camera",
+                    tint = TextWhite,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+
+        // 6. Bottom Dock: WhatsApp Floating Pill Capsule
+        Surface(
+            shape = RoundedCornerShape(36.dp),
+            color = Color(0xF0181F26),
+            shadowElevation = 12.dp,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .fillMaxWidth()
+                .height(72.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // More options (...)
                 IconButton(
-                    onClick = { onEvent(MessagesEvent.EndCall) },
+                    onClick = { /* More in-call options */ },
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(46.dp)
                         .clip(CircleShape)
                         .background(Color(0x33FFFFFF))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Minimize",
+                        imageVector = Icons.Default.MoreHoriz,
+                        contentDescription = "More Options",
                         tint = TextWhite,
                         modifier = Modifier.size(24.dp)
                     )
                 }
 
-                // Live Duration Badge
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0x80000000)
+                // Speaker (Solid white circle when on, dark when off)
+                IconButton(
+                    onClick = { onEvent(MessagesEvent.ToggleSpeaker) },
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(if (callState.isSpeakerOn) Color.White else Color(0x33FFFFFF))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FiberManualRecord,
-                            contentDescription = "Recording Indicator",
-                            tint = AlertRed.copy(alpha = pulseAlpha),
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "HD ${formatCallDuration(callState.durationSeconds)}",
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TextWhite
-                        )
-                    }
+                    Icon(
+                        imageVector = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                        contentDescription = "Speaker",
+                        tint = if (callState.isSpeakerOn) Color(0xFF181F26) else TextWhite,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
 
-                // Quick Camera Flip Button
+                // Video toggle
                 IconButton(
-                    onClick = { onEvent(MessagesEvent.FlipCamera) },
+                    onClick = { onEvent(MessagesEvent.ToggleVideo) },
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(if (callState.isVideoEnabled) Color(0x33FFFFFF) else AlertRed.copy(alpha = 0.85f))
+                ) {
+                    Icon(
+                        imageVector = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                        contentDescription = "Toggle Video",
+                        tint = TextWhite,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Mic toggle
+                IconButton(
+                    onClick = { onEvent(MessagesEvent.ToggleMute) },
+                    modifier = Modifier
+                        .size(46.dp)
                         .clip(CircleShape)
                         .background(Color(0x33FFFFFF))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Cameraswitch,
-                        contentDescription = "Flip Camera",
+                        imageVector = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                        contentDescription = "Toggle Microphone",
                         tint = TextWhite,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-            }
-        }
 
-        // 4. Bottom Floating Control Dock (Stream Video ControlActions style)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color(0xE6000000))
-                    )
-                )
-                .padding(horizontal = 20.dp, vertical = 24.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(32.dp),
-                color = Color(0xCC1E293B),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
+                // Red Call End Button
+                IconButton(
+                    onClick = { onEvent(MessagesEvent.EndCall) },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(50.dp)
+                        .clip(CircleShape)
+                        .background(AlertRed)
                 ) {
-                    // Flip Camera
-                    VideoDockButton(
-                        icon = Icons.Default.Cameraswitch,
-                        label = "Flip",
-                        isActive = false,
-                        onClick = { onEvent(MessagesEvent.FlipCamera) }
+                    Icon(
+                        imageVector = Icons.Default.CallEnd,
+                        contentDescription = "End Call",
+                        tint = TextWhite,
+                        modifier = Modifier.size(26.dp)
                     )
-
-                    // Video Toggle
-                    VideoDockButton(
-                        icon = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                        label = if (callState.isVideoEnabled) "Cam On" else "Cam Off",
-                        isActive = !callState.isVideoEnabled,
-                        onClick = { onEvent(MessagesEvent.ToggleVideo) }
-                    )
-
-                    // Mic Toggle
-                    VideoDockButton(
-                        icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                        label = if (callState.isMuted) "Unmute" else "Mute",
-                        isActive = callState.isMuted,
-                        onClick = { onEvent(MessagesEvent.ToggleMute) }
-                    )
-
-                    // End Call
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(AlertRed)
-                            .clickable { onEvent(MessagesEvent.EndCall) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CallEnd,
-                            contentDescription = "End Video Call",
-                            tint = TextWhite,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
                 }
             }
         }
@@ -410,35 +391,248 @@ fun VideoCallScreen(
 }
 
 @Composable
-private fun VideoDockButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    isActive: Boolean,
-    onClick: () -> Unit
+fun CameraPreviewSurface(
+    isFrontCamera: Boolean,
+    isVideoEnabled: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        onDispose {
+            try {
+                val cameraProvider = ProcessCameraProvider.getInstance(context).get()
+                cameraProvider.unbindAll()
+            } catch (_: Exception) {}
+        }
+    }
+
+    if (!isVideoEnabled) {
         Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(if (isActive) AlertRed.copy(alpha = 0.8f) else Color(0x33FFFFFF)),
+            modifier = modifier.background(Color(0xFF101722)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = TextWhite,
-                modifier = Modifier.size(22.dp)
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.VideocamOff,
+                    contentDescription = "Camera Off",
+                    tint = Color(0x66FFFFFF),
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Camera Off",
+                    fontSize = 11.sp,
+                    color = Color(0x99FFFFFF)
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            color = TextWhite
+    } else if (!hasCameraPermission) {
+        Box(
+            modifier = modifier.background(Color(0xFF101722)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Videocam,
+                    contentDescription = "Camera Permission",
+                    tint = Color(0x66FFFFFF),
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Camera permission required",
+                    fontSize = 11.sp,
+                    color = Color(0x99FFFFFF)
+                )
+            }
+        }
+    } else {
+        AndroidView(
+            modifier = modifier,
+            factory = { ctx ->
+                val previewView = PreviewView(ctx).apply {
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+                bindCamera(ctx, lifecycleOwner, previewView, isFrontCamera)
+                previewView
+            },
+            update = { previewView ->
+                bindCamera(previewView.context, lifecycleOwner, previewView, isFrontCamera)
+            }
         )
+    }
+}
+
+private fun bindCamera(
+    context: Context,
+    lifecycleOwner: LifecycleOwner,
+    previewView: PreviewView,
+    isFrontCamera: Boolean
+) {
+    val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+    cameraProviderFuture.addListener({
+        try {
+            val cameraProvider = cameraProviderFuture.get()
+            val cameraSelector = if (isFrontCamera) {
+                if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
+            } else {
+                if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                }
+            }
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+            cameraProvider.unbindAll()
+            cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+        } catch (_: Exception) {}
+    }, ContextCompat.getMainExecutor(context))
+}
+
+@Composable
+private fun RemoteParticipantSurface(
+    callState: CallUiState,
+    isPip: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.background(
+            Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFF1E2D44),
+                    Color(0xFF0F172A),
+                    Color(0xFF030712)
+                )
+            )
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(if (isPip) 4.dp else 24.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(if (isPip) 48.dp else 110.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(BrandBluePrimary, BrandBlueMid)
+                        )
+                    )
+                    .border(2.dp, Color(0x66FFFFFF), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (callState.peerInitials.isNotBlank()) {
+                    Text(
+                        text = callState.peerInitials,
+                        fontSize = if (isPip) 18.sp else 40.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextWhite
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = callState.peerName,
+                        tint = TextWhite,
+                        modifier = Modifier.size(if (isPip) 24.dp else 60.dp)
+                    )
+                }
+            }
+
+            if (!isPip) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = callState.peerName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextWhite
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0x40000000)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(BrandGreen)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Live Stream HD • 60 FPS",
+                            fontSize = 11.sp,
+                            color = Color(0xCCFFFFFF)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (!isPip) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0x80000000),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = 110.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(BrandGreen)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${callState.peerName} (Remote)",
+                        fontSize = 11.sp,
+                        color = TextWhite
+                    )
+                }
+            }
+        }
     }
 }

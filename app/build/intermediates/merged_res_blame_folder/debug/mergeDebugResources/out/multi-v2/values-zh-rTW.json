@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-83:/values-zh-rTW/values-zh-rTW.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-zh-rTW/values-zh-rTW.xml",
             "map": [
                 {
                     "source": "/home/lincoln/.gradle/caches/transforms-4/183757ddceebe8ac037554b05c2d6045/transformed/material3-release/res/values-zh-rTW/values-zh-rTW.xml",

@@ -46,4 +46,16 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.core)
+
+    // CameraX for Live Video Call Preview
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
+    implementation("com.google.guava:guava:31.1-android")
+
+    // Android Core-Telecom for Self-Managed VoIP Calls
+    implementation("androidx.core:core-telecom:1.0.0-alpha03")
+
+    testImplementation("junit:junit:4.13.2")
 }

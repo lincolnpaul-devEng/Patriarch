@@ -122,7 +122,7 @@ fun DirectChatScreen(
     var isVoiceRecordingActive by remember { mutableStateOf(false) }
 
     var inputText by remember { mutableStateOf("") }
-    var draftAttachment by remember { mutableStateOf<Int?>(com.campus.network.core.ui.R.drawable.place_photo_1) }
+    var draftAttachment by remember { mutableStateOf<Int?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 

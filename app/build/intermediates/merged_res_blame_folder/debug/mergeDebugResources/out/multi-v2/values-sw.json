@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-83:/values-sw/values-sw.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-sw/values-sw.xml",
             "map": [
                 {
                     "source": "/home/lincoln/.gradle/caches/transforms-4/1a8a3ddcb0239ee7206c18207a7e7ab6/transformed/foundation-release/res/values-sw/values-sw.xml",

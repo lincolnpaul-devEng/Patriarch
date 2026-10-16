@@ -17,8 +17,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
+import com.campus.network.feature.messages.CampusTelecomCallManager
 import com.campus.network.feature.messages.MessagesScreenMode
 import com.campus.network.feature.messages.MessagesViewModel
 import com.campus.network.ui.navigation.CampusBottomNavBar
@@ -30,11 +33,21 @@ fun MainAppScreen(
     database: CampusDatabase,
     streamChatEngine: StreamChatEngine?
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val messagesViewModel = remember { MessagesViewModel(streamChatEngine) }
+    val telecomCallManager = remember(context) {
+        CampusTelecomCallManager(context, coroutineScope)
+    }
+    val messagesViewModel = remember(streamChatEngine) {
+        MessagesViewModel(
+            streamChatEngine = streamChatEngine,
+            telecomCallManager = telecomCallManager
+        )
+    }
     val messagesUiState by messagesViewModel.uiState.collectAsStateWithLifecycle()
 
     // Following standard messaging app practice (WhatsApp, iMessage, Telegram):

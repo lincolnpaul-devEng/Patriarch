@@ -51,6 +51,7 @@ data class InDemandCompany(
 
 enum class ChannelViewMode {
     CHANNELS_HUB,
+    CHANNEL_CHAT,
     DISCOVER_CAROUSEL,
     STUDENT_PROFILE
 }

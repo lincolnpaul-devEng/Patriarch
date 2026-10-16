@@ -56,7 +56,7 @@ sealed class Screen(
 
     data object Channels : Screen(
         route = "tab_channels",
-        title = "Channels",
+        title = "Servers",
         icon = Icons.Default.Forum
     )
 

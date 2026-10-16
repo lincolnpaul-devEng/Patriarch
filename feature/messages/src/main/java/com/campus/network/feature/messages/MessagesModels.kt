@@ -53,16 +53,24 @@ enum class CallType {
     VIDEO
 }
 
+enum class CallStatus(val label: String) {
+    CALLING("Calling"),
+    RINGING("Ringing"),
+    CONNECTED("Connected")
+}
+
 data class CallUiState(
     val peerName: String,
     val peerHandle: String,
     val peerInitials: String,
     val callType: CallType,
+    val status: CallStatus = CallStatus.CALLING,
     val durationSeconds: Int = 0,
     val isMuted: Boolean = false,
     val isSpeakerOn: Boolean = true,
     val isVideoEnabled: Boolean = true,
     val isFrontCamera: Boolean = true,
+    val isPeerOnline: Boolean = true,
     val connectionQuality: String = "HD 1080p • 60 FPS",
     val connectionState: String = "Connected • Stream WebRTC"
 )
@@ -98,6 +106,7 @@ sealed interface MessagesEvent {
     object ToggleSpeaker : MessagesEvent
     object ToggleVideo : MessagesEvent
     object FlipCamera : MessagesEvent
+    object AcceptCall : MessagesEvent
     object OpenNewChat : MessagesEvent
     object OpenAddNote : MessagesEvent
     object OpenBroadcast : MessagesEvent

@@ -319,62 +319,64 @@ fun OnboardingTransitionScreen(
         label = "CloudDrift"
     )
 
-    // Sequence Choreography strictly matching the 8 reference frames
+    // Sequence Choreography strictly matching the 8 reference frames (>= 8 seconds duration)
     LaunchedEffect(Unit) {
-        // --- Frames 0 & 1: Initial State (0ms to 1200ms) ---
-        // Clean sky, intact "PATRIARCH" balloon typography floats with initial satellites, no text.
-        delay(1200)
+        // --- Frames 0 & 1: Initial Ambient State (0ms to 2400ms = 2.4s) ---
+        // Clean sky, intact "PATRIARCH" balloon typography floats with initial satellites, captivating the viewer
+        delay(2400)
 
-        // --- Frame 2: Ingress & Loading Label Appears (1200ms to 2000ms) ---
+        // --- Frame 2: Ingress & Loading Label Appears (2400ms to 4000ms = 1.6s) ---
         loadingText = "loading your new map"
         launch {
             textAlpha.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
             )
         }
         cascadeProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = 1400, easing = FastOutSlowInEasing)
         )
 
-        // --- Frame 3: Dot Progression (2000ms to 2600ms) ---
+        // --- Frame 3: Dot Progression (4000ms to 4900ms = 0.9s) ---
         loadingText = "loading your new map."
-        delay(600)
+        delay(900)
 
-        // --- Frame 4: Clumping & Final Ellipsis (2600ms to 3700ms) ---
+        // --- Frame 4: Clumping & Final Ellipsis (4900ms to 6600ms = 1.7s) ---
+        loadingText = "loading your new map.."
+        delay(600)
         loadingText = "loading your new map..."
         clusterProgress.animateTo(
             targetValue = 1f,
             animationSpec = tween(durationMillis = 1100, easing = FastOutSlowInEasing)
         )
 
-        // --- Frame 5: Upward Pull-Up & Text Dissolve (3700ms to 4200ms) ---
-        loadingText = "loading your new map.."
+        // --- Frame 5: Upward Pull-Up & Text Dissolve (6600ms to 7200ms = 0.6s) ---
         launch {
             textAlpha.animateTo(
                 targetValue = 0f,
-                animationSpec = tween(durationMillis = 280, easing = FastOutLinearInEasing)
+                animationSpec = tween(durationMillis = 400, easing = FastOutLinearInEasing)
             )
         }
+        delay(400)
 
-        // --- Frame 6: Rocket Ascending Exit (4200ms to 4900ms) ---
+        // --- Frame 6: Rocket Ascending Exit (7000ms to 8000ms = 1.0s) ---
         launch {
             launchTranslationY.animateTo(
-                targetValue = -1900f,
-                animationSpec = tween(durationMillis = 800, easing = FastOutLinearInEasing)
+                targetValue = -2200f,
+                animationSpec = tween(durationMillis = 1000, easing = FastOutLinearInEasing)
             )
         }
 
-        // --- Frame 7: Clouds Surge Upward to Close Over Clear Sky (4500ms to 5500ms) ---
-        delay(250)
+        // --- Frame 7: Clouds Surge Upward to Close Over Clear Sky (7400ms to 8800ms = 1.4s) ---
+        delay(400)
         cloudClosingProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 950, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = 1400, easing = FastOutSlowInEasing)
         )
 
-        // Scene fully closed with soft photographic cloud bank - transition to next screen
-        delay(150)
+        // Scene fully closed with soft photographic volumetric cloud banks - hold momentarily
+        delay(300)
         onTransitionComplete()
     }
 
@@ -419,7 +421,7 @@ fun OnboardingTransitionScreen(
             Image(
                 painter = painterResource(R.drawable.cloud_cumulus_drift),
                 contentDescription = null,
-                contentScale = ContentScale.FillBounds,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .offset {
                         IntOffset(wrappedX.roundToInt(), posY.roundToInt())
@@ -542,19 +544,26 @@ fun OnboardingTransitionScreen(
             val progress = cloudClosingProgress.value
             val ease = FastOutSlowInEasing.transform(progress)
 
-            // Cloud bank surges upward from bottom-right (Frame 7)
-            val bankOffsetY = (screenHeightPx * 0.90f) * (1f - ease) - (screenHeightPx * 0.15f * ease)
-            val bankOffsetX = (screenWidthPx * 0.40f) * (1f - ease) - (screenWidthPx * 0.10f * ease)
-            val bankScale = 1.15f + (ease * 0.50f)
-            val bankAlpha = (ease * 1.4f).coerceIn(0f, 1f)
+            // Primary volumetric cloud bank surges upward from bottom-right (Frame 7)
+            // Preserves natural 1:1 aspect ratio with ContentScale.Crop (strictly eliminates vertical stretch)
+            val bankOffsetY = (screenHeightPx * 0.95f) * (1f - ease) - (screenHeightPx * 0.12f * ease)
+            val bankOffsetX = (screenWidthPx * 0.25f) * (1f - ease) - (screenWidthPx * 0.10f * ease)
+            val bankScale = 1.0f + (ease * 0.25f)
+            val bankAlpha = (ease * 1.5f).coerceIn(0f, 1f)
 
+            // Secondary volumetric cloud layer surges from bottom-left for realistic multi-layer atmospheric depth
+            val frontOffsetY = (screenHeightPx * 1.10f) * (1f - ease) + (screenHeightPx * 0.05f * ease)
+            val frontOffsetX = (-screenWidthPx * 0.30f) * (1f - ease) + (screenWidthPx * 0.05f * ease)
+            val frontScale = 0.95f + (ease * 0.35f)
+            val frontAlpha = (ease * 1.3f).coerceIn(0f, 0.95f)
+
+            // Background volumetric cloud bank (strictly ContentScale.Crop to maintain natural cumulus billows)
             Image(
                 painter = painterResource(R.drawable.cloud_bank_closing),
                 contentDescription = null,
-                contentScale = ContentScale.FillBounds,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .fillMaxWidth(1.8f)
-                    .height(maxHeight * 1.4f)
+                    .fillMaxSize()
                     .offset {
                         IntOffset(bankOffsetX.roundToInt(), bankOffsetY.roundToInt())
                     }
@@ -564,6 +573,25 @@ fun OnboardingTransitionScreen(
                         alpha = bankAlpha
                     }
                     .zIndex(10f)
+            )
+
+            // Foreground volumetric cumulus layer (adds authentic photographic depth and soft wisps)
+            Image(
+                painter = painterResource(R.drawable.cloud_cumulus_drift),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth(1.4f)
+                    .height(maxHeight * 0.85f)
+                    .offset {
+                        IntOffset(frontOffsetX.roundToInt(), frontOffsetY.roundToInt())
+                    }
+                    .graphicsLayer {
+                        scaleX = frontScale
+                        scaleY = frontScale
+                        alpha = frontAlpha
+                    }
+                    .zIndex(11f)
             )
         }
     }

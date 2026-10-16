@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.campus.network.feature.messages.audio.OnDeviceTranscriberTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-16T05:33:47" hostname="kali" time="0.081">
+  <properties/>
+  <testcase name="testWaveformAmplitudeCalculations" classname="com.campus.network.feature.messages.audio.OnDeviceTranscriberTest" time="0.007"/>
+  <testcase name="testTranscriptionStatesInstantiation" classname="com.campus.network.feature.messages.audio.OnDeviceTranscriberTest" time="0.008"/>
+  <testcase name="testAudioRmsNormalizationFormula" classname="com.campus.network.feature.messages.audio.OnDeviceTranscriberTest" time="0.012"/>
+  <testcase name="testZeroEmojiInErrorMessages" classname="com.campus.network.feature.messages.audio.OnDeviceTranscriberTest" time="0.05"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

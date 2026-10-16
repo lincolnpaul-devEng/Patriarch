@@ -2,6 +2,7 @@ package com.campus.network.feature.channels
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -17,10 +18,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,14 +33,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +61,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -95,6 +110,8 @@ private val SectionDividerBg = SurfaceSubtle
 fun ChannelsScreen(
     viewModel: ChannelsViewModel,
     onNavigateToChannelChat: (String) -> Unit = {},
+    onNavigateToMessages: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -128,27 +145,12 @@ fun ChannelsScreen(
         ) { mode ->
             when (mode) {
                 ChannelViewMode.CHANNELS_HUB -> {
-                    ChannelsHubContent(
+                    DiscordServersHubContent(
                         uiState = uiState,
                         viewModel = viewModel,
-                        onBackClick = onBackClick,
-                        onOpenDiscovery = { course ->
-                            viewModel.onEvent(ChannelsEvent.OpenDiscovery(course))
-                        },
-                        onCourseClick = { course ->
-                            viewModel.onEvent(ChannelsEvent.SelectCourse(course))
-                            onNavigateToChannelChat(course.id)
-                        },
-                        onCustomFilterClick = {
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Filtering registered courses for your engineering track")
-                            }
-                        },
-                        onCompanyClick = { company ->
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Opening recruitment pipeline for ${company.name}")
-                            }
-                        }
+                        onNavigateToChannelChat = onNavigateToChannelChat,
+                        onNavigateToMessages = onNavigateToMessages,
+                        onProfileClick = onNavigateToProfile
                     )
                 }
 
@@ -197,6 +199,656 @@ fun ChannelsScreen(
                 .navigationBarsPadding()
                 .padding(bottom = 80.dp)
         )
+    }
+}
+
+/**
+ * Pixel-Perfect Discord Servers Screen matching the reference mobile layout:
+ * - 72dp Left Server Rail with honeycomb Home icon, server squircle icons, active pill indicators, and red badges
+ * - Pure White Channels Panel with rounded top-start corner (20dp), verified header, search, and channel list
+ * - Floating circular steel-blue drawer button (<<) at vertical center right
+ * - Floating bottom profile bar with Lincoln Paul avatar, online status, and notification bell
+ * ZERO EMOJI POLICY strictly enforced (using Vector Icons for lightning bolt, badges, etc.)
+ */
+@Composable
+private fun DiscordServersHubContent(
+    uiState: ChannelsUiState,
+    viewModel: ChannelsViewModel,
+    onNavigateToChannelChat: (String) -> Unit,
+    onNavigateToMessages: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val currentServer = uiState.selectedServer ?: uiState.servers.firstOrNull()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFE3E5E8))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // LEFT RAIL (Server Column - Width 72.dp)
+            ServerRail(
+                servers = uiState.servers,
+                selectedServerId = uiState.selectedServerId,
+                onNavigateToMessages = onNavigateToMessages,
+                onSelectServer = { serverId ->
+                    viewModel.onEvent(ChannelsEvent.SelectServer(serverId))
+                },
+                onAddServer = {
+                    viewModel.onEvent(ChannelsEvent.AddServerClick)
+                },
+                modifier = Modifier
+                    .width(72.dp)
+                    .fillMaxHeight()
+            )
+
+            // RIGHT MAIN PANEL (White rounded panel)
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                shape = RoundedCornerShape(topStart = 20.dp),
+                color = Color.White
+            ) {
+                if (currentServer != null) {
+                    ServerDetailsPanel(
+                        server = currentServer,
+                        selectedChannelId = uiState.selectedChannelId,
+                        onChannelClick = { channel ->
+                            viewModel.onEvent(ChannelsEvent.SelectChannel(channel.id))
+                            onNavigateToChannelChat(channel.id)
+                        },
+                        onSearchQueryChange = { query ->
+                            viewModel.onEvent(ChannelsEvent.SearchChannels(query))
+                        },
+                        onInviteClick = {
+                            viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                        }
+                    )
+                }
+            }
+        }
+
+        // FLOATING DRAWER COLLAPSE BUTTON (Right edge, vertically centered)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 6.dp)
+                .size(52.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Outer subtle blue halo
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(Color(0x33003B68))
+            )
+            // Inner navy blue button
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF003B68))
+                    .clickable {
+                        viewModel.onEvent(ChannelsEvent.ToggleRail)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy((-6).dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronLeft,
+                        contentDescription = "Collapse drawer",
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ChevronLeft,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+        }
+
+        // FLOATING USER PROFILE BAR (Bottom centered)
+        UserProfileFloatingBar(
+            name = uiState.activeUserName,
+            status = uiState.activeUserStatus,
+            unreadCount = uiState.activeUserUnreadCount,
+            onProfileClick = onProfileClick,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun ServerRail(
+    servers: List<ServerItem>,
+    selectedServerId: String,
+    onNavigateToMessages: () -> Unit,
+    onSelectServer: (String) -> Unit,
+    onAddServer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .background(Color(0xFFE3E5E8))
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Top DM / Messages Chat Icon (Matching reference image)
+        Box(
+            modifier = Modifier
+                .padding(vertical = 4.dp)
+                .size(48.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFFD1D5DB))
+                .clickable(onClick = onNavigateToMessages),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.ChatBubble,
+                contentDescription = "Direct Messages",
+                tint = Color(0xFF1E1F22),
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        // Gray divider
+        Box(
+            modifier = Modifier
+                .padding(vertical = 6.dp)
+                .width(32.dp)
+                .height(2.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(Color(0xFFD1D5DB))
+        )
+
+        // Scrollable Server List
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            contentPadding = PaddingValues(bottom = 80.dp)
+        ) {
+            items(servers, key = { it.id }) { server ->
+                val isSelected = server.id == selectedServerId
+                val cornerRadius by animateDpAsState(
+                    targetValue = if (isSelected) 16.dp else 24.dp,
+                    label = "ServerCornerRadius"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Left edge indicator pill
+                    val indicatorHeight by animateDpAsState(
+                        targetValue = when {
+                            isSelected -> 36.dp
+                            server.hasUnread -> 8.dp
+                            else -> 0.dp
+                        },
+                        label = "IndicatorHeight"
+                    )
+
+                    if (indicatorHeight > 0.dp) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .width(4.dp)
+                                .height(indicatorHeight)
+                                .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                                .background(Color(0xFF1E1F22))
+                        )
+                    }
+
+                    // Server Icon Box with Red Badge
+                    Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(getServerDrawableRes(server.iconResName)),
+                            contentDescription = server.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(cornerRadius))
+                                .clickable { onSelectServer(server.id) }
+                        )
+
+                        // Red mention badge at bottom right
+                        if (server.badgeCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .offset(x = 5.dp, y = 3.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFDA373C))
+                                    .border(2.dp, Color(0xFFE3E5E8), RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                            ) {
+                                Text(
+                                    text = "${server.badgeCount}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bottom Add Server Button '+'
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEBEDEF))
+                        .clickable(onClick = onAddServer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add a server",
+                        tint = Color(0xFF23A55A),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerDetailsPanel(
+    server: ServerItem,
+    selectedChannelId: String,
+    onChannelClick: (ServerChannelItem) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onInviteClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // 1. Top Header: Title, Verified Badge, Chevron, Subtitle
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = server.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF060607),
+                    letterSpacing = (-0.3).sp
+                )
+
+                if (server.isVerified) {
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF060607)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Verified,
+                            contentDescription = "Verified Server",
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF747F8D),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = "${server.memberCountText} \u2022 ${server.categoryText}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF5C6470)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 2. Search Bar + Add Person Button Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Search Bar
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF2F3F5))
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF5C6470),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = {
+                                searchQuery = it
+                                onSearchQueryChange(it)
+                            },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 14.sp,
+                                color = Color(0xFF1E1F22),
+                                fontWeight = FontWeight.Normal
+                            ),
+                            decorationBox = { innerTextField ->
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Search",
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF747F8D)
+                                    )
+                                }
+                                innerTextField()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // Add Member / Invite Button
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 38.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF2F3F5))
+                        .clickable(onClick = onInviteClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = "Invite Members",
+                        tint = Color(0xFF4E5058),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(
+            thickness = 0.8.dp,
+            color = Color(0xFFF2F3F5)
+        )
+
+        // 3. Channels List
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
+        ) {
+            items(server.channels, key = { it.id }) { channel ->
+                val isCurrentSelected = channel.id == selectedChannelId || channel.isSelected
+                val isProminent = channel.isUnread || isCurrentSelected
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onChannelClick(channel) }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Chat Bubble Icon
+                    Icon(
+                        imageVector = Icons.Default.ChatBubble,
+                        contentDescription = null,
+                        tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
+                        modifier = Modifier.size(18.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    // Channel Name
+                    Text(
+                        text = channel.name,
+                        fontSize = 15.sp,
+                        fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    // Badges or Vector Icons (ZERO EMOJI POLICY)
+                    if (channel.badgeText != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFDA373C))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = channel.badgeText,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    if (channel.hasBoltIcon) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = "Special",
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserProfileFloatingBar(
+    name: String,
+    status: String,
+    unreadCount: Int,
+    onProfileClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .height(60.dp)
+            .clickable(onClick = onProfileClick),
+        shape = RoundedCornerShape(26.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE3E5E8)),
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // User Avatar with Online Dot
+            Box(
+                modifier = Modifier.size(42.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(com.campus.network.core.ui.R.drawable.avatar_lincoln),
+                    contentDescription = name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+
+                // Green online status dot
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF23A55A))
+                        .border(2.dp, Color.White, CircleShape)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // User Name and Status
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = name,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E1F22)
+                    )
+
+                    // Status Pill with Mascot & OvO (matching reference image)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFE9EBEE))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF7A4A28),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "OvO",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1E1F22)
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = Color(0xFF5C6470),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Text(
+                    text = status,
+                    fontSize = 12.sp,
+                    color = Color(0xFF5C6470)
+                )
+            }
+
+            // Bell Notification Icon with Badge
+            Box(
+                modifier = Modifier.size(36.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Notifications",
+                    tint = Color(0xFF4E5058),
+                    modifier = Modifier.size(22.dp)
+                )
+
+                if (unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 3.dp, y = (-2).dp)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFDA373C)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "$unreadCount",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun getServerDrawableRes(name: String): Int {
+    return when (name) {
+        "server_home_cluster" -> com.campus.network.core.ui.R.drawable.server_home_cluster
+        "server_codesistency" -> com.campus.network.core.ui.R.drawable.server_codesistency
+        "server_avatar2" -> com.campus.network.core.ui.R.drawable.server_avatar2
+        "server_w_red" -> com.campus.network.core.ui.R.drawable.server_w_red
+        "server_gradient" -> com.campus.network.core.ui.R.drawable.server_gradient
+        "server_ai_brain" -> com.campus.network.core.ui.R.drawable.server_ai_brain
+        "server_logo2" -> com.campus.network.core.ui.R.drawable.server_logo2
+        "server_dragon" -> com.campus.network.core.ui.R.drawable.server_dragon
+        "server_curly" -> com.campus.network.core.ui.R.drawable.server_curly
+        "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
+        "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
+        "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
+        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
+        else -> com.campus.network.core.ui.R.drawable.server_codesistency
     }
 }
 

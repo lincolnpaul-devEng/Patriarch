@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -48,6 +49,9 @@ class OnDeviceTranscriber(
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
+    private var isDedicatedOnDevice: Boolean = false
+    private var hasFallenBackToStandard: Boolean = false
+    private var lastLanguage: Locale = Locale.getDefault()
 
     private val _state = MutableStateFlow<TranscriptionState>(TranscriptionState.Idle)
     val state: StateFlow<TranscriptionState> = _state.asStateFlow()
@@ -63,11 +67,15 @@ class OnDeviceTranscriber(
      * On Android 12+ (API 31+), [SpeechRecognizer.isOnDeviceRecognitionAvailable] is queried directly.
      */
     fun isOnDeviceSupported(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-        } else {
-            SpeechRecognizer.isRecognitionAvailable(context)
-        }
+    }
+
+    /**
+     * Verifies if any speech recognition service is available on this system.
+     */
+    fun isRecognitionAvailable(): Boolean {
+        return SpeechRecognizer.isRecognitionAvailable(context) || isOnDeviceSupported()
     }
 
     /**
@@ -87,6 +95,9 @@ class OnDeviceTranscriber(
      */
     fun startListening(language: Locale = Locale.getDefault()) {
         mainHandler.post {
+            lastLanguage = language
+            hasFallenBackToStandard = false
+
             if (!hasRecordPermission()) {
                 val errorMsg = "Microphone permission is required for voice transcription. Please grant permission in Settings."
                 Log.w(TAG, errorMsg)
@@ -94,8 +105,8 @@ class OnDeviceTranscriber(
                 return@post
             }
 
-            if (!isOnDeviceSupported()) {
-                val fallbackMsg = "On-device speech recognition is not supported natively or language packs are missing. Please update or download Google Voice Access / Language packs in Device Settings."
+            if (!isRecognitionAvailable()) {
+                val fallbackMsg = "Speech recognition service is not available on this device. Please install or enable Speech Services by Google in Settings."
                 Log.w(TAG, fallbackMsg)
                 _state.value = TranscriptionState.Error(fallbackMsg)
                 return@post
@@ -106,39 +117,87 @@ class OnDeviceTranscriber(
             // Clean up any lingering session
             destroyRecognizer()
 
-            // Instantiate engine: on API 31+, prefer createOnDeviceSpeechRecognizer for guaranteed local execution
-            val recognizer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-            ) {
-                Log.d(TAG, "Creating dedicated on-device SpeechRecognizer instance.")
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-            } else {
-                Log.d(TAG, "Creating standard SpeechRecognizer instance with offline preference flag.")
-                SpeechRecognizer.createSpeechRecognizer(context)
+            // Configure audio mode via AudioManager (backed by MODIFY_AUDIO_SETTINGS)
+            try {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                audioManager?.mode = AudioManager.MODE_NORMAL
+            } catch (e: Exception) {
+                Log.w(TAG, "Unable to configure audio manager mode: ${e.message}")
+            }
+
+            var recognizer: SpeechRecognizer? = null
+            isDedicatedOnDevice = false
+
+            // 1. Prioritize dedicated on-device SpeechRecognizer on API 31+ if supported
+            if (isOnDeviceSupported()) {
+                try {
+                    Log.d(TAG, "Creating dedicated on-device SpeechRecognizer instance.")
+                    recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                    isDedicatedOnDevice = true
+                } catch (e: Throwable) {
+                    Log.w(TAG, "createOnDeviceSpeechRecognizer failed: ${e.message}. Falling back to standard recognizer.")
+                    recognizer = null
+                }
+            }
+
+            // 2. Fall back to standard SpeechRecognizer
+            if (recognizer == null) {
+                try {
+                    Log.d(TAG, "Creating standard SpeechRecognizer instance with offline preference.")
+                    recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Failed to instantiate SpeechRecognizer: ${e.message}", e)
+                }
+            }
+
+            if (recognizer == null) {
+                val errorMsg = "Unable to start SpeechRecognizer. Please ensure Google Speech Services are active on your device."
+                Log.e(TAG, errorMsg)
+                _state.value = TranscriptionState.Error(errorMsg)
+                return@post
             }
 
             speechRecognizer = recognizer
             recognizer.setRecognitionListener(TranscriptionRecognitionListener())
 
-            // Build speech intent with strict offline preference flag
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                // Free-form speech model optimized for standard conversational voice notes
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                )
-                // Request live partial transcription results for immediate responsive UI feedback
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                // Explicitly demand on-device local recognition without routing audio streams off-device
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                // Specify transcription language
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.toLanguageTag())
-                // Maximum candidates: 1 for highest confidence local result
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            val intent = createSpeechIntent(language, preferOffline = isDedicatedOnDevice)
+            Log.i(TAG, "Starting speech listening session (Language: ${language.toLanguageTag()}, Package: ${context.packageName}, onDevice: $isDedicatedOnDevice).")
+            try {
+                recognizer.startListening(intent)
+            } catch (e: Throwable) {
+                Log.e(TAG, "startListening failed: ${e.message}", e)
+                _state.value = TranscriptionState.Error("Failed to initiate voice recording: ${e.message}")
             }
+        }
+    }
 
-            Log.i(TAG, "Starting on-device speech listening session (Language: ${language.toLanguageTag()}).")
+    private fun createSpeechIntent(language: Locale, preferOffline: Boolean): Intent {
+        return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+            if (preferOffline) {
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            }
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, language.toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+    }
+
+    private fun startStandardFallback(language: Locale) {
+        destroyRecognizer()
+        isDedicatedOnDevice = false
+        try {
+            val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            speechRecognizer = recognizer
+            recognizer.setRecognitionListener(TranscriptionRecognitionListener())
+            val intent = createSpeechIntent(language, preferOffline = false)
+            Log.i(TAG, "Starting fallback standard speech recognition session.")
             recognizer.startListening(intent)
+        } catch (e: Throwable) {
+            Log.e(TAG, "startStandardFallback failed: ${e.message}", e)
+            _state.value = TranscriptionState.Error("Fallback speech recognition failed: ${e.message}")
         }
     }
 
@@ -222,7 +281,19 @@ class OnDeviceTranscriber(
         override fun onError(errorCode: Int) {
             val domainMessage = mapSpeechErrorCode(errorCode)
             Log.e(TAG, "onError: SpeechRecognizer code $errorCode -> $domainMessage")
+
+            if (isDedicatedOnDevice && !hasFallenBackToStandard && (errorCode == SpeechRecognizer.ERROR_CLIENT || errorCode == 11 || errorCode == 12 || errorCode == 13 || errorCode == 14)) {
+                Log.w(TAG, "Dedicated on-device engine encountered error $errorCode ($domainMessage). Seamlessly falling back to standard SpeechRecognizer.")
+                hasFallenBackToStandard = true
+                mainHandler.post {
+                    startStandardFallback(lastLanguage)
+                }
+                return
+            }
+
             _state.value = TranscriptionState.Error(domainMessage, errorCode)
+            _isSpeechDetected.value = false
+            _audioRms.value = 0f
         }
 
         override fun onResults(results: Bundle?) {

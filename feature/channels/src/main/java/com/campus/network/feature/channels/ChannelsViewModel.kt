@@ -15,8 +15,70 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+data class ServerChannelItem(
+    val id: String,
+    val name: String,
+    val isUnread: Boolean = false,
+    val badgeText: String? = null,
+    val hasBoltIcon: Boolean = false,
+    val isSelected: Boolean = false
+)
+
+data class ChannelMessageEmbed(
+    val provider: String = "GitHub",
+    val title: String,
+    val description: String,
+    val subCardTitle: String? = null,
+    val subCardDescription: String? = null,
+    val contributorsCount: Int = 2,
+    val issuesCount: Int = 0,
+    val starsCount: Int = 2,
+    val forksCount: Int = 1
+)
+
+data class ChannelMessage(
+    val id: String,
+    val authorName: String,
+    val authorAvatarRes: String? = null,
+    val authorColorHex: Long = 0xFF1E1F22,
+    val authorBadge: String? = null,
+    val timestamp: String,
+    val text: String,
+    val linkUrl: String? = null,
+    val embed: ChannelMessageEmbed? = null,
+    val replyTo: String? = null,
+    val reactionCount: Int = 0,
+    val isDateDivider: Boolean = false,
+    val dateDividerText: String? = null
+)
+
+data class ServerItem(
+    val id: String,
+    val name: String,
+    val memberCountText: String = "",
+    val categoryText: String = "Community",
+    val isVerified: Boolean = false,
+    val iconResName: String,
+    val badgeCount: Int = 0,
+    val hasUnread: Boolean = false,
+    val channels: List<ServerChannelItem> = emptyList()
+)
+
 data class ChannelsUiState(
     val viewMode: ChannelViewMode = ChannelViewMode.CHANNELS_HUB,
+    val servers: List<ServerItem> = emptyList(),
+    val selectedServerId: String = "srv_codesistency",
+    val selectedServer: ServerItem? = null,
+    val selectedChannelId: String = "ch_mern_github",
+    val isRailCollapsed: Boolean = false,
+    val activeUserName: String = "Lincoln Paul",
+    val activeUserStatus: String = "Online",
+    val activeUserUnreadCount: Int = 2,
+    val activeChatServer: ServerItem? = null,
+    val activeChatChannel: ServerChannelItem? = null,
+    val chatMessages: List<ChannelMessage> = emptyList(),
+    val isMediaDrawerOpen: Boolean = false,
+    val activeMediaTab: String = "Photos",
     val selectedFaculty: String = "Faculty of Engineering & Technology",
     val faculties: List<String> = listOf(
         "Faculty of Engineering & Technology",
@@ -38,6 +100,17 @@ data class ChannelsUiState(
 )
 
 sealed interface ChannelsEvent {
+    data class SelectServer(val serverId: String) : ChannelsEvent
+    data class SelectChannel(val channelId: String) : ChannelsEvent
+    data object ToggleRail : ChannelsEvent
+    data class SearchChannels(val query: String) : ChannelsEvent
+    data object AddServerClick : ChannelsEvent
+    data class OpenChannelChat(val channel: ServerChannelItem) : ChannelsEvent
+    data object CloseChannelChat : ChannelsEvent
+    data object ToggleMediaDrawer : ChannelsEvent
+    data class SelectMediaTab(val tabName: String) : ChannelsEvent
+    data class SendChannelMessage(val text: String) : ChannelsEvent
+    data class ToggleReaction(val messageId: String) : ChannelsEvent
     data class SelectFaculty(val facultyName: String) : ChannelsEvent
     data class SelectDepartment(val departmentName: String) : ChannelsEvent
     data object ToggleCoursesExpanded : ChannelsEvent
@@ -56,6 +129,14 @@ class ChannelsViewModel(
 ) : ViewModel() {
 
     private val _viewMode = MutableStateFlow(ChannelViewMode.CHANNELS_HUB)
+    private val _selectedServerId = MutableStateFlow("srv_codesistency")
+    private val _selectedChannelId = MutableStateFlow("ch_mern_github")
+    private val _isRailCollapsed = MutableStateFlow(false)
+    private val _serverSearchQuery = MutableStateFlow("")
+    private val _activeChatChannel = MutableStateFlow<ServerChannelItem?>(null)
+    private val _isMediaDrawerOpen = MutableStateFlow(false)
+    private val _activeMediaTab = MutableStateFlow("Photos")
+    private val _channelMessages = MutableStateFlow<Map<String, List<ChannelMessage>>>(emptyMap())
     private val _selectedFaculty = MutableStateFlow("Faculty of Engineering & Technology")
     private val _selectedDepartment = MutableStateFlow("All")
     private val _isCoursesExpanded = MutableStateFlow(false)
@@ -65,6 +146,218 @@ class ChannelsViewModel(
     private val _selectedStudentForProfile = MutableStateFlow<CourseMate?>(null)
     private val _likedStudentIds = MutableStateFlow<Set<String>>(emptySet())
     private val _feedbackMessage = MutableStateFlow<String?>(null)
+
+    // Master Servers & Channels Catalog (Matching Discord Layout & Campus Community)
+    private val codesistencyChannels = listOf(
+        ServerChannelItem(id = "ch_onlyfans_c", name = "onlyfans-c", isUnread = false, badgeText = "@ NEW"),
+        ServerChannelItem(id = "ch_redis_chat", name = "redis-chat-app", isUnread = false, hasBoltIcon = true),
+        ServerChannelItem(id = "ch_nextjs", name = "nextjs-course", isUnread = true),
+        ServerChannelItem(id = "ch_react_native_recipe", name = "react-native-recipe-app", isUnread = true),
+        ServerChannelItem(id = "ch_leetcode", name = "leetcode-clone", isUnread = true),
+        ServerChannelItem(id = "ch_threads", name = "threads-clone", isUnread = false),
+        ServerChannelItem(id = "ch_mern_github", name = "mern-github-app", isUnread = true, isSelected = true),
+        ServerChannelItem(id = "ch_instagram", name = "instagram-clone", isUnread = false),
+        ServerChannelItem(id = "ch_mern_chat", name = "mern-chat-app", isUnread = false),
+        ServerChannelItem(id = "ch_whatsapp", name = "whatsapp-clone", isUnread = false),
+        ServerChannelItem(id = "ch_graphql", name = "graphql-crash-course", isUnread = false),
+        ServerChannelItem(id = "ch_twitter", name = "twitter-clone", isUnread = false),
+        ServerChannelItem(id = "ch_pern_chat", name = "pern-chat-app", isUnread = false),
+        ServerChannelItem(id = "ch_go_react", name = "go-react-tutorial", isUnread = false),
+        ServerChannelItem(id = "ch_react_python", name = "react-python-tutorial", isUnread = true),
+        ServerChannelItem(id = "ch_study_app", name = "study-app-react-native", isUnread = false)
+    )
+
+    private val masterServersList = listOf(
+        ServerItem(
+            id = "srv_owl",
+            name = "Unciv",
+            memberCountText = "13,812 Members",
+            categoryText = "Community",
+            isVerified = true,
+            iconResName = "server_owl",
+            badgeCount = 50,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_unciv_role", name = "role-subscriptions", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_spam", name = "spam-ban", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_announcements", name = "announcements", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_github", name = "github", isUnread = true),
+                ServerChannelItem(id = "ch_unciv_devs", name = "developers", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_polls", name = "polls", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_pollchat", name = "poll-chat", isUnread = true, isSelected = true),
+                ServerChannelItem(id = "ch_unciv_bugs", name = "bugs", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_bugs_disc", name = "bugs-discussion", isUnread = true),
+                ServerChannelItem(id = "ch_unciv_suggestions", name = "suggestions", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_art", name = "game-art", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_music", name = "game-music", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_ios", name = "ios-development", isUnread = false),
+                ServerChannelItem(id = "ch_unciv_data", name = "data-gathering", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_honeycomb",
+            name = "Campus Hub & Guilds",
+            memberCountText = "8,420 Members",
+            categoryText = "Campus Life",
+            isVerified = true,
+            iconResName = "server_home_cluster",
+            badgeCount = 0,
+            hasUnread = false,
+            channels = listOf(
+                ServerChannelItem(id = "ch_hub_general", name = "campus-general", isUnread = true),
+                ServerChannelItem(id = "ch_hub_clubs", name = "student-clubs", isUnread = false),
+                ServerChannelItem(id = "ch_hub_events", name = "weekend-events", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_codesistency",
+            name = "Codesistency",
+            memberCountText = "6,203 Members",
+            categoryText = "Community",
+            isVerified = true,
+            iconResName = "server_codesistency",
+            badgeCount = 139,
+            hasUnread = false,
+            channels = codesistencyChannels
+        ),
+        ServerItem(
+            id = "srv_avatar2",
+            name = "Nairobi Tech Guild",
+            memberCountText = "3,410 Members",
+            categoryText = "Technology",
+            isVerified = true,
+            iconResName = "server_avatar2",
+            badgeCount = 40,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_ntg_general", name = "general-chat", isUnread = true),
+                ServerChannelItem(id = "ch_ntg_web", name = "web-dev-kenya", isUnread = false),
+                ServerChannelItem(id = "ch_ntg_mobile", name = "android-kotlin-squad", isUnread = true),
+                ServerChannelItem(id = "ch_ntg_ai", name = "ai-builders", isUnread = false),
+                ServerChannelItem(id = "ch_ntg_jobs", name = "campus-gigs", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_w_red",
+            name = "Campus Founders Hub",
+            memberCountText = "1,890 Members",
+            categoryText = "Entrepreneurship",
+            isVerified = false,
+            iconResName = "server_w_red",
+            badgeCount = 0,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_fh_pitch", name = "pitch-deck-critique", isUnread = true),
+                ServerChannelItem(id = "ch_fh_cofounders", name = "find-a-cofounder", isUnread = false),
+                ServerChannelItem(id = "ch_fh_mvp", name = "mvp-showcase", isUnread = false),
+                ServerChannelItem(id = "ch_fh_funding", name = "grant-opportunities", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_gradient",
+            name = "AI & HCI Labs",
+            memberCountText = "4,120 Members",
+            categoryText = "Research",
+            isVerified = false,
+            iconResName = "server_gradient",
+            badgeCount = 0,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_hci_general", name = "lab-announcements", isUnread = true),
+                ServerChannelItem(id = "ch_hci_papers", name = "arxiv-weekly-reads", isUnread = false),
+                ServerChannelItem(id = "ch_hci_ux", name = "interaction-telemetry", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_ai_brain",
+            name = "Deep Learning Nairobi",
+            memberCountText = "2,560 Members",
+            categoryText = "AI Engineering",
+            isVerified = false,
+            iconResName = "server_ai_brain",
+            badgeCount = 41,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_dl_pytorch", name = "pytorch-sprints", isUnread = true),
+                ServerChannelItem(id = "ch_dl_models", name = "open-source-llms", isUnread = false),
+                ServerChannelItem(id = "ch_dl_hardware", name = "gpu-clusters", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_logo2",
+            name = "Open Source Collective",
+            memberCountText = "5,320 Members",
+            categoryText = "Software",
+            isVerified = true,
+            iconResName = "server_logo2",
+            badgeCount = 33,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_osc_contribute", name = "first-timers-welcome", isUnread = true),
+                ServerChannelItem(id = "ch_osc_bounties", name = "paid-bounties", isUnread = false),
+                ServerChannelItem(id = "ch_osc_reviews", name = "code-reviews", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_dragon",
+            name = "Gaming & Graphics Guild",
+            memberCountText = "980 Members",
+            categoryText = "Gaming",
+            isVerified = false,
+            iconResName = "server_dragon",
+            badgeCount = 17,
+            hasUnread = false,
+            channels = listOf(
+                ServerChannelItem(id = "ch_gg_unreal", name = "unreal-engine-5", isUnread = false),
+                ServerChannelItem(id = "ch_gg_shaders", name = "glsl-shaders", isUnread = false),
+                ServerChannelItem(id = "ch_gg_jams", name = "game-jam-lobby", isUnread = true)
+            )
+        ),
+        ServerItem(
+            id = "srv_curly",
+            name = "Full Stack Academy",
+            memberCountText = "7,810 Members",
+            categoryText = "Education",
+            isVerified = true,
+            iconResName = "server_curly",
+            badgeCount = 16,
+            hasUnread = false,
+            channels = listOf(
+                ServerChannelItem(id = "ch_fsa_frontend", name = "react-nextjs-hub", isUnread = false),
+                ServerChannelItem(id = "ch_fsa_backend", name = "go-microservices", isUnread = false),
+                ServerChannelItem(id = "ch_fsa_devops", name = "docker-k8s", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_eureka",
+            name = "Eureka Labs",
+            memberCountText = "12,450 Members",
+            categoryText = "AI Education",
+            isVerified = true,
+            iconResName = "server_eureka",
+            badgeCount = 0,
+            hasUnread = false,
+            channels = listOf(
+                ServerChannelItem(id = "ch_elk_lectures", name = "ai-curriculum", isUnread = false),
+                ServerChannelItem(id = "ch_elk_projects", name = "course-projects", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_nvidia",
+            name = "NVIDIA Campus Devs",
+            memberCountText = "15,800 Members",
+            categoryText = "Hardware & CUDA",
+            isVerified = true,
+            iconResName = "server_nvidia",
+            badgeCount = 0,
+            hasUnread = true,
+            channels = listOf(
+                ServerChannelItem(id = "ch_nvd_cuda", name = "cuda-c-sprints", isUnread = true),
+                ServerChannelItem(id = "ch_nvd_jetson", name = "jetson-robotics", isUnread = false),
+                ServerChannelItem(id = "ch_nvd_grants", name = "academic-grants", isUnread = false)
+            )
+        )
+    )
 
     // Master Course-Mates Catalog
     private val sampleCourseMates = listOf(
@@ -302,71 +595,307 @@ class ChannelsViewModel(
         )
     )
 
-    val uiState: StateFlow<ChannelsUiState> = combine(
-        _viewMode,
-        _selectedFaculty,
-        _selectedDepartment,
-        _isCoursesExpanded,
-        _searchQuery,
-        _selectedCourseForDiscovery,
-        _selectedStudentForProfile,
-        _likedStudentIds,
-        _feedbackMessage
-    ) { args: Array<Any?> ->
-        val viewMode = args[0] as ChannelViewMode
-        val faculty = args[1] as String
-        val department = args[2] as String
-        val isExpanded = args[3] as Boolean
-        val query = args[4] as String
-        val selectedCourse = args[5] as CareerCourse?
-        val selectedStudent = args[6] as CourseMate?
-        @Suppress("UNCHECKED_CAST")
-        val likedIds = args[7] as Set<String>
-        val feedback = args[8] as String?
+    init {
+        // Seed default chat messages matching the reference screenshot and community conversations
+        val uncivMusicMessages = listOf(
+            ChannelMessage(
+                id = "msg_1",
+                authorName = "RobLoach",
+                authorColorHex = 0xFF23A55A,
+                authorAvatarRes = "server_avatar2",
+                timestamp = "03/11/2026 3:48 PM",
+                text = "https://github.com/Kurwizimi/Civ-VII-Music-Pack",
+                linkUrl = "https://github.com/Kurwizimi/Civ-VII-Music-Pack",
+                embed = ChannelMessageEmbed(
+                    provider = "GitHub",
+                    title = "GitHub - Kurwizimi/Civ-VII-Music-Pack: This mod adds the Civ themes...",
+                    description = "This mod adds the Civ themes from Civ VII and puts them into UnCiv. Recommended to play with the 'Civ VII Nations' mod. - Kurwizimi/Civ-VII-Music-Pack",
+                    subCardTitle = "Kurwizimi/Civ-VII-Music-Pack",
+                    subCardDescription = "This mod adds the Civ themes from Civ VII and puts them into UnCiv. Recommended to play with the 'Civ...",
+                    contributorsCount = 2,
+                    issuesCount = 0,
+                    starsCount = 2,
+                    forksCount = 1
+                ),
+                reactionCount = 1
+            ),
+            ChannelMessage(
+                id = "msg_2",
+                authorName = "Deleted User",
+                authorColorHex = 0xFF1E1F22,
+                authorAvatarRes = "avatar_deleted_user",
+                timestamp = "03/11/2026 8:09 PM",
+                text = "I really like Civ V music pack."
+            ),
+            ChannelMessage(
+                id = "msg_div_1",
+                authorName = "",
+                timestamp = "",
+                text = "",
+                isDateDivider = true,
+                dateDividerText = "April 30, 2026"
+            ),
+            ChannelMessage(
+                id = "msg_3",
+                authorName = "Ath",
+                authorColorHex = 0xFF84CC16,
+                authorBadge = "TDS",
+                authorAvatarRes = "avatar_ath",
+                timestamp = "04/30/2026 4:30 PM",
+                text = "The less i know the better"
+            ),
+            ChannelMessage(
+                id = "msg_4",
+                authorName = "Deleted User",
+                authorColorHex = 0xFF1E1F22,
+                authorAvatarRes = "avatar_deleted_user",
+                timestamp = "04/30/2026 5:55 PM",
+                text = "How so?"
+            ),
+            ChannelMessage(
+                id = "msg_5",
+                authorName = "ReallyBasicName the ...",
+                authorColorHex = 0xFF0284C7,
+                authorAvatarRes = "server_dragon",
+                timestamp = "04/30/2026 6:00 PM",
+                replyTo = "Deleted User How so?",
+                text = "It's a song by Tame Impala."
+            ),
+            ChannelMessage(
+                id = "msg_6",
+                authorName = "Ath",
+                authorColorHex = 0xFF84CC16,
+                authorBadge = "TDS",
+                authorAvatarRes = "avatar_ath",
+                timestamp = "04/30/2026 6:33 PM",
+                text = "Let it happen\n\nMan in the mirror\n\nDracula\n\nBeat it\n\nShiawasenomonosashi"
+            )
+        )
 
+        _channelMessages.value = mapOf(
+            "ch_unciv_music" to uncivMusicMessages,
+            "ch_unciv_role" to listOf(
+                ChannelMessage(
+                    id = "msg_role_1",
+                    authorName = "Admin",
+                    authorColorHex = 0xFF23A55A,
+                    authorAvatarRes = "server_owl",
+                    timestamp = "Yesterday at 2:00 PM",
+                    text = "Welcome to Unciv community! Assign your mod and developer roles here."
+                )
+            ),
+            "ch_unciv_pollchat" to listOf(
+                ChannelMessage(
+                    id = "msg_poll_1",
+                    authorName = "Civ Modder",
+                    authorColorHex = 0xFF0284C7,
+                    authorAvatarRes = "server_avatar2",
+                    timestamp = "Today at 9:00 AM",
+                    text = "Poll results for sound effects pack are now open!"
+                )
+            ),
+            "ch_redis_chat" to listOf(
+                ChannelMessage(
+                    id = "msg_rc_1",
+                    authorName = "Lincoln Paul",
+                    authorColorHex = 0xFF003B68,
+                    authorAvatarRes = "avatar_lincoln",
+                    timestamp = "Today at 10:15 AM",
+                    text = "Redis Pub/Sub real-time socket stream integrated with campus cluster."
+                ),
+                ChannelMessage(
+                    id = "msg_rc_2",
+                    authorName = "Codesistency Admin",
+                    authorColorHex = 0xFF23A55A,
+                    authorAvatarRes = "server_codesistency",
+                    timestamp = "Today at 10:18 AM",
+                    text = "Telemetry benchmark shows sub-10ms response latencies across nodes."
+                )
+            ),
+            "ch_mern_github" to listOf(
+                ChannelMessage(
+                    id = "msg_mg_1",
+                    authorName = "Lincoln Paul",
+                    authorColorHex = 0xFF003B68,
+                    authorAvatarRes = "avatar_lincoln",
+                    timestamp = "Today at 11:00 AM",
+                    text = "Reviewing the pull request for GraphQL cursor pagination."
+                )
+            )
+        )
+    }
+
+    val uiState: StateFlow<ChannelsUiState> = combine(
+        combine(
+            _viewMode,
+            _selectedServerId,
+            _selectedChannelId,
+            _isRailCollapsed,
+            _serverSearchQuery
+        ) { vm, sId, cId, railCollapsed, sQuery ->
+            ServerStateSlice1(vm, sId, cId, railCollapsed, sQuery)
+        },
+        combine(
+            _activeChatChannel,
+            _isMediaDrawerOpen,
+            _activeMediaTab,
+            _channelMessages
+        ) { cChan, drawerOpen, mTab, cMsgs ->
+            ServerStateSlice2(cChan, drawerOpen, mTab, cMsgs)
+        },
+        combine(
+            _selectedFaculty,
+            _selectedDepartment,
+            _isCoursesExpanded,
+            _searchQuery
+        ) { fac, dept, exp, q ->
+            AcademicFilterSlice(fac, dept, exp, q)
+        },
+        combine(
+            _selectedCourseForDiscovery,
+            _selectedStudentForProfile,
+            _likedStudentIds,
+            _feedbackMessage
+        ) { cDisc, sProf, liked, fb ->
+            PeerSlice(cDisc, sProf, liked, fb)
+        }
+    ) { slice1, slice2, academicSlice, peerSlice ->
         val rawCourses = allEngineeringCourses
         val departments = listOf("All") + rawCourses.map { it.department }.distinct()
 
         val filteredCourses = rawCourses.filter { course ->
-            val matchesDept = department == "All" || course.department == department
-            val matchesQuery = query.isBlank() ||
-                    course.title.contains(query, ignoreCase = true) ||
-                    course.courseCode.contains(query, ignoreCase = true) ||
-                    course.department.contains(query, ignoreCase = true)
+            val matchesDept = academicSlice.department == "All" || course.department == academicSlice.department
+            val matchesQuery = academicSlice.query.isBlank() ||
+                    course.title.contains(academicSlice.query, ignoreCase = true) ||
+                    course.courseCode.contains(academicSlice.query, ignoreCase = true) ||
+                    course.department.contains(academicSlice.query, ignoreCase = true)
             matchesDept && matchesQuery
         }
 
-        val displayCourses = if (isExpanded || filteredCourses.size <= 3) {
+        val displayCourses = if (academicSlice.isExpanded || filteredCourses.size <= 3) {
             filteredCourses
         } else {
             filteredCourses.take(3)
         }
 
-        val discoverMates = selectedCourse?.enrolledMates ?: sampleCourseMates
+        val discoverMates = peerSlice.selectedCourse?.enrolledMates ?: sampleCourseMates
+
+        // Resolve current server & channels
+        val currentServer = masterServersList.find { it.id == slice1.selectedServerId }
+            ?: masterServersList.first()
+
+        val filteredChannels = currentServer.channels.filter { channel ->
+            slice1.serverSearchQuery.isBlank() ||
+                    channel.name.contains(slice1.serverSearchQuery, ignoreCase = true)
+        }.map { channel ->
+            channel.copy(isSelected = (channel.id == slice1.selectedChannelId))
+        }
+
+        val enrichedServer = currentServer.copy(channels = filteredChannels)
+
+        // Resolve active chat channel and its messages
+        val activeChannel = slice2.activeChatChannel ?: currentServer.channels.find { it.id == slice1.selectedChannelId }
+        val currentMessages = activeChannel?.let { slice2.channelMessages[it.id] } ?: emptyList()
 
         ChannelsUiState(
-            viewMode = viewMode,
-            selectedFaculty = faculty,
-            selectedDepartment = department,
+            viewMode = slice1.viewMode,
+            servers = masterServersList,
+            selectedServerId = slice1.selectedServerId,
+            selectedServer = enrichedServer,
+            selectedChannelId = slice1.selectedChannelId,
+            isRailCollapsed = slice1.isRailCollapsed,
+            activeUserName = "Lincoln Paul",
+            activeUserStatus = "Online",
+            activeUserUnreadCount = 2,
+            activeChatServer = currentServer,
+            activeChatChannel = activeChannel,
+            chatMessages = currentMessages,
+            isMediaDrawerOpen = slice2.isMediaDrawerOpen,
+            activeMediaTab = slice2.activeMediaTab,
+            selectedFaculty = academicSlice.faculty,
+            selectedDepartment = academicSlice.department,
             departments = departments,
             courses = displayCourses,
-            isCoursesExpanded = isExpanded,
+            isCoursesExpanded = academicSlice.isExpanded,
             companies = companiesList,
-            selectedCourseForDiscovery = selectedCourse,
-            selectedStudentForProfile = selectedStudent,
+            selectedCourseForDiscovery = peerSlice.selectedCourse,
+            selectedStudentForProfile = peerSlice.selectedStudent,
             discoverMates = discoverMates,
-            likedStudentIds = likedIds,
-            searchQuery = query,
-            feedbackMessage = feedback
+            likedStudentIds = peerSlice.likedIds,
+            searchQuery = academicSlice.query,
+            feedbackMessage = peerSlice.feedback
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = ChannelsUiState()
+        initialValue = ChannelsUiState(
+            servers = masterServersList,
+            selectedServer = masterServersList.first()
+        )
     )
 
     fun onEvent(event: ChannelsEvent) {
         when (event) {
+            is ChannelsEvent.SelectServer -> {
+                _selectedServerId.value = event.serverId
+                val server = masterServersList.find { it.id == event.serverId }
+                server?.channels?.firstOrNull()?.let {
+                    _selectedChannelId.value = it.id
+                }
+            }
+            is ChannelsEvent.SelectChannel -> {
+                _selectedChannelId.value = event.channelId
+            }
+            is ChannelsEvent.OpenChannelChat -> {
+                _activeChatChannel.value = event.channel
+                _selectedChannelId.value = event.channel.id
+                _isMediaDrawerOpen.value = false
+                _viewMode.value = ChannelViewMode.CHANNEL_CHAT
+            }
+            is ChannelsEvent.CloseChannelChat -> {
+                _viewMode.value = ChannelViewMode.CHANNELS_HUB
+                _isMediaDrawerOpen.value = false
+            }
+            is ChannelsEvent.ToggleMediaDrawer -> {
+                _isMediaDrawerOpen.value = !_isMediaDrawerOpen.value
+            }
+            is ChannelsEvent.SelectMediaTab -> {
+                _activeMediaTab.value = event.tabName
+            }
+            is ChannelsEvent.SendChannelMessage -> {
+                val activeChan = _activeChatChannel.value
+                    ?: masterServersList.find { it.id == _selectedServerId.value }?.channels?.find { it.id == _selectedChannelId.value }
+                    ?: return
+                val currentList = _channelMessages.value[activeChan.id] ?: emptyList()
+                val newMessage = ChannelMessage(
+                    id = "msg_${System.currentTimeMillis()}",
+                    authorName = "Lincoln Paul",
+                    authorColorHex = 0xFF003B68,
+                    authorAvatarRes = "avatar_lincoln",
+                    timestamp = "Today at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()),
+                    text = event.text
+                )
+                _channelMessages.value = _channelMessages.value + (activeChan.id to (currentList + newMessage))
+            }
+            is ChannelsEvent.ToggleReaction -> {
+                val activeChan = _activeChatChannel.value ?: return
+                val currentList = _channelMessages.value[activeChan.id] ?: emptyList()
+                val updated = currentList.map { msg ->
+                    if (msg.id == event.messageId) {
+                        msg.copy(reactionCount = if (msg.reactionCount > 0) msg.reactionCount - 1 else msg.reactionCount + 1)
+                    } else msg
+                }
+                _channelMessages.value = _channelMessages.value + (activeChan.id to updated)
+            }
+            is ChannelsEvent.ToggleRail -> {
+                _isRailCollapsed.value = !_isRailCollapsed.value
+            }
+            is ChannelsEvent.SearchChannels -> {
+                _serverSearchQuery.value = event.query
+            }
+            is ChannelsEvent.AddServerClick -> {
+                _feedbackMessage.value = "Create or join a campus server"
+            }
             is ChannelsEvent.SelectFaculty -> {
                 _selectedFaculty.value = event.facultyName
                 _selectedDepartment.value = "All"
@@ -407,6 +936,10 @@ class ChannelsViewModel(
             }
             is ChannelsEvent.BackToPreviousMode -> {
                 when (_viewMode.value) {
+                    ChannelViewMode.CHANNEL_CHAT -> {
+                        _viewMode.value = ChannelViewMode.CHANNELS_HUB
+                        _isMediaDrawerOpen.value = false
+                    }
                     ChannelViewMode.STUDENT_PROFILE -> {
                         _viewMode.value = ChannelViewMode.DISCOVER_CAROUSEL
                     }
@@ -433,3 +966,32 @@ class ChannelsViewModel(
         }
     }
 }
+
+private data class ServerStateSlice1(
+    val viewMode: ChannelViewMode,
+    val selectedServerId: String,
+    val selectedChannelId: String,
+    val isRailCollapsed: Boolean,
+    val serverSearchQuery: String
+)
+
+private data class ServerStateSlice2(
+    val activeChatChannel: ServerChannelItem?,
+    val isMediaDrawerOpen: Boolean,
+    val activeMediaTab: String,
+    val channelMessages: Map<String, List<ChannelMessage>>
+)
+
+private data class AcademicFilterSlice(
+    val faculty: String,
+    val department: String,
+    val isExpanded: Boolean,
+    val query: String
+)
+
+private data class PeerSlice(
+    val selectedCourse: CareerCourse?,
+    val selectedStudent: CourseMate?,
+    val likedIds: Set<String>,
+    val feedback: String?
+)

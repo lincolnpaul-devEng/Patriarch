@@ -117,12 +117,18 @@ fun CampusNavHost(
             MapScreen(viewModel = mapViewModel)
         }
 
-        // Tab 2: Channels (The Academic Workspace)
+        // Tab 2: Channels (The Academic Workspace / Servers)
         composable(route = Screen.Channels.route) {
             ChannelsScreen(
                 viewModel = channelsViewModel,
                 onNavigateToChannelChat = {
                     navController.navigate(Screen.Messages.route)
+                },
+                onNavigateToMessages = {
+                    navController.navigate(Screen.Messages.route)
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
                 }
             )
         }
