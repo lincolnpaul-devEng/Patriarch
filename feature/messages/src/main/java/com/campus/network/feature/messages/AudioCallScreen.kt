@@ -17,22 +17,28 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PresentToAll
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,44 +68,25 @@ fun AudioCallScreen(
     onEvent: (MessagesEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "AcousticWave")
+    val infiniteTransition = rememberInfiniteTransition(label = "AcousticPulse")
 
-    val wave1Scale by infiniteTransition.animateFloat(
+    val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.6f,
+        targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
+            animation = tween(2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "Wave1Scale"
+        label = "PulseScale"
     )
-    val wave1Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
         targetValue = 0.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
+            animation = tween(2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "Wave1Alpha"
-    )
-
-    val wave2Scale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, delayMillis = 400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Wave2Scale"
-    )
-    val wave2Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, delayMillis = 400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Wave2Alpha"
+        label = "PulseAlpha"
     )
 
     Box(
@@ -107,221 +95,221 @@ fun AudioCallScreen(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF060D17),
-                        Color(0xFF0F172A),
-                        Color(0xFF09111E)
+                        Color(0xFF070E18),
+                        Color(0xFF0E1726),
+                        Color(0xFF09111D)
                     )
                 )
             )
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top App Bar
+            // 1. Top Bar: Minimize (Left) | Peer Name & Encryption (Center) | Add Participant (Right)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 8.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = { onEvent(MessagesEvent.EndCall) },
+                // Minimize Button
+                Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .background(Color(0x33FFFFFF))
+                        .background(Color(0x26FFFFFF))
+                        .clickable { onEvent(MessagesEvent.EndCall) },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Collapse Call",
+                        imageVector = Icons.Default.CloseFullscreen,
+                        contentDescription = "Minimize Call",
                         tint = TextWhite,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0x26FFFFFF)
+                // Peer Name & End-to-end Encrypted indicator
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Text(
+                        text = callState.peerName,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextWhite
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Encrypted",
-                            tint = BrandGreen,
+                            tint = Color(0xB3FFFFFF),
                             modifier = Modifier.size(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "End-to-End Encrypted",
-                            fontSize = 11.sp,
+                            text = "End-to-end encrypted",
+                            fontSize = 12.sp,
+                            color = Color(0xB3FFFFFF)
+                        )
+                    }
+
+                    if (callState.durationSeconds > 0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = formatCallDuration(callState.durationSeconds),
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Medium,
-                            color = TextWhite
+                            color = BrandGreen
                         )
                     }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0x260284C7)
+                // Add Participant Button
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x26FFFFFF))
+                        .clickable { /* Add participant */ },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Opus HD",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandBlueAction,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = "Add Participant",
+                        tint = TextWhite,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            // Center: Concentric Acoustic Waves & Avatar
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            // 2. Center: Prominent Large Circular Avatar
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
+                // Subtle Ambient Wave Ring
                 Box(
-                    modifier = Modifier.size(260.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Outer Wave 1
-                    Box(
-                        modifier = Modifier
-                            .size(130.dp)
-                            .scale(wave1Scale)
-                            .clip(CircleShape)
-                            .background(BrandBlueAction.copy(alpha = wave1Alpha))
-                    )
+                    modifier = Modifier
+                        .size(240.dp)
+                        .scale(pulseScale)
+                        .clip(CircleShape)
+                        .background(BrandBlueAction.copy(alpha = pulseAlpha))
+                )
 
-                    // Outer Wave 2
-                    Box(
-                        modifier = Modifier
-                            .size(130.dp)
-                            .scale(wave2Scale)
-                            .clip(CircleShape)
-                            .background(BrandBlueMid.copy(alpha = wave2Alpha))
-                    )
-
-                    // Core Avatar
-                    Box(
-                        modifier = Modifier
-                            .size(130.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(BrandBluePrimary, BrandBlueMid)
+                // Large Primary Avatar Circle (Mirroring reference layout)
+                Box(
+                    modifier = Modifier
+                        .size(210.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF1E2D44),
+                                    Color(0xFF131D2E)
                                 )
                             )
-                            .border(3.dp, Color(0x4DFFFFFF), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                        )
+                        .border(3.dp, Color(0x3338BDF8), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (callState.peerInitials.isNotBlank()) {
                         Text(
                             text = callState.peerInitials,
-                            fontSize = 42.sp,
+                            fontSize = 68.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextWhite
                         )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = callState.peerName,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(110.dp)
+                        )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = callState.peerName,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextWhite
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = callState.peerHandle,
-                    fontSize = 13.sp,
-                    color = TextMuted
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Call Duration Counter
-                Text(
-                    text = formatCallDuration(callState.durationSeconds),
-                    fontSize = 18.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = TextWhite
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = callState.connectionState,
-                    fontSize = 11.sp,
-                    color = BrandGreen
-                )
             }
 
-            // Bottom Controls Bar (Stream OutgoingCallControls Layout)
+            // 3. Bottom Docked Card: 2x3 Control Grid
             Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = Color(0x331E293B),
+                shape = RoundedCornerShape(32.dp),
+                color = Color(0xFF101924),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x26FFFFFF)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp)
+                    .padding(bottom = 12.dp)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    // Mic Mute Toggle
-                    CallControlButton(
-                        icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                        label = if (callState.isMuted) "Unmute" else "Mute",
-                        isActive = callState.isMuted,
-                        onClick = { onEvent(MessagesEvent.ToggleMute) }
-                    )
-
-                    // Speakerphone Toggle
-                    CallControlButton(
-                        icon = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                        label = if (callState.isSpeakerOn) "Speaker" else "Earpiece",
-                        isActive = callState.isSpeakerOn,
-                        onClick = { onEvent(MessagesEvent.ToggleSpeaker) }
-                    )
-
-                    // Audio Route / Headset
-                    CallControlButton(
-                        icon = Icons.Default.Headphones,
-                        label = "Audio",
-                        isActive = false,
-                        onClick = { /* Switch route */ }
-                    )
-
-                    // End Call Button
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(AlertRed)
-                            .clickable { onEvent(MessagesEvent.EndCall) },
-                        contentAlignment = Alignment.Center
+                    // Row 1: Speaker | Video | Mute
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CallEnd,
-                            contentDescription = "End Call",
-                            tint = TextWhite,
-                            modifier = Modifier.size(28.dp)
+                        CallGridButton(
+                            icon = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                            label = "Speaker",
+                            isActive = callState.isSpeakerOn,
+                            onClick = { onEvent(MessagesEvent.ToggleSpeaker) }
+                        )
+
+                        CallGridButton(
+                            icon = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                            label = "Video",
+                            isActive = callState.isVideoEnabled,
+                            onClick = { onEvent(MessagesEvent.ToggleVideo) }
+                        )
+
+                        CallGridButton(
+                            icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            label = if (callState.isMuted) "Unmute" else "Mute",
+                            isActive = callState.isMuted,
+                            onClick = { onEvent(MessagesEvent.ToggleMute) }
+                        )
+                    }
+
+                    // Row 2: More | End | Share
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CallGridButton(
+                            icon = Icons.Default.MoreHoriz,
+                            label = "More",
+                            isActive = false,
+                            onClick = { /* Additional in-call options */ }
+                        )
+
+                        // Central Red End Call Button
+                        EndCallButton(
+                            onClick = { onEvent(MessagesEvent.EndCall) }
+                        )
+
+                        CallGridButton(
+                            icon = Icons.Default.PresentToAll,
+                            label = "Share",
+                            isActive = false,
+                            onClick = { /* Screen share or meeting link */ }
                         )
                     }
                 }
@@ -331,8 +319,8 @@ fun AudioCallScreen(
 }
 
 @Composable
-private fun CallControlButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun CallGridButton(
+    icon: ImageVector,
     label: String,
     isActive: Boolean,
     onClick: () -> Unit
@@ -343,22 +331,55 @@ private fun CallControlButton(
     ) {
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(60.dp)
                 .clip(CircleShape)
-                .background(if (isActive) BrandBlueAction else Color(0x26FFFFFF)),
+                .background(if (isActive) BrandBlueAction else Color(0xFF1E293B)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
                 tint = TextWhite,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(26.dp)
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextWhite
+        )
+    }
+}
+
+@Composable
+private fun EndCallButton(
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(AlertRed),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.CallEnd,
+                contentDescription = "End Call",
+                tint = TextWhite,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "End",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
             color = TextWhite
         )
     }

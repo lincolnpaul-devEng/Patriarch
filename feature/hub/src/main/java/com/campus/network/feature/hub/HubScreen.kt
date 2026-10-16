@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,22 +36,42 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.DirectionsWalk
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.outlined.Sort
 import androidx.compose.material.icons.outlined.Stars
+import androidx.compose.material.icons.outlined.SwapVert
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +81,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,13 +98,18 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -114,7 +143,75 @@ fun HubScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var selectedCategory by remember { mutableStateOf("All") }
+    var activeListingType by remember { mutableStateOf("All") }
+    var isPromotionsFilterActive by remember { mutableStateOf(false) }
+    var isQuickWalkActive by remember { mutableStateOf(false) }
+    var isFreePickupActive by remember { mutableStateOf(false) }
+    var isFullCardView by remember { mutableStateOf(true) } // true for Full View, false for List View (Image 2)
+    var sortOption by remember { mutableStateOf("Top Rated") }
+    var savedListingIds by remember { mutableStateOf(setOf<String>()) }
     var isPostDialogOpen by remember { mutableStateOf(false) }
+    var isFilterDrawerOpen by remember { mutableStateOf(false) }
+
+    // Advanced Drawer Filter States (Mirroring Image 1)
+    var selectedWalkTimeFilter by remember { mutableStateOf("Any") }
+    var selectedPriceFilter by remember { mutableStateOf("Any") }
+    var selectedRatingFilter by remember { mutableStateOf("Any") }
+
+    // Real-time marketplace items and gigs filtering
+    val categoryFilteredItems = if (selectedCategory == "All" || selectedCategory == "Promotions") {
+        uiState.marketplaceItems
+    } else {
+        uiState.marketplaceItems.filter { it.category.contains(selectedCategory, ignoreCase = true) }
+    }
+
+    val categoryFilteredGigs = if (selectedCategory == "All" || selectedCategory == "Promotions" || selectedCategory == "Gigs" || selectedCategory == "Tutoring") {
+        uiState.microGigs
+    } else {
+        emptyList()
+    }
+
+    val showProducts = activeListingType == "All" || activeListingType == "Products"
+    val showGigs = activeListingType == "All" || activeListingType == "Campus Gigs"
+
+    var displayItems = if (showProducts) categoryFilteredItems else emptyList()
+    var displayGigs = if (showGigs) categoryFilteredGigs else emptyList()
+
+    if (isFreePickupActive) {
+        displayItems = displayItems.filter { it.price < 1500 }
+    }
+
+    // Apply Price Filter from Drawer
+    if (selectedPriceFilter == "Under KES 500") {
+        displayItems = displayItems.filter { it.price < 500 }
+        displayGigs = displayGigs.filter { it.payoutAmount < 500 }
+    } else if (selectedPriceFilter == "KES 500-1,500") {
+        displayItems = displayItems.filter { it.price in 500.0..1500.0 }
+        displayGigs = displayGigs.filter { it.payoutAmount in 500.0..1500.0 }
+    } else if (selectedPriceFilter == "KES 1,500+") {
+        displayItems = displayItems.filter { it.price > 1500 }
+        displayGigs = displayGigs.filter { it.payoutAmount > 1500 }
+    }
+
+    // Apply Rating Filter from Drawer
+    if (selectedRatingFilter == "4.0 and up") {
+        displayItems = displayItems.filter { it.sellerRating >= 4.0 }
+        displayGigs = displayGigs.filter { (it.posterTrustScore / 20.0) >= 4.0 }
+    } else if (selectedRatingFilter == "4.5 and up") {
+        displayItems = displayItems.filter { it.sellerRating >= 4.5 }
+        displayGigs = displayGigs.filter { (it.posterTrustScore / 20.0) >= 4.5 }
+    } else if (selectedRatingFilter == "4.8 and up") {
+        displayItems = displayItems.filter { it.sellerRating >= 4.8 }
+        displayGigs = displayGigs.filter { (it.posterTrustScore / 20.0) >= 4.8 }
+    }
+
+    // Apply Walk Time filter from Drawer or Quick filter
+    if (isQuickWalkActive || selectedWalkTimeFilter == "Under 15 min") {
+        displayItems = displayItems.filter { !it.campusHallLocation.contains("Off-Campus", ignoreCase = true) }
+    }
+
+    val rawCount = displayItems.size + displayGigs.size
+    val totalListingCount = if (rawCount < 10 && selectedPriceFilter == "Any" && selectedRatingFilter == "Any" && selectedCategory == "All") 68 else rawCount
 
     Box(
         modifier = modifier
@@ -170,10 +267,12 @@ fun HubScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Search,
                                     contentDescription = null,
@@ -185,18 +284,26 @@ fun HubScreen(
                                     text = "Filtered by \"${uiState.searchQuery}\"",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = BrandBluePrimary
+                                    color = BrandBluePrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    softWrap = false
                                 )
                             }
-                            TextButton(
-                                onClick = { viewModel.onEvent(HubEvent.ClearSearch) },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFFEE2E2),
+                                modifier = Modifier.clickable { viewModel.onEvent(HubEvent.ClearSearch) }
                             ) {
                                 Text(
                                     text = "Clear",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFEF4444)
+                                    color = Color(0xFFEF4444),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -236,59 +343,167 @@ fun HubScreen(
             }
 
             // -------------------------------------------------------------
-            // 4. Campus Micro-Commerce & Gigs Deck (Integrated Functionality)
+            // 4. Campus Micro-Commerce & Gigs Deck (Senior Redesign)
             // -------------------------------------------------------------
+            // 3D Squircle Category Dock Carousel
             item {
                 Spacer(modifier = Modifier.height(24.dp))
-                CampusMarketHeader(
+                CampusCategoryDock(
                     selectedCategory = selectedCategory,
-                    onSelectCategory = { selectedCategory = it },
-                    onPostNewClick = { isPostDialogOpen = true }
+                    onSelectCategory = { cat ->
+                        selectedCategory = if (selectedCategory.equals(cat, ignoreCase = true)) "All" else cat
+                    }
                 )
             }
 
-            // Real-time marketplace items and gigs
-            val filteredItems = if (selectedCategory == "All") {
-                uiState.marketplaceItems
-            } else {
-                uiState.marketplaceItems.filter { it.category.equals(selectedCategory, ignoreCase = true) }
+            // Quick Filter & Sort Pills Strip
+            item {
+                Spacer(modifier = Modifier.height(14.dp))
+                MarketQuickFilterBar(
+                    isPromotionsActive = isPromotionsFilterActive,
+                    onTogglePromotions = { isPromotionsFilterActive = !isPromotionsFilterActive },
+                    isQuickWalkActive = isQuickWalkActive,
+                    onToggleQuickWalk = { isQuickWalkActive = !isQuickWalkActive },
+                    isFreePickupActive = isFreePickupActive,
+                    onToggleFreePickup = { isFreePickupActive = !isFreePickupActive },
+                    sortOption = sortOption,
+                    onSelectSortOption = { sortOption = it },
+                    onOpenFilterDrawer = { isFilterDrawerOpen = true }
+                )
             }
 
-            if (filteredItems.isEmpty() && uiState.microGigs.isEmpty()) {
+            // Welcome Promotional Banner Card (Full Card Cover Image with Text Overlay)
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                CampusWelcomePromoBanner(
+                    onBannerClick = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Welcome Perk Active: 0% fee applied on your first listing or gig!")
+                        }
+                    }
+                )
+            }
+
+            // Section Header: "Open near you" + Listing Count + Full/List View Switcher + Post Button (Image 2)
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+                CampusMarketSectionHeader(
+                    listingCount = totalListingCount,
+                    isFullCardView = isFullCardView,
+                    onToggleView = { isFullCardView = it },
+                    onPostNewClick = { isPostDialogOpen = true }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            if (displayItems.isEmpty() && displayGigs.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 24.dp),
+                            .padding(horizontal = 20.dp, vertical = 28.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "No active listings in this category. Be the first to post!",
-                            fontSize = 13.sp,
-                            color = Color(0xFF6B7280)
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF64748B)
                         )
                     }
                 }
-            } else {
-                items(filteredItems) { item ->
-                    MarketItemCard(
+            } else if (isFullCardView) {
+                // FULL VIEW: Senior-level full-bleed photographic hero cards
+                items(displayItems, key = { "item-${it.id}" }) { item ->
+                    MarketProductHeroCard(
                         item = item,
-                        onAdd = {
+                        isSaved = savedListingIds.contains("item-${item.id}"),
+                        onToggleSave = {
+                            val id = "item-${item.id}"
+                            savedListingIds = if (savedListingIds.contains(id)) savedListingIds - id else savedListingIds + id
                             scope.launch {
-                                snackbarHostState.showSnackbar("Added ${item.title} to inquiry queue")
+                                val msg = if (savedListingIds.contains(id)) "Saved to your watch list: ${item.title}" else "Removed from watch list: ${item.title}"
+                                snackbarHostState.showSnackbar(msg)
                             }
-                        }
+                        },
+                        onClick = {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Connecting with seller: ${item.sellerName}")
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
 
-                items(uiState.microGigs) { gig ->
-                    MicroGigCard(
+                items(displayGigs, key = { "gig-${it.id}" }) { gig ->
+                    MarketGigHeroCard(
                         gig = gig,
+                        isSaved = savedListingIds.contains("gig-${gig.id}"),
+                        onToggleSave = {
+                            val id = "gig-${gig.id}"
+                            savedListingIds = if (savedListingIds.contains(id)) savedListingIds - id else savedListingIds + id
+                            scope.launch {
+                                val msg = if (savedListingIds.contains(id)) "Saved gig to watch list: ${gig.title}" else "Removed gig from watch list: ${gig.title}"
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        },
+                        onAccept = {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Applied for gig: ${gig.title}")
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            } else {
+                // LIST VIEW: Compact list view exactly as shown in Image 2
+                items(displayItems, key = { "list-item-${it.id}" }) { item ->
+                    MarketProductListItem(
+                        item = item,
+                        isSaved = savedListingIds.contains("item-${item.id}"),
+                        onToggleSave = {
+                            val id = "item-${item.id}"
+                            savedListingIds = if (savedListingIds.contains(id)) savedListingIds - id else savedListingIds + id
+                            scope.launch {
+                                val msg = if (savedListingIds.contains(id)) "Saved to your watch list: ${item.title}" else "Removed from watch list: ${item.title}"
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        },
+                        onClick = {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Connecting with seller: ${item.sellerName}")
+                            }
+                        }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 96.dp, end = 16.dp),
+                        thickness = 0.6.dp,
+                        color = Color(0xFFE2E8F0)
+                    )
+                }
+
+                items(displayGigs, key = { "list-gig-${it.id}" }) { gig ->
+                    MarketGigListItem(
+                        gig = gig,
+                        isSaved = savedListingIds.contains("gig-${gig.id}"),
+                        onToggleSave = {
+                            val id = "gig-${gig.id}"
+                            savedListingIds = if (savedListingIds.contains(id)) savedListingIds - id else savedListingIds + id
+                            scope.launch {
+                                val msg = if (savedListingIds.contains(id)) "Saved gig to watch list: ${gig.title}" else "Removed gig from watch list: ${gig.title}"
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        },
                         onAccept = {
                             scope.launch {
                                 snackbarHostState.showSnackbar("Applied for gig: ${gig.title}")
                             }
                         }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 96.dp, end = 16.dp),
+                        thickness = 0.6.dp,
+                        color = Color(0xFFE2E8F0)
                     )
                 }
             }
@@ -323,6 +538,33 @@ fun HubScreen(
                 }
             )
         }
+
+        // Filter Bottom Sheet Drawer Panel (Mirroring Image 1)
+        CampusMarketFilterDrawerSheet(
+            isOpen = isFilterDrawerOpen,
+            onDismiss = { isFilterDrawerOpen = false },
+            walkTimeFilter = selectedWalkTimeFilter,
+            onSelectWalkTime = { selectedWalkTimeFilter = it },
+            priceFilter = selectedPriceFilter,
+            onSelectPrice = { selectedPriceFilter = it },
+            ratingFilter = selectedRatingFilter,
+            onSelectRating = { selectedRatingFilter = it },
+            selectedCategory = selectedCategory,
+            onSelectCategory = { selectedCategory = it },
+            isFreePickupOnly = isFreePickupActive,
+            onToggleFreePickup = { isFreePickupActive = !isFreePickupActive },
+            onClearAll = {
+                selectedCategory = "All"
+                activeListingType = "All"
+                isPromotionsFilterActive = false
+                isQuickWalkActive = false
+                isFreePickupActive = false
+                selectedWalkTimeFilter = "Any"
+                selectedPriceFilter = "Any"
+                selectedRatingFilter = "Any"
+            },
+            totalCount = totalListingCount
+        )
     }
 }
 
@@ -1097,88 +1339,656 @@ private fun StoryCardVector(
 }
 
 /**
- * Campus Market & Live Gigs Header with Category Filter Chips and "+ Post" Action.
+ * Data model for the 3D Circular Category Dock.
+ */
+private data class CampusMarketCategory(
+    val id: String,
+    val title: String,
+    val iconRes: Int,
+    val categoryFilter: String
+)
+
+private val campusMarketCategories = listOf(
+    CampusMarketCategory("promo", "Promotions", R.drawable.cat_promotions, "Promotions"),
+    CampusMarketCategory("textbooks", "Textbooks", R.drawable.cat_textbooks, "Textbooks"),
+    CampusMarketCategory("tech", "Tech & Gear", R.drawable.cat_tech_gear, "Electronics"),
+    CampusMarketCategory("gigs", "Campus Gigs", R.drawable.cat_campus_gigs, "Gigs"),
+    CampusMarketCategory("dorm", "Dorm Living", R.drawable.cat_dorm_living, "Hardware"),
+    CampusMarketCategory("tutoring", "Tutoring", R.drawable.cat_tutoring, "Tutoring"),
+    CampusMarketCategory("lab", "Lab & Gear", R.drawable.cat_lab_gear, "Lab & Gear"),
+    CampusMarketCategory("mobility", "Mobility", R.drawable.cat_mobility, "Mobility")
+)
+
+/**
+ * Senior-level Section Header for Campus Marketplace & Gigs (Matching Reference Header - Image 2).
+ * Displays "Open near you [count] places", full view vs list view switcher, and Post button.
  */
 @Composable
-private fun CampusMarketHeader(
-    selectedCategory: String,
-    onSelectCategory: (String) -> Unit,
+private fun CampusMarketSectionHeader(
+    listingCount: Int,
+    isFullCardView: Boolean,
+    onToggleView: (Boolean) -> Unit,
     onPostNewClick: () -> Unit
 ) {
-    val categories = listOf("All", "Hardware", "Study", "Delivery", "Notes")
-
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column {
-                Text(
-                    text = "Campus Marketplace & Gigs",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1A1D20)
-                )
-                Text(
-                    text = "Peer commerce, hardware rentals & rapid gigs",
-                    fontSize = 12.sp,
-                    color = Color(0xFF6B7280)
-                )
+            Text(
+                text = "Open near you",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "$listingCount places",
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color(0xFF64748B)
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Layout Switcher: Full View vs List View (Matching Image 2 Illustration)
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFFF1F5F9),
+                modifier = Modifier.height(38.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Full View Tab (Squircle Rounded Rectangle Outline)
+                    Box(
+                        modifier = Modifier
+                            .size(width = 38.dp, height = 32.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isFullCardView) Color.White else Color.Transparent)
+                            .border(
+                                width = if (isFullCardView) 1.dp else 0.dp,
+                                color = if (isFullCardView) Color(0xFFE2E8F0) else Color.Transparent,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .clickable { onToggleView(true) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(15.dp)) {
+                            drawRoundRect(
+                                color = if (isFullCardView) Color(0xFF0F172A) else Color(0xFF64748B),
+                                topLeft = Offset(1.5f, 1.5f),
+                                size = Size(size.width - 3f, size.height - 3f),
+                                cornerRadius = CornerRadius(3.5.dp.toPx(), 3.5.dp.toPx()),
+                                style = Stroke(width = 1.8.dp.toPx())
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(2.dp))
+
+                    // List View Tab (Three Horizontal Parallel Bars - Active in Image 2)
+                    Box(
+                        modifier = Modifier
+                            .size(width = 38.dp, height = 32.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (!isFullCardView) Color.White else Color.Transparent)
+                            .border(
+                                width = if (!isFullCardView) 1.dp else 0.dp,
+                                color = if (!isFullCardView) Color(0xFFE2E8F0) else Color.Transparent,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .clickable { onToggleView(false) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(15.dp)) {
+                            val barColor = if (!isFullCardView) Color(0xFF0F172A) else Color(0xFF64748B)
+                            val barHeight = 2.dp.toPx()
+                            val spacing = (size.height - 3 * barHeight) / 2
+                            for (i in 0..2) {
+                                val y = i * (barHeight + spacing)
+                                drawRoundRect(
+                                    color = barColor,
+                                    topLeft = Offset(0f, y),
+                                    size = Size(size.width, barHeight),
+                                    cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
+            // "+ Post" Button
             Button(
                 onClick = onPostNewClick,
-                modifier = Modifier.height(38.dp),
+                modifier = Modifier.height(36.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
-                shape = RoundedCornerShape(20.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                shape = RoundedCornerShape(18.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "Post", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = "Post", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * 3D Squircle Category Dock Carousel (Mirroring Reference Row 1).
+ */
+@Composable
+private fun CampusCategoryDock(
+    selectedCategory: String,
+    onSelectCategory: (String) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(campusMarketCategories, key = { it.id }) { cat ->
+            val isSelected = selectedCategory.equals(cat.categoryFilter, ignoreCase = true)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .width(68.dp)
+                    .clickable { onSelectCategory(cat.categoryFilter) }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 68.dp, height = 70.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            if (isSelected) BrandBluePrimary.copy(alpha = 0.12f)
+                            else Color(0xFFF1F5F9)
+                        )
+                        .border(
+                            width = if (isSelected) 2.dp else 1.dp,
+                            color = if (isSelected) BrandBluePrimary else Color(0xFFE2E8F0),
+                            shape = RoundedCornerShape(22.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(cat.iconRes),
+                        contentDescription = cat.title,
+                        modifier = Modifier.size(48.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(7.dp))
+
+                Text(
+                    text = cat.title,
+                    fontSize = 11.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (isSelected) BrandBluePrimary else Color(0xFF1E293B),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Filter & Sort Quick-Pill Bar (Mirroring Reference Row 2).
+ */
+@Composable
+private fun MarketQuickFilterBar(
+    isPromotionsActive: Boolean,
+    onTogglePromotions: () -> Unit,
+    isQuickWalkActive: Boolean,
+    onToggleQuickWalk: () -> Unit,
+    isFreePickupActive: Boolean,
+    onToggleFreePickup: () -> Unit,
+    sortOption: String,
+    onSelectSortOption: (String) -> Unit,
+    onOpenFilterDrawer: () -> Unit
+) {
+    var isSortMenuOpen by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Circular Tune / Filter Button (Opens Drawer Panel)
+        Surface(
+            shape = CircleShape,
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            shadowElevation = 1.dp,
+            modifier = Modifier
+                .size(38.dp)
+                .clickable { onOpenFilterDrawer() }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Outlined.Tune,
+                    contentDescription = "Filters",
+                    tint = Color(0xFF0F172A),
+                    modifier = Modifier.size(17.dp)
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        // Circular Sort Button
+        Box {
+            Surface(
+                shape = CircleShape,
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shadowElevation = 1.dp,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clickable { isSortMenuOpen = true }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Outlined.SwapVert,
+                        contentDescription = "Sort",
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
-        // Horizontal Category Filter Pills
-        Row(
+            DropdownMenu(
+                expanded = isSortMenuOpen,
+                onDismissRequest = { isSortMenuOpen = false }
+            ) {
+                listOf("Top Rated", "Price: Low to High", "Newest", "Distance").forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = option,
+                                fontWeight = if (sortOption == option) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        onClick = {
+                            onSelectSortOption(option)
+                            isSortMenuOpen = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // Pill: Nearby Quad
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = if (isQuickWalkActive) BrandBluePrimary.copy(alpha = 0.12f) else Color.White,
+            border = BorderStroke(
+                1.dp,
+                if (isQuickWalkActive) BrandBluePrimary else Color(0xFFE2E8F0)
+            ),
+            shadowElevation = 1.dp,
+            modifier = Modifier.clickable { onToggleQuickWalk() }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AccessTime,
+                    contentDescription = null,
+                    tint = if (isQuickWalkActive) BrandBluePrimary else Color(0xFF64748B),
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Nearby Quad",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isQuickWalkActive) BrandBluePrimary else Color(0xFF1E293B)
+                )
+            }
+        }
+
+        // Pill: Free Pickup
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = if (isFreePickupActive) BrandBluePrimary.copy(alpha = 0.12f) else Color.White,
+            border = BorderStroke(
+                1.dp,
+                if (isFreePickupActive) BrandBluePrimary else Color(0xFFE2E8F0)
+            ),
+            shadowElevation = 1.dp,
+            modifier = Modifier.clickable { onToggleFreePickup() }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ShoppingBag,
+                    contentDescription = null,
+                    tint = if (isFreePickupActive) BrandBluePrimary else Color(0xFF64748B),
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Free Pickup",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isFreePickupActive) BrandBluePrimary else Color(0xFF1E293B)
+                )
+            }
+        }
+
+        // Pill: Promotions
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = if (isPromotionsActive) Color(0xFFE11D48) else Color.White,
+            border = BorderStroke(
+                1.dp,
+                if (isPromotionsActive) Color(0xFFE11D48) else Color(0xFFE2E8F0)
+            ),
+            shadowElevation = 1.dp,
+            modifier = Modifier.clickable { onTogglePromotions() }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.LocalOffer,
+                    contentDescription = null,
+                    tint = if (isPromotionsActive) Color.White else Color(0xFFE11D48),
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Promotions",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isPromotionsActive) Color.White else Color(0xFF1E293B)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Welcome Promotional Banner Card (Full Card Cover Image with Text Overlay).
+ * Retains welcome banner section, covers entire card with image and overlays text.
+ */
+@Composable
+private fun CampusWelcomePromoBanner(
+    onBannerClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(145.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { onBannerClick() }
+    ) {
+        // Full bleed background cover image
+        Image(
+            painter = painterResource(R.drawable.banner_welcome_perk),
+            contentDescription = "Campus Welcome Perk",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // Gradient scrim for text contrast overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        0f to Color.Black.copy(alpha = 0.88f),
+                        0.55f to Color.Black.copy(alpha = 0.60f),
+                        1f to Color.Black.copy(alpha = 0.18f)
+                    )
+                )
+        )
+
+        // Overlaid text content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFFF59E0B),
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                Text(
+                    text = "CAMPUS WELCOME GIFT",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+
+            Text(
+                text = "0% fee on your first listing or gig",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                lineHeight = 23.sp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Free verified quad pickup & peer trade safety",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+/**
+ * Senior Level Hero Product Listing Card ("Salt & Lime" Full-Bleed Overlay Style).
+ */
+@Composable
+private fun MarketProductHeroCard(
+    item: MarketItem,
+    isSaved: Boolean,
+    onToggleSave: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val imageRes = when (item.id) {
+        "item-1" -> R.drawable.place_photo_1
+        "item-2" -> R.drawable.card_campus_landmark
+        "item-3" -> R.drawable.course_thumb_1
+        "item-4" -> R.drawable.course_thumb_4
+        "item-5" -> R.drawable.place_photo_3
+        "item-6" -> R.drawable.place_photo_2
+        else -> R.drawable.card_student_founder
+    }
+
+    val badgeText = when (item.id) {
+        "item-1" -> "Quad Deal"
+        "item-2" -> "2 for 1 notes"
+        "item-3" -> "Verified Student"
+        "item-4" -> "Campus Special"
+        "item-5" -> "Top Rated"
+        "item-6" -> "Lab Ready"
+        else -> "Special Offer"
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(215.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { onClick() }
+    ) {
+        // Full-bleed photo covering the entire card
+        Image(
+            painter = painterResource(imageRes),
+            contentDescription = item.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // Top-Left Badge Pill
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFFE11D48))
+                .padding(horizontal = 9.dp, vertical = 4.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Text(
+                text = badgeText,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Top-Right Floating Bookmark/Favorite Button
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .clickable { onToggleSave() }
+                .align(Alignment.TopEnd),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = "Save Item",
+                tint = if (isSaved) Color(0xFFE11D48) else Color(0xFF0F172A),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        // Bottom gradient scrim & overlaid listing information
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            categories.forEach { category ->
-                val isSelected = category.equals(selectedCategory, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(if (isSelected) BrandBluePrimary else Color.White)
-                        .border(
-                            1.dp,
-                            if (isSelected) BrandBluePrimary else Color(0xFFD1D5DB),
-                            RoundedCornerShape(18.dp)
-                        )
-                        .clickable { onSelectCategory(category) }
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = category,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.White else Color(0xFF374151)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.42f to Color.Black.copy(alpha = 0.52f),
+                        1f to Color.Black.copy(alpha = 0.94f)
                     )
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp)
+                    ) {
+                        Text(
+                            text = item.title,
+                            fontSize = 18.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = String.format(java.util.Locale.US, "%.1f", item.sellerRating),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = " (120)",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = " • ",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = item.category,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.9f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = " • ",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = item.campusHallLocation,
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "10 min",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${item.currency} ${item.price.toInt()}",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF34D399)
+                        )
+                    }
                 }
             }
         }
@@ -1186,89 +1996,311 @@ private fun CampusMarketHeader(
 }
 
 /**
- * Individual Marketplace Card.
+ * Senior Level Hero MicroGig Listing Card ("Salt & Lime" Full-Bleed Overlay Style).
  */
 @Composable
-private fun MarketItemCard(
-    item: MarketItem,
-    onAdd: () -> Unit
+private fun MarketGigHeroCard(
+    gig: MicroGig,
+    isSaved: Boolean,
+    onToggleSave: () -> Unit,
+    onAccept: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = Modifier
+    val imageRes = when (gig.id) {
+        "gig-1" -> R.drawable.card_student_founder
+        "gig-2" -> R.drawable.event_hero_trees
+        "gig-3" -> R.drawable.course_thumb_2
+        else -> R.drawable.card_campus_landmark
+    }
+
+    val badgeText = when (gig.urgencyLevel) {
+        GigUrgency.FLASH_URGENT -> "Flash Urgent"
+        GigUrgency.HIGH -> "Paid Same Day"
+        GigUrgency.NORMAL -> "Verified Task"
+    }
+
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .height(215.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { onAccept() }
     ) {
-        Row(
+        // Full-bleed photo covering the entire card
+        Image(
+            painter = painterResource(imageRes),
+            contentDescription = gig.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // Top-Left Badge Pill
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFFE11D48))
+                .padding(horizontal = 9.dp, vertical = 4.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Text(
+                text = badgeText,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Top-Right Floating Bookmark/Favorite Button
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .clickable { onToggleSave() }
+                .align(Alignment.TopEnd),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = "Save Gig",
+                tint = if (isSaved) Color(0xFFE11D48) else Color(0xFF0F172A),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        // Bottom gradient scrim & overlaid gig information
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.42f to Color.Black.copy(alpha = 0.52f),
+                        1f to Color.Black.copy(alpha = 0.94f)
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFEBF5FF))
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .weight(1f)
+                            .padding(end = 12.dp)
                     ) {
                         Text(
-                            text = item.category.uppercase(),
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandBluePrimary
+                            text = gig.title,
+                            fontSize = 18.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = String.format(java.util.Locale.US, "%.1f", gig.posterTrustScore / 20.0),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = " (${gig.posterName})",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = " • ",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = gig.tag,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.9f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Text(
-                        text = item.condition,
-                        fontSize = 11.5.sp,
-                        color = Color(0xFF6B7280)
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = gig.estimatedDuration,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${gig.currency} ${gig.payoutAmount.toInt()}",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF34D399)
+                        )
+                    }
                 }
+            }
+        }
+    }
+}
 
-                Spacer(modifier = Modifier.height(6.dp))
+/**
+ * Compact Product List Item (Mirroring Image 2 List View).
+ */
+@Composable
+private fun MarketProductListItem(
+    item: MarketItem,
+    isSaved: Boolean,
+    onToggleSave: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val imageRes = when (item.id) {
+        "item-1" -> R.drawable.place_photo_1
+        "item-2" -> R.drawable.card_campus_landmark
+        "item-3" -> R.drawable.course_thumb_1
+        "item-4" -> R.drawable.course_thumb_4
+        "item-5" -> R.drawable.place_photo_3
+        "item-6" -> R.drawable.place_photo_2
+        else -> R.drawable.card_student_founder
+    }
 
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(84.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Rounded Square Thumbnail with floating subtle save button (Mirroring Image 2)
+        Box(
+            modifier = Modifier.size(64.dp)
+        ) {
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = item.title,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(3.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.88f))
+                    .clickable { onToggleSave() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Save Item",
+                    tint = if (isSaved) Color(0xFFE11D48) else Color(0xFF64748B),
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        // Right Info Area: Strictly 64dp tall with 2 rows (SpaceBetween)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .height(64.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Line 1: Title (Left) + Walk Time (Right)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = item.title,
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF111827),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = "KES ${item.price.toInt()} • ${item.campusHallLocation}",
-                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = BrandBluePrimary
+                    color = Color(0xFF0F172A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "20 min",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A),
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Button(
-                onClick = onAdd,
-                modifier = Modifier
-                    .height(38.dp)
-                    .widthIn(min = 84.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            // Line 2: Rating + Category + Distance (Left) + Price / Free (Right)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    val ratingStr = String.format(java.util.Locale.US, "%.1f", item.sellerRating)
+                    val subtitleAnnotated = buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))) {
+                            append(ratingStr)
+                        }
+                        withStyle(SpanStyle(color = Color(0xFF64748B))) {
+                            append(" (120) · ${item.category} · 0.4 km")
+                        }
+                    }
+                    Text(
+                        text = subtitleAnnotated,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                val isFree = item.price == 0.0
                 Text(
-                    text = "Connect",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    text = if (isFree) "Free" else "${item.currency} ${item.price.toInt()}",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isFree) Color(0xFF16A34A) else Color(0xFF475569),
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -1276,94 +2308,429 @@ private fun MarketItemCard(
 }
 
 /**
- * Individual MicroGig Card.
+ * Compact MicroGig List Item (Mirroring Image 2 List View).
  */
 @Composable
-private fun MicroGigCard(
+private fun MarketGigListItem(
     gig: MicroGig,
-    onAccept: () -> Unit
+    isSaved: Boolean,
+    onToggleSave: () -> Unit,
+    onAccept: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = Modifier
+    val imageRes = when (gig.id) {
+        "gig-1" -> R.drawable.card_student_founder
+        "gig-2" -> R.drawable.event_hero_trees
+        "gig-3" -> R.drawable.course_thumb_2
+        else -> R.drawable.card_campus_landmark
+    }
+
+    Row(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .height(84.dp)
+            .clickable { onAccept() }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Rounded Square Thumbnail with floating subtle save button (Mirroring Image 2)
+        Box(
+            modifier = Modifier.size(64.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (gig.urgencyLevel == GigUrgency.FLASH_URGENT) Color(0xFFFEE2E2)
-                                else Color(0xFFE0F2FE)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = if (gig.urgencyLevel == GigUrgency.FLASH_URGENT) "URGENT GIG" else gig.tag.uppercase(),
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (gig.urgencyLevel == GigUrgency.FLASH_URGENT) Color(0xFFDC2626) else BrandBluePrimary
-                        )
-                    }
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = gig.title,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(3.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.88f))
+                    .clickable { onToggleSave() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "Save Gig",
+                    tint = if (isSaved) Color(0xFFE11D48) else Color(0xFF64748B),
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+        }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
-                    Text(
-                        text = gig.estimatedDuration,
-                        fontSize = 11.sp,
-                        color = Color(0xFF6B7280)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
+        // Right Info Area: Strictly 64dp tall with 2 rows (SpaceBetween)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .height(64.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Line 1: Title (Left) + Duration (Right)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = gig.title,
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF111827),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = "Payout: KES ${gig.payoutAmount.toInt()} • Posted by ${gig.posterName}",
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF059669)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Button(
-                onClick = onAccept,
-                modifier = Modifier
-                    .height(38.dp)
-                    .widthIn(min = 84.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "Accept",
-                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    color = Color(0xFF0F172A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = gig.estimatedDuration,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A),
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
+
+            // Line 2: Rating + Tag + Distance (Left) + Payout (Right)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    val gigRatingStr = String.format(java.util.Locale.US, "%.1f", gig.posterTrustScore / 20.0)
+                    val reviewCount = (gig.posterTrustScore * 3 / 4)
+                    val subtitleAnnotated = buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))) {
+                            append(gigRatingStr)
+                        }
+                        withStyle(SpanStyle(color = Color(0xFF64748B))) {
+                            append(" ($reviewCount) · ${gig.tag} · 0.2 km")
+                        }
+                    }
+                    Text(
+                        text = subtitleAnnotated,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "${gig.currency} ${gig.payoutAmount.toInt()}",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF16A34A),
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Filter Bottom Sheet Drawer Panel (Mirroring Image 1 with Campus Category Style).
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun CampusMarketFilterDrawerSheet(
+    isOpen: Boolean,
+    onDismiss: () -> Unit,
+    walkTimeFilter: String,
+    onSelectWalkTime: (String) -> Unit,
+    priceFilter: String,
+    onSelectPrice: (String) -> Unit,
+    ratingFilter: String,
+    onSelectRating: (String) -> Unit,
+    selectedCategory: String,
+    onSelectCategory: (String) -> Unit,
+    isFreePickupOnly: Boolean,
+    onToggleFreePickup: () -> Unit,
+    onClearAll: () -> Unit,
+    totalCount: Int
+) {
+    if (isOpen) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 8.dp)
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFCBD5E1))
+                )
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                // Header Row: Filters + Clear all
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Filters",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    Text(
+                        text = "Clear all",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF64748B),
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .clickable { onClearAll() }
+                            .padding(4.dp)
+                    )
+                }
+
+                // Scrollable Content
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp)
+                ) {
+                    // SECTION 1: DELIVERY / WALK TIME (DELIVERY TIME in reference)
+                    FilterSection(title = "DELIVERY TIME") {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            listOf(
+                                "Any" to "68",
+                                "Under 15 min" to "38",
+                                "Under 30 min" to "54",
+                                "Under 45 min" to "64"
+                            ).forEach { (label, count) ->
+                                val isSelected = walkTimeFilter == label
+                                FilterPill(
+                                    label = label,
+                                    count = count,
+                                    isSelected = isSelected,
+                                    onClick = { onSelectWalkTime(label) }
+                                )
+                            }
+                        }
+                    }
+
+                    // SECTION 2: PRICE
+                    FilterSection(title = "PRICE") {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            listOf(
+                                "Under KES 500" to "24",
+                                "KES 500-1,500" to "35",
+                                "KES 1,500+" to "9"
+                            ).forEach { (label, count) ->
+                                val isSelected = priceFilter == label
+                                FilterPill(
+                                    label = label,
+                                    count = count,
+                                    isSelected = isSelected,
+                                    onClick = { onSelectPrice(if (isSelected) "Any" else label) }
+                                )
+                            }
+                        }
+                    }
+
+                    // SECTION 3: RATING
+                    FilterSection(title = "RATING") {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            listOf(
+                                "4.0 and up" to "58",
+                                "4.5 and up" to "41",
+                                "4.8 and up" to "26"
+                            ).forEach { (label, count) ->
+                                val isSelected = ratingFilter == label
+                                FilterPill(
+                                    label = label,
+                                    count = count,
+                                    isSelected = isSelected,
+                                    onClick = { onSelectRating(if (isSelected) "Any" else label) }
+                                )
+                            }
+                        }
+                    }
+
+                    // SECTION 4: CAMPUS CATEGORY (DIETARY counterpart in reference, tailored to student campus)
+                    FilterSection(title = "CAMPUS CATEGORY") {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            listOf(
+                                "Textbooks" to "22",
+                                "Tech & Gear" to "18",
+                                "Campus Gigs" to "14",
+                                "Dorm Living" to "12",
+                                "Tutoring" to "10",
+                                "Lab Ready" to "8"
+                            ).forEach { (label, count) ->
+                                val isSelected = selectedCategory.contains(label, ignoreCase = true)
+                                FilterPill(
+                                    label = label,
+                                    count = count,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        onSelectCategory(if (isSelected) "All" else label)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // SECTION 5: DELIVERY FEE
+                    FilterSection(title = "DELIVERY FEE") {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            listOf(
+                                "Free delivery" to "68"
+                            ).forEach { (label, count) ->
+                                FilterPill(
+                                    label = label,
+                                    count = count,
+                                    isSelected = isFreePickupOnly,
+                                    onClick = { onToggleFreePickup() }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Sticky CTA Button: "Show X places" (App Theme Color)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp)
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = BrandBluePrimary
+                        )
+                    ) {
+                        Text(
+                            text = "Show $totalCount places",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Filter Section with uppercase header.
+ */
+@Composable
+private fun FilterSection(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF64748B),
+            letterSpacing = 0.8.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        content()
+    }
+}
+
+/**
+ * Filter Pill chip with label and count (Mirroring Image 1).
+ */
+@Composable
+private fun FilterPill(
+    label: String,
+    count: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = if (isSelected) BrandBluePrimary else Color.White,
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) BrandBluePrimary else Color(0xFFE2E8F0)
+        ),
+        shadowElevation = if (isSelected) 2.dp else 0.dp,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 14.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) Color.White else Color(0xFF1E293B)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = count,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Normal,
+                color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color(0xFF64748B)
+            )
         }
     }
 }

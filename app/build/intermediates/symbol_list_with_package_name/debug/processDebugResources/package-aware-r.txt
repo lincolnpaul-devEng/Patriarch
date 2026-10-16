@@ -3020,6 +3020,7 @@ drawable avatar_junebog
 drawable avatar_me
 drawable avd_hide_password
 drawable avd_show_password
+drawable banner_welcome_perk
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
@@ -3032,11 +3033,19 @@ drawable card_campus_landmark
 drawable card_student_founder
 drawable cat_bars
 drawable cat_cafes
+drawable cat_campus_gigs
+drawable cat_dorm_living
 drawable cat_eat
 drawable cat_events
 drawable cat_go_out
+drawable cat_lab_gear
+drawable cat_mobility
+drawable cat_promotions
 drawable cat_shops
+drawable cat_tech_gear
+drawable cat_textbooks
 drawable cat_top_picks
+drawable cat_tutoring
 drawable cloud_bank_closing
 drawable cloud_cumulus_drift
 drawable common_full_open_on_phone

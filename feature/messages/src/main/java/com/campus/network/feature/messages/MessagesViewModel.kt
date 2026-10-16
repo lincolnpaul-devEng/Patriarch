@@ -21,6 +21,18 @@ class MessagesViewModel(
 
     private val initialThreads = listOf(
         ConversationThread(
+            id = "thread_jane",
+            peerName = "Jane Doe",
+            peerHandle = "@janedoe",
+            avatarInitials = "J",
+            lastMessage = "I'll bring cookies",
+            lastTimestamp = "9:23 AM",
+            unreadCount = 0,
+            isOnline = true,
+            isVerified = true,
+            category = ThreadCategory.DIRECT
+        ),
+        ConversationThread(
             id = "thread_sarah",
             peerName = "Sarah Nduta",
             peerHandle = "@sarah_n",
@@ -83,6 +95,62 @@ class MessagesViewModel(
     )
 
     private val threadMessagesMap = mutableMapOf<String, List<DirectMessageItem>>(
+        "thread_jane" to listOf(
+            DirectMessageItem(
+                id = "msg-j0",
+                senderName = "Lincoln",
+                isMine = true,
+                text = "I just got back in town, let's meet!",
+                timestamp = "Today 1:30 AM",
+                replyToText = "Good!"
+            ),
+            DirectMessageItem(
+                id = "msg-j1",
+                senderName = "Jane Doe",
+                isMine = false,
+                text = "My family are hosting an Eid lunch today, come over to my house!",
+                timestamp = "Today 1.43 AM"
+            ),
+            DirectMessageItem(
+                id = "msg-j2",
+                senderName = "Lincoln",
+                isMine = true,
+                text = "Happy Eid!",
+                timestamp = "Today 1.44 AM"
+            ),
+            DirectMessageItem(
+                id = "msg-j3",
+                senderName = "Lincoln",
+                isMine = true,
+                text = "Looking forward to see you!!!",
+                timestamp = "Today 1.45 AM",
+                isEdited = true
+            ),
+            DirectMessageItem(
+                id = "msg-j4",
+                senderName = "System",
+                isMine = false,
+                text = "You unsent a message",
+                timestamp = "Today 9.20 AM",
+                isSystem = true
+            ),
+            DirectMessageItem(
+                id = "msg-j5",
+                senderName = "Lincoln",
+                isMine = true,
+                text = "I'll bring cookies",
+                timestamp = "Today 9.23 AM"
+            ),
+            DirectMessageItem(
+                id = "msg-j6",
+                senderName = "Lincoln",
+                isMine = true,
+                text = "See You!",
+                timestamp = "Today 9.24 AM",
+                isDelivered = true,
+                isHandwritten = true
+            )
+        ),
         "thread_sarah" to listOf(
             DirectMessageItem(
                 id = "msg-1",
@@ -190,10 +258,16 @@ class MessagesViewModel(
                             currentScreen = MessagesScreenMode.CHAT,
                             selectedThread = thread.copy(unreadCount = 0),
                             threads = updatedThreads,
-                            messages = messages
+                            messages = messages,
+                            activateVoiceInChat = event.activateVoice || it.isVoiceFlowActive,
+                            isVoiceFlowActive = false
                         )
                     }
                 }
+            }
+
+            is MessagesEvent.ConsumeVoiceActivation -> {
+                _uiState.update { it.copy(activateVoiceInChat = false) }
             }
 
             is MessagesEvent.BackToThreads -> {
@@ -353,6 +427,77 @@ class MessagesViewModel(
                     state.callState?.let { call ->
                         state.copy(callState = call.copy(isFrontCamera = !call.isFrontCamera))
                     } ?: state
+                }
+            }
+
+            is MessagesEvent.OpenNewChat -> {
+                _uiState.update {
+                    it.copy(
+                        currentScreen = MessagesScreenMode.NEW_CHAT,
+                        isVoiceFlowActive = false
+                    )
+                }
+            }
+
+            is MessagesEvent.OpenVoiceChatSelection -> {
+                _uiState.update {
+                    it.copy(
+                        currentScreen = MessagesScreenMode.NEW_CHAT,
+                        isVoiceFlowActive = true
+                    )
+                }
+            }
+
+            is MessagesEvent.OpenAddNote -> {
+                _uiState.update { it.copy(currentScreen = MessagesScreenMode.ADD_NOTE) }
+            }
+
+            is MessagesEvent.OpenBroadcast -> {
+                _uiState.update { it.copy(currentScreen = MessagesScreenMode.BROADCAST) }
+            }
+
+            is MessagesEvent.SaveUserNote -> {
+                val cleanedNote = if (event.note.isNotBlank()) event.note.trim() else "Add note"
+                _uiState.update {
+                    it.copy(
+                        currentUserNote = cleanedNote,
+                        currentScreen = MessagesScreenMode.THREADS
+                    )
+                }
+            }
+
+            is MessagesEvent.SendBroadcast -> {
+                val trimmedText = event.text.trim()
+                if (trimmedText.isNotBlank()) {
+                    event.peerIds.forEach { peerId ->
+                        val newMsg = DirectMessageItem(
+                            id = "msg-${System.currentTimeMillis()}-${peerId.hashCode()}",
+                            senderName = "Lincoln",
+                            isMine = true,
+                            text = trimmedText,
+                            timestamp = "Just now"
+                        )
+                        val currentList = threadMessagesMap[peerId] ?: emptyList()
+                        threadMessagesMap[peerId] = currentList + newMsg
+                    }
+
+                    val updatedThreads = _uiState.value.threads.map { thread ->
+                        if (thread.id in event.peerIds) {
+                            thread.copy(
+                                lastMessage = trimmedText,
+                                lastTimestamp = "Just now"
+                            )
+                        } else thread
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            threads = updatedThreads,
+                            currentScreen = MessagesScreenMode.THREADS
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(currentScreen = MessagesScreenMode.THREADS) }
                 }
             }
         }

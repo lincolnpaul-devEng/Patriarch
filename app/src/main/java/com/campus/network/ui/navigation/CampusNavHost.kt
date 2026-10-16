@@ -41,7 +41,8 @@ fun CampusNavHost(
     navController: NavHostController,
     database: CampusDatabase,
     streamChatEngine: StreamChatEngine?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    messagesViewModel: MessagesViewModel = remember { MessagesViewModel(streamChatEngine) }
 ) {
     // Repositories backed by local database cache and worker thread dispatchers
     val flashMeetRepository = remember { FlashMeetRepository(database) }
@@ -53,7 +54,6 @@ fun CampusNavHost(
     // ViewModels with UDF patterns
     val mapViewModel = remember { MapViewModel(flashMeetRepository, placesRepository) }
     val channelsViewModel = remember { ChannelsViewModel(academicChannelsRepository) }
-    val messagesViewModel = remember { MessagesViewModel(streamChatEngine) }
     val hubViewModel = remember { HubViewModel(campusHubRepository) }
     val profileViewModel = remember { ProfileViewModel(studentProfileRepository) }
 
@@ -129,7 +129,17 @@ fun CampusNavHost(
 
         // Tab 3: Messages (Direct Streams)
         composable(route = Screen.Messages.route) {
-            MessagesScreen(viewModel = messagesViewModel)
+            MessagesScreen(
+                viewModel = messagesViewModel,
+                onNavigateBack = {
+                    navController.navigate(Screen.Hub.route) {
+                        popUpTo(Screen.Hub.route) { inclusive = false }
+                    }
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
+                }
+            )
         }
 
         // Tab 4: Hub Layer (Campus Micro-Commerce)

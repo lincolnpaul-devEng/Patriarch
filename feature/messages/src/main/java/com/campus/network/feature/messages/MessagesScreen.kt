@@ -5,7 +5,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +19,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun MessagesScreen(
     viewModel: MessagesViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateBack: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -26,11 +30,14 @@ fun MessagesScreen(
             MessagesScreenMode.AUDIO_CALL, MessagesScreenMode.VIDEO_CALL -> {
                 viewModel.onEvent(MessagesEvent.EndCall)
             }
-            MessagesScreenMode.CHAT -> {
+            MessagesScreenMode.CHAT,
+            MessagesScreenMode.NEW_CHAT,
+            MessagesScreenMode.ADD_NOTE,
+            MessagesScreenMode.BROADCAST -> {
                 viewModel.onEvent(MessagesEvent.BackToThreads)
             }
             MessagesScreenMode.THREADS -> {
-                // Let system handle default back
+                onNavigateBack()
             }
         }
     }
@@ -45,6 +52,21 @@ fun MessagesScreen(
                 } else if (targetState == MessagesScreenMode.THREADS && initialState == MessagesScreenMode.CHAT) {
                     (slideInHorizontally { width -> -width / 3 } + fadeIn())
                         .togetherWith(slideOutHorizontally { width -> width } + fadeOut())
+                } else if (targetState in listOf(MessagesScreenMode.NEW_CHAT, MessagesScreenMode.BROADCAST) &&
+                    initialState == MessagesScreenMode.THREADS
+                ) {
+                    (slideInVertically { height -> height / 2 } + fadeIn())
+                        .togetherWith(slideOutVertically { height -> -height / 3 } + fadeOut())
+                } else if (targetState == MessagesScreenMode.THREADS &&
+                    initialState in listOf(MessagesScreenMode.NEW_CHAT, MessagesScreenMode.BROADCAST)
+                ) {
+                    (slideInVertically { height -> -height / 3 } + fadeIn())
+                        .togetherWith(slideOutVertically { height -> height / 2 } + fadeOut())
+                } else if (targetState == MessagesScreenMode.ADD_NOTE && initialState == MessagesScreenMode.THREADS) {
+                    (slideInVertically { height -> -height / 4 } + fadeIn())
+                        .togetherWith(fadeOut())
+                } else if (targetState == MessagesScreenMode.THREADS && initialState == MessagesScreenMode.ADD_NOTE) {
+                    fadeIn().togetherWith(slideOutVertically { height -> -height / 4 } + fadeOut())
                 } else if (targetState == MessagesScreenMode.AUDIO_CALL || targetState == MessagesScreenMode.VIDEO_CALL) {
                     fadeIn().togetherWith(fadeOut())
                 } else {
@@ -57,7 +79,9 @@ fun MessagesScreen(
                 MessagesScreenMode.THREADS -> {
                     MessageThreadsScreen(
                         uiState = uiState,
-                        onEvent = viewModel::onEvent
+                        onEvent = viewModel::onEvent,
+                        onNavigateBack = onNavigateBack,
+                        onNavigateToProfile = onNavigateToProfile
                     )
                 }
 
@@ -68,14 +92,70 @@ fun MessagesScreen(
                             thread = thread,
                             messages = uiState.messages,
                             isSettlementDialogOpen = uiState.isSettlementDialogOpen,
-                            onEvent = viewModel::onEvent
+                            onEvent = viewModel::onEvent,
+                            initialActivateVoice = uiState.activateVoiceInChat,
+                            onConsumeVoiceActivation = {
+                                viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
+                            }
                         )
                     } else {
                         MessageThreadsScreen(
                             uiState = uiState,
-                            onEvent = viewModel::onEvent
+                            onEvent = viewModel::onEvent,
+                            onNavigateBack = onNavigateBack,
+                            onNavigateToProfile = onNavigateToProfile
                         )
                     }
+                }
+
+                MessagesScreenMode.NEW_CHAT -> {
+                    NewChatScreen(
+                        threads = uiState.threads,
+                        onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) },
+                        onSelectPeer = { threadId ->
+                            viewModel.onEvent(
+                                MessagesEvent.SelectThread(
+                                    threadId = threadId,
+                                    activateVoice = uiState.isVoiceFlowActive
+                                )
+                            )
+                        },
+                        onStartGroupChat = { peerIds ->
+                            if (uiState.isVoiceFlowActive) {
+                                val firstPeer = peerIds.firstOrNull() ?: uiState.threads.firstOrNull()?.id
+                                if (firstPeer != null) {
+                                    viewModel.onEvent(
+                                        MessagesEvent.SelectThread(
+                                            threadId = firstPeer,
+                                            activateVoice = true
+                                        )
+                                    )
+                                }
+                            } else {
+                                viewModel.onEvent(MessagesEvent.OpenBroadcast)
+                            }
+                        }
+                    )
+                }
+
+                MessagesScreenMode.ADD_NOTE -> {
+                    AddNoteScreen(
+                        currentNote = uiState.currentUserNote,
+                        onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) },
+                        onShareNote = { note ->
+                            viewModel.onEvent(MessagesEvent.SaveUserNote(note))
+                        }
+                    )
+                }
+
+                MessagesScreenMode.BROADCAST -> {
+                    BroadcastScreen(
+                        threads = uiState.threads,
+                        onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) },
+                        onSendBroadcast = { peerIds, text ->
+                            viewModel.onEvent(MessagesEvent.SendBroadcast(peerIds, text))
+                        }
+                    )
                 }
 
                 MessagesScreenMode.AUDIO_CALL -> {
@@ -92,12 +172,18 @@ fun MessagesScreen(
                                 thread = thread,
                                 messages = uiState.messages,
                                 isSettlementDialogOpen = uiState.isSettlementDialogOpen,
-                                onEvent = viewModel::onEvent
+                                onEvent = viewModel::onEvent,
+                                initialActivateVoice = uiState.activateVoiceInChat,
+                                onConsumeVoiceActivation = {
+                                    viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
+                                }
                             )
                         } else {
                             MessageThreadsScreen(
                                 uiState = uiState,
-                                onEvent = viewModel::onEvent
+                                onEvent = viewModel::onEvent,
+                                onNavigateBack = onNavigateBack,
+                                onNavigateToProfile = onNavigateToProfile
                             )
                         }
                     }
@@ -117,12 +203,18 @@ fun MessagesScreen(
                                 thread = thread,
                                 messages = uiState.messages,
                                 isSettlementDialogOpen = uiState.isSettlementDialogOpen,
-                                onEvent = viewModel::onEvent
+                                onEvent = viewModel::onEvent,
+                                initialActivateVoice = uiState.activateVoiceInChat,
+                                onConsumeVoiceActivation = {
+                                    viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
+                                }
                             )
                         } else {
                             MessageThreadsScreen(
                                 uiState = uiState,
-                                onEvent = viewModel::onEvent
+                                onEvent = viewModel::onEvent,
+                                onNavigateBack = onNavigateBack,
+                                onNavigateToProfile = onNavigateToProfile
                             )
                         }
                     }

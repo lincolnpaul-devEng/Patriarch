@@ -4,8 +4,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -50,8 +50,8 @@ sealed class Screen(
     data object Map : Screen(
         route = "tab_map",
         title = "Map",
-        icon = Icons.Default.Map,
-        badgeLabel = "Live"
+        icon = Icons.Default.Place,
+        badgeLabel = null
     )
 
     data object Channels : Screen(
@@ -73,6 +73,7 @@ sealed class Screen(
     )
 
     companion object {
-        val bottomTabs = listOf(Hub, Map, Channels, Messages, Profile)
+        val bottomTabs: List<Screen>
+            get() = listOf(Hub, Map, Channels, Messages, Profile)
     }
 }

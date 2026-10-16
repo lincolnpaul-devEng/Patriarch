@@ -6,7 +6,10 @@ enum class MessagesScreenMode {
     THREADS,
     CHAT,
     AUDIO_CALL,
-    VIDEO_CALL
+    VIDEO_CALL,
+    NEW_CHAT,
+    ADD_NOTE,
+    BROADCAST
 }
 
 enum class ThreadCategory(val label: String) {
@@ -37,7 +40,12 @@ data class DirectMessageItem(
     val timestamp: String,
     val settlementPayload: PeerTransactionPayload? = null,
     val isDelivered: Boolean = true,
-    val isRead: Boolean = true
+    val isRead: Boolean = true,
+    val isEdited: Boolean = false,
+    val isSystem: Boolean = false,
+    val isHandwritten: Boolean = false,
+    val imageResId: Int? = null,
+    val replyToText: String? = null
 )
 
 enum class CallType {
@@ -67,11 +75,15 @@ data class MessagesUiState(
     val searchQuery: String = "",
     val messages: List<DirectMessageItem> = emptyList(),
     val isSettlementDialogOpen: Boolean = false,
-    val callState: CallUiState? = null
+    val callState: CallUiState? = null,
+    val currentUserNote: String = "Add note",
+    val isVoiceFlowActive: Boolean = false,
+    val activateVoiceInChat: Boolean = false
 )
 
 sealed interface MessagesEvent {
-    data class SelectThread(val threadId: String) : MessagesEvent
+    data class SelectThread(val threadId: String, val activateVoice: Boolean = false) : MessagesEvent
+    object ConsumeVoiceActivation : MessagesEvent
     object BackToThreads : MessagesEvent
     data class SearchQueryChanged(val query: String) : MessagesEvent
     data class SelectCategory(val category: ThreadCategory) : MessagesEvent
@@ -86,4 +98,10 @@ sealed interface MessagesEvent {
     object ToggleSpeaker : MessagesEvent
     object ToggleVideo : MessagesEvent
     object FlipCamera : MessagesEvent
+    object OpenNewChat : MessagesEvent
+    object OpenAddNote : MessagesEvent
+    object OpenBroadcast : MessagesEvent
+    object OpenVoiceChatSelection : MessagesEvent
+    data class SaveUserNote(val note: String) : MessagesEvent
+    data class SendBroadcast(val peerIds: List<String>, val text: String) : MessagesEvent
 }

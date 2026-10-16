@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-37:12
-INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-37:12
-INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-37:12
-INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-37:12
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-48:12
+INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-48:12
+INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-48:12
+INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:2:1-48:12
 MERGED from [:feature:map] /home/lincoln/patreon/feature/map/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:2:1-7:12
 MERGED from [:feature:channels] /home/lincoln/patreon/feature/channels/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:2:1-7:12
 MERGED from [:feature:messages] /home/lincoln/patreon/feature/messages/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:2:1-7:12
@@ -181,9 +181,27 @@ uses-permission#android.permission.ACCESS_COARSE_LOCATION
 ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:10:5-81
 	android:name
 		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:10:22-78
+uses-permission#android.permission.RECORD_AUDIO
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:13:5-71
+MERGED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:23:5-71
+MERGED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:23:5-71
+	android:name
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:13:22-68
+queries
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:16:5-20:15
+MERGED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:32:5-39:15
+MERGED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:32:5-39:15
+MERGED from [com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:30:5-34:15
+MERGED from [com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:30:5-34:15
+intent#action:name:android.speech.RecognitionService
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:9-19:18
+action#android.speech.RecognitionService
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:18:13-72
+	android:name
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:18:21-69
 application
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:12:5-35:19
-INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:12:5-35:19
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:22:5-46:19
+INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:22:5-46:19
 MERGED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:25:5-32:19
 MERGED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:25:5-32:19
 MERGED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:41:5-56:19
@@ -233,43 +251,45 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /home/lincoln/.gradle/cache
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:18:9-35
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:28:9-35
 	android:label
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:16:9-34
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:26:9-34
 	android:roundIcon
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:9-54
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:27:9-54
 	android:icon
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:15:9-43
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:25:9-43
 	android:allowBackup
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:14:9-35
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:24:9-35
 	android:theme
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:19:9-66
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:29:9-66
 	android:name
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:13:9-42
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:23:9-42
 meta-data#com.google.android.geo.API_KEY
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:22:9-24:71
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:32:9-34:71
 	android:value
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:24:13-68
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:34:13-68
 	android:name
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:23:13-58
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:33:13-58
 activity#com.campus.network.MainActivity
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:26:9-34:20
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:36:9-45:20
+	android:windowSoftInputMode
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:39:13-56
 	android:exported
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:28:13-36
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:38:13-36
 	android:theme
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:29:13-70
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:40:13-70
 	android:name
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:27:13-41
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:37:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:30:13-33:29
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:41:13-44:29
 action#android.intent.action.MAIN
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:31:17-69
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:42:17-69
 	android:name
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:31:25-66
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:42:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:32:17-77
+ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:43:17-77
 	android:name
-		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:32:27-74
+		ADDED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml:43:27-74
 uses-sdk
 INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml
@@ -528,10 +548,6 @@ MERGED from [androidx.print:print:1.0.0] /home/lincoln/.gradle/caches/transforms
 		INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml
 	android:minSdkVersion
 		INJECTED from /home/lincoln/patreon/app/src/main/AndroidManifest.xml
-uses-permission#android.permission.RECORD_AUDIO
-ADDED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:23:5-71
-	android:name
-		ADDED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:23:22-68
 activity#io.getstream.chat.android.compose.ui.attachments.preview.MediaPreviewActivity
 ADDED from [io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:26:9-28:40
 	android:exported
@@ -568,10 +584,6 @@ uses-permission#android.permission.READ_MEDIA_VIDEO
 ADDED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:30:5-75
 	android:name
 		ADDED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:30:22-72
-queries
-ADDED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:32:5-39:15
-MERGED from [com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:30:5-34:15
-MERGED from [com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:30:5-34:15
 intent#action:name:android.media.action.VIDEO_CAPTURE
 ADDED from [io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:33:9-35:18
 action#android.media.action.VIDEO_CAPTURE
