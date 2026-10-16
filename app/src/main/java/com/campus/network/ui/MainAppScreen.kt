@@ -19,8 +19,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
+import com.campus.network.feature.channels.ChannelsViewModel
+import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.messages.CampusTelecomCallManager
 import com.campus.network.feature.messages.MessagesScreenMode
 import com.campus.network.feature.messages.MessagesViewModel
@@ -50,13 +53,22 @@ fun MainAppScreen(
     }
     val messagesUiState by messagesViewModel.uiState.collectAsStateWithLifecycle()
 
-    // Following standard messaging app practice (WhatsApp, iMessage, Telegram):
-    // The bottom tab navigation bar is hidden on messages and call screens so the conversation
-    // and redesigned message threads get full screen immersion with their floating action dock.
+    val academicChannelsRepository = remember(database) {
+        AcademicChannelsRepository(database)
+    }
+    val channelsViewModel = remember(academicChannelsRepository) {
+        ChannelsViewModel(academicChannelsRepository)
+    }
+    val channelsUiState by channelsViewModel.uiState.collectAsStateWithLifecycle()
+
+    // Following standard messaging app practice (WhatsApp, iMessage, Telegram, Discord):
+    // The bottom tab navigation bar is hidden on messages screens and channel chats so the
+    // conversation gets full screen immersion with the floating action dock elevating with IME.
     val bottomTabRoutes = remember {
         setOf("tab_hub", "tab_map", "tab_channels", "tab_profile")
     }
-    val isBottomBarVisible = (currentRoute in bottomTabRoutes)
+    val isChannelImmersion = currentRoute == "tab_channels" && channelsUiState.viewMode != ChannelViewMode.CHANNELS_HUB
+    val isBottomBarVisible = (currentRoute in bottomTabRoutes) && !isChannelImmersion
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -78,7 +90,10 @@ fun MainAppScreen(
             database = database,
             streamChatEngine = streamChatEngine,
             messagesViewModel = messagesViewModel,
-            modifier = Modifier.padding(if (isBottomBarVisible) paddingValues else PaddingValues(0.dp))
+            channelsViewModel = channelsViewModel,
+            modifier = Modifier.padding(
+                bottom = if (isBottomBarVisible) paddingValues.calculateBottomPadding() else 0.dp
+            )
         )
     }
 }

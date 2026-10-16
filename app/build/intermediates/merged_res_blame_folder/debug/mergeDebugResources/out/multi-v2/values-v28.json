@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-v28/values-v28.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-v28/values-v28.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/bc817a90541543329d589717e8e8d290/transformed/material-1.9.0/res/values-v28/values-v28.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/0f8d57b5a2045137b140d944ca29a055/transformed/material-1.9.0/res/values-v28/values-v28.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -23,7 +23,7 @@
                     }
                 },
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/7bd2120b533d2788c66f9a98af5244b4/transformed/appcompat-1.6.1/res/values-v28/values-v28.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/5c473240c758d21685031883da2dc1e2/transformed/appcompat-1.6.1/res/values-v28/values-v28.xml",
                     "from": {
                         "startLines": "2,3,4,8",
                         "startColumns": "4,4,4,4",

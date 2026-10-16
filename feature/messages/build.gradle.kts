@@ -46,6 +46,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
 
     // CameraX for Live Video Call Preview
     implementation("androidx.camera:camera-core:1.3.4")

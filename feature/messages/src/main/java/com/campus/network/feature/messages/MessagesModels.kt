@@ -45,6 +45,9 @@ data class DirectMessageItem(
     val isSystem: Boolean = false,
     val isHandwritten: Boolean = false,
     val imageResId: Int? = null,
+    val imageUri: String? = null,
+    val imageUrl: String? = null,
+    val gifUrl: String? = null,
     val replyToText: String? = null
 )
 
@@ -95,7 +98,12 @@ sealed interface MessagesEvent {
     object BackToThreads : MessagesEvent
     data class SearchQueryChanged(val query: String) : MessagesEvent
     data class SelectCategory(val category: ThreadCategory) : MessagesEvent
-    data class SendMessage(val text: String) : MessagesEvent
+    data class SendMessage(
+        val text: String,
+        val imageUri: String? = null,
+        val imageUrl: String? = null,
+        val gifUrl: String? = null
+    ) : MessagesEvent
     data class InitiateSettlement(val amount: Double, val purpose: String) : MessagesEvent
     data class ConfirmSettlement(val transactionId: String) : MessagesEvent
     data class ToggleSettlementDialog(val open: Boolean) : MessagesEvent

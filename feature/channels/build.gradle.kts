@@ -41,5 +41,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(libs.androidx.emoji2.emojipicker)
+    implementation(libs.androidx.emoji2.bundled)
 }
 

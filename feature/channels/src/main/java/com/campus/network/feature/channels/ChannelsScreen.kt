@@ -38,10 +38,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -50,7 +52,11 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Signpost
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,9 +82,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.campus.network.feature.channels.components.ChannelChatScreen
+import com.campus.network.feature.channels.components.ChannelProfileScreen
+import com.campus.network.feature.channels.components.DiscoverServersPanel
 import com.campus.network.feature.channels.components.CourseMateAvatarLineup
 import com.campus.network.feature.channels.components.CourseMateDiscoverScreen
 import com.campus.network.feature.channels.components.IndividualStudentProfileScreen
+import com.campus.network.feature.channels.components.ServerProfileDrawer
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.InDemandCompany
@@ -105,6 +115,7 @@ private val SectionDividerBg = SurfaceSubtle
  * - CHANNELS_HUB: LinkedIn-inspired Academic Workspace with live course-mate avatar lineups
  * - DISCOVER_CAROUSEL: Full-screen Discover screen matching user reference image
  * - STUDENT_PROFILE: Individual student profile view with Helper rewards, study goals & actions
+ * - CHANNEL_CHAT: Discord-style channel chat session with rich embeds, replies & media drawer
  */
 @Composable
 fun ChannelsScreen(
@@ -151,6 +162,29 @@ fun ChannelsScreen(
                         onNavigateToChannelChat = onNavigateToChannelChat,
                         onNavigateToMessages = onNavigateToMessages,
                         onProfileClick = onNavigateToProfile
+                    )
+                }
+
+                ChannelViewMode.CHANNEL_CHAT -> {
+                    ChannelChatScreen(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onBackClick = {
+                            viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
+                        },
+                        onChannelProfileClick = {
+                            viewModel.onEvent(ChannelsEvent.OpenChannelProfile)
+                        }
+                    )
+                }
+
+                ChannelViewMode.CHANNEL_PROFILE -> {
+                    ChannelProfileScreen(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onBackClick = {
+                            viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
+                        }
                     )
                 }
 
@@ -235,6 +269,7 @@ private fun DiscordServersHubContent(
             ServerRail(
                 servers = uiState.servers,
                 selectedServerId = uiState.selectedServerId,
+                isAddServerSelected = uiState.isAddServerSelected,
                 onNavigateToMessages = onNavigateToMessages,
                 onSelectServer = { serverId ->
                     viewModel.onEvent(ChannelsEvent.SelectServer(serverId))
@@ -255,82 +290,132 @@ private fun DiscordServersHubContent(
                 shape = RoundedCornerShape(topStart = 20.dp),
                 color = Color.White
             ) {
-                if (currentServer != null) {
+                if (uiState.isAddServerSelected) {
+                    DiscoverServersPanel(
+                        onCreateServerSubmit = { name, category ->
+                            viewModel.onEvent(ChannelsEvent.CreateServer(name, category))
+                        },
+                        onJoinInviteSubmit = { inviteCode ->
+                            viewModel.onEvent(ChannelsEvent.JoinServerByInvite(inviteCode))
+                        },
+                        onPreviewCommunitySubmit = { serverName ->
+                            viewModel.onEvent(ChannelsEvent.PreviewCommunityServer(serverName))
+                        }
+                    )
+                } else if (currentServer != null) {
                     ServerDetailsPanel(
                         server = currentServer,
                         selectedChannelId = uiState.selectedChannelId,
                         onChannelClick = { channel ->
-                            viewModel.onEvent(ChannelsEvent.SelectChannel(channel.id))
-                            onNavigateToChannelChat(channel.id)
+                            viewModel.onEvent(ChannelsEvent.OpenChannelChat(channel))
                         },
                         onSearchQueryChange = { query ->
                             viewModel.onEvent(ChannelsEvent.SearchChannels(query))
                         },
                         onInviteClick = {
                             viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                        },
+                        onServerProfileClick = {
+                            viewModel.onEvent(ChannelsEvent.OpenServerProfileDrawer)
+                        },
+                        onBackFromPreview = {
+                            viewModel.onEvent(ChannelsEvent.ExitServerPreview)
+                        },
+                        onJoinServerClick = {
+                            viewModel.onEvent(ChannelsEvent.JoinCurrentPreviewServer)
                         }
                     )
                 }
             }
         }
 
-        // FLOATING DRAWER COLLAPSE BUTTON (Right edge, vertically centered)
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 6.dp)
-                .size(52.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Outer subtle blue halo
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(Color(0x33003B68))
+        // SERVER PROFILE BOTTOM SHEET DRAWER
+        if (currentServer != null) {
+            ServerProfileDrawer(
+                isOpen = uiState.isServerProfileDrawerOpen,
+                server = currentServer,
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseServerProfileDrawer)
+                },
+                onInviteClick = {
+                    viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                },
+                onMarkAsReadClick = {
+                    viewModel.onEvent(ChannelsEvent.ClearFeedback("All channels marked as read"))
+                },
+                onBrowseChannelsClick = {
+                    viewModel.onEvent(ChannelsEvent.CloseServerProfileDrawer)
+                },
+                onEditProfileClick = {
+                    onProfileClick()
+                },
+                onLeaveServerClick = {
+                    viewModel.onEvent(ChannelsEvent.ClearFeedback("Leave server confirmation"))
+                }
             )
-            // Inner navy blue button
+        }
+
+        // FLOATING DRAWER COLLAPSE BUTTON (Right edge, vertically centered)
+        if (!uiState.isServerProfileDrawerOpen && !uiState.isAddServerSelected) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF003B68))
-                    .clickable {
-                        viewModel.onEvent(ChannelsEvent.ToggleRail)
-                    },
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 6.dp)
+                    .size(52.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy((-6).dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Outer subtle blue halo
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(Color(0x33003B68))
+                )
+                // Inner navy blue button
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF003B68))
+                        .clickable {
+                            viewModel.onEvent(ChannelsEvent.ToggleRail)
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = "Collapse drawer",
-                        tint = Color.White,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(19.dp)
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy((-6).dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = "Collapse drawer",
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
                 }
             }
         }
 
         // FLOATING USER PROFILE BAR (Bottom centered)
-        UserProfileFloatingBar(
-            name = uiState.activeUserName,
-            status = uiState.activeUserStatus,
-            unreadCount = uiState.activeUserUnreadCount,
-            onProfileClick = onProfileClick,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
-        )
+        if (!uiState.isServerProfileDrawerOpen) {
+            UserProfileFloatingBar(
+                name = uiState.activeUserName,
+                status = uiState.activeUserStatus,
+                unreadCount = uiState.activeUserUnreadCount,
+                onProfileClick = onProfileClick,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
+            )
+        }
     }
 }
 
@@ -338,6 +423,7 @@ private fun DiscordServersHubContent(
 private fun ServerRail(
     servers: List<ServerItem>,
     selectedServerId: String,
+    isAddServerSelected: Boolean,
     onNavigateToMessages: () -> Unit,
     onSelectServer: (String) -> Unit,
     onAddServer: () -> Unit,
@@ -386,7 +472,7 @@ private fun ServerRail(
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(servers, key = { it.id }) { server ->
-                val isSelected = server.id == selectedServerId
+                val isSelected = !isAddServerSelected && (server.id == selectedServerId)
                 val cornerRadius by animateDpAsState(
                     targetValue = if (isSelected) 16.dp else 24.dp,
                     label = "ServerCornerRadius"
@@ -460,20 +546,42 @@ private fun ServerRail(
             // Bottom Add Server Button '+'
             item {
                 Spacer(modifier = Modifier.height(4.dp))
+                val addCornerRadius by animateDpAsState(
+                    targetValue = if (isAddServerSelected) 16.dp else 24.dp,
+                    label = "AddCornerRadius"
+                )
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEBEDEF))
-                        .clickable(onClick = onAddServer),
+                        .fillMaxWidth()
+                        .height(56.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add a server",
-                        tint = Color(0xFF23A55A),
-                        modifier = Modifier.size(24.dp)
-                    )
+                    if (isAddServerSelected) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .width(4.dp)
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                                .background(Color(0xFF1E1F22))
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(addCornerRadius))
+                            .background(if (isAddServerSelected) Color(0xFF5865F2) else Color(0xFFEBEDEF))
+                            .clickable(onClick = onAddServer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add a server",
+                            tint = if (isAddServerSelected) Color.White else Color(0xFF23A55A),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -487,24 +595,89 @@ private fun ServerDetailsPanel(
     onChannelClick: (ServerChannelItem) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onInviteClick: () -> Unit,
+    onServerProfileClick: () -> Unit,
+    onBackFromPreview: () -> Unit = {},
+    onJoinServerClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
+
+    val bannerResId: Int? = when (server.bannerResName) {
+        "server_banner_clash" -> com.campus.network.core.ui.R.drawable.server_banner_clash
+        "server_banner_basi" -> com.campus.network.core.ui.R.drawable.server_banner_basi
+        else -> null
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // 1. Top Header: Title, Verified Badge, Chevron, Subtitle
+        // 1. OPTIONAL SERVER BANNER (Rendered if server owner created a banner)
+        if (bannerResId != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(138.dp)
+                    .clip(RoundedCornerShape(topStart = 20.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = bannerResId),
+                    contentDescription = "Server Banner",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                // If in Preview Mode (Matching Image 1): overlay back button and SERVER PREVIEW badge
+                if (server.isPreview) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, start = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        IconButton(
+                            onClick = onBackFromPreview,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(100.dp),
+                            color = Color.White,
+                            shadowElevation = 2.dp
+                        ) {
+                            Text(
+                                text = "SERVER PREVIEW",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF1E1F22),
+                                letterSpacing = 0.6.sp,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. SERVER HEADER: Title, Badges, Member Count & Category, Search Row, Action Buttons
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.clickable(enabled = !server.isPreview, onClick = onServerProfileClick)
             ) {
                 Text(
                     text = server.name,
@@ -514,12 +687,28 @@ private fun ServerDetailsPanel(
                     letterSpacing = (-0.3).sp
                 )
 
-                if (server.isVerified) {
+                // Flower booster badge or verified badge
+                if (server.badgeType == "booster") {
+                    Box(
+                        modifier = Modifier
+                            .size(19.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE879F9)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Booster Badge",
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                } else if (server.isVerified) {
                     Box(
                         modifier = Modifier
                             .size(18.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF060607)),
+                            .background(Color(0xFF5865F2)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -550,7 +739,7 @@ private fun ServerDetailsPanel(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. Search Bar + Add Person Button Row
+            // Search Bar + Add Person Button Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -620,72 +809,246 @@ private fun ServerDetailsPanel(
                     )
                 }
             }
+
+            // Preview Mode: Solid blurple "Join Server" button (Matching Image 1)
+            if (server.isPreview) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onJoinServerClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    Text(
+                        text = "Join Server",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else if (server.boostGoalText != null) {
+                // Joined Server with Banner: "Boost Goal" Card (Matching Image 2 BASI)
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFF7EEFF),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Boost Goal",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E1F22)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFFEC4899),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        Text(
+                            text = "${server.boostGoalText} >",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF9333EA)
+                        )
+                    }
+                }
+            }
         }
 
-        HorizontalDivider(
-            thickness = 0.8.dp,
-            color = Color(0xFFF2F3F5)
-        )
+        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFF2F3F5))
 
-        // 3. Channels List
+        // 3. SERVER GUIDE & CHANNELS & ROLES (Matching Image 1 & 2)
+        if (server.hasServerGuide) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { /* Server Guide */ }
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Signpost,
+                    contentDescription = "Server Guide",
+                    tint = Color(0xFF4E5058),
+                    modifier = Modifier.size(19.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Server Guide",
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF4E5058)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { /* Channels & Roles */ }
+                .padding(horizontal = 16.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Tune,
+                contentDescription = "Channels & Roles",
+                tint = Color(0xFF4E5058),
+                modifier = Modifier.size(19.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "Channels & Roles",
+                fontSize = 14.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF4E5058)
+            )
+        }
+
+        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFF2F3F5))
+
+        // 4. CHANNELS LIST GROUPED BY CATEGORY
+        val channelsByCategory = remember(server.channels) {
+            server.channels.groupBy { it.categoryName }
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
         ) {
-            items(server.channels, key = { it.id }) { channel ->
-                val isCurrentSelected = channel.id == selectedChannelId || channel.isSelected
-                val isProminent = channel.isUnread || isCurrentSelected
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onChannelClick(channel) }
-                        .padding(horizontal = 16.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Chat Bubble Icon
-                    Icon(
-                        imageVector = Icons.Default.ChatBubble,
-                        contentDescription = null,
-                        tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
-                        modifier = Modifier.size(18.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    // Channel Name
-                    Text(
-                        text = channel.name,
-                        fontSize = 15.sp,
-                        fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    // Badges or Vector Icons (ZERO EMOJI POLICY)
-                    if (channel.badgeText != null) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFDA373C))
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = channel.badgeText,
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    if (channel.hasBoltIcon) {
-                        Icon(
-                            imageVector = Icons.Default.Bolt,
-                            contentDescription = "Special",
-                            tint = Color(0xFFF59E0B),
-                            modifier = Modifier.size(19.dp)
+            channelsByCategory.forEach { (categoryName, channelsInCategory) ->
+                item(key = "cat_$categoryName") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = categoryName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF5C6470),
+                            letterSpacing = 0.4.sp
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = Color(0xFF5C6470),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                items(channelsInCategory, key = { it.id }) { channel ->
+                    val isCurrentSelected = channel.id == selectedChannelId || channel.isSelected
+                    val isProminent = channel.isUnread || isCurrentSelected
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 1.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isCurrentSelected) Color(0xFFE3E5E8) else Color.Transparent)
+                            .clickable { onChannelClick(channel) }
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            when (channel.channelType) {
+                                "rules" -> {
+                                    Icon(
+                                        imageVector = Icons.Default.AssignmentTurnedIn,
+                                        contentDescription = "Rules",
+                                        tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                "announcements" -> {
+                                    Icon(
+                                        imageVector = Icons.Default.Campaign,
+                                        contentDescription = "Announcements",
+                                        tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                                else -> {
+                                    Text(
+                                        text = "#",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(9.dp))
+
+                            Text(
+                                text = channel.name,
+                                fontSize = 14.5.sp,
+                                fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            if (channel.unreadBadgeCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFDA373C))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = channel.unreadBadgeCount.toString(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            } else if (channel.badgeText != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFDA373C))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = channel.badgeText,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
+                            if (channel.hasBoltIcon) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "Special",
+                                    tint = Color(0xFFF59E0B),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -848,6 +1211,8 @@ private fun getServerDrawableRes(name: String): Int {
         "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
         "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
         "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
+        "avatar_deleted_user" -> com.campus.network.core.ui.R.drawable.avatar_deleted_user
+        "avatar_ath" -> com.campus.network.core.ui.R.drawable.avatar_ath
         else -> com.campus.network.core.ui.R.drawable.server_codesistency
     }
 }

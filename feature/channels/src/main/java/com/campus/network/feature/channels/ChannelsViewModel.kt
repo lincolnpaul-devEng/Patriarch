@@ -21,7 +21,10 @@ data class ServerChannelItem(
     val isUnread: Boolean = false,
     val badgeText: String? = null,
     val hasBoltIcon: Boolean = false,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val channelType: String = "text", // "text", "rules", "announcements"
+    val categoryName: String = "Text Channels",
+    val unreadBadgeCount: Int = 0
 )
 
 data class ChannelMessageEmbed(
@@ -45,6 +48,8 @@ data class ChannelMessage(
     val timestamp: String,
     val text: String,
     val linkUrl: String? = null,
+    val gifUrl: String? = null,
+    val imageUris: List<String> = emptyList(),
     val embed: ChannelMessageEmbed? = null,
     val replyTo: String? = null,
     val reactionCount: Int = 0,
@@ -58,9 +63,14 @@ data class ServerItem(
     val memberCountText: String = "",
     val categoryText: String = "Community",
     val isVerified: Boolean = false,
+    val badgeType: String = "verified", // "verified", "booster"
     val iconResName: String,
     val badgeCount: Int = 0,
     val hasUnread: Boolean = false,
+    val bannerResName: String? = null,
+    val isPreview: Boolean = false,
+    val boostGoalText: String? = null,
+    val hasServerGuide: Boolean = false,
     val channels: List<ServerChannelItem> = emptyList()
 )
 
@@ -96,7 +106,10 @@ data class ChannelsUiState(
     val likedStudentIds: Set<String> = emptySet(),
     val searchQuery: String = "",
     val activeChannel: AcademicChannel? = null,
-    val feedbackMessage: String? = null
+    val feedbackMessage: String? = null,
+    val activeChannelProfileTab: String = "Members",
+    val isServerProfileDrawerOpen: Boolean = false,
+    val isAddServerSelected: Boolean = false
 )
 
 sealed interface ChannelsEvent {
@@ -105,11 +118,26 @@ sealed interface ChannelsEvent {
     data object ToggleRail : ChannelsEvent
     data class SearchChannels(val query: String) : ChannelsEvent
     data object AddServerClick : ChannelsEvent
+    data class CreateServer(val name: String, val category: String = "Community") : ChannelsEvent
+    data class JoinServerByInvite(val inviteCode: String) : ChannelsEvent
+    data class PreviewCommunityServer(val serverName: String) : ChannelsEvent
+    data object ExitServerPreview : ChannelsEvent
+    data object JoinCurrentPreviewServer : ChannelsEvent
     data class OpenChannelChat(val channel: ServerChannelItem) : ChannelsEvent
     data object CloseChannelChat : ChannelsEvent
+    data object OpenChannelProfile : ChannelsEvent
+    data object CloseChannelProfile : ChannelsEvent
+    data class SelectChannelProfileTab(val tabName: String) : ChannelsEvent
+    data object ToggleServerProfileDrawer : ChannelsEvent
+    data object OpenServerProfileDrawer : ChannelsEvent
+    data object CloseServerProfileDrawer : ChannelsEvent
     data object ToggleMediaDrawer : ChannelsEvent
     data class SelectMediaTab(val tabName: String) : ChannelsEvent
-    data class SendChannelMessage(val text: String) : ChannelsEvent
+    data class SendChannelMessage(
+        val text: String,
+        val gifUrl: String? = null,
+        val imageUris: List<String> = emptyList()
+    ) : ChannelsEvent
     data class ToggleReaction(val messageId: String) : ChannelsEvent
     data class SelectFaculty(val facultyName: String) : ChannelsEvent
     data class SelectDepartment(val departmentName: String) : ChannelsEvent
@@ -133,9 +161,12 @@ class ChannelsViewModel(
     private val _selectedChannelId = MutableStateFlow("ch_mern_github")
     private val _isRailCollapsed = MutableStateFlow(false)
     private val _serverSearchQuery = MutableStateFlow("")
+    private val _isServerProfileDrawerOpen = MutableStateFlow(false)
+    private val _isAddServerSelected = MutableStateFlow(false)
     private val _activeChatChannel = MutableStateFlow<ServerChannelItem?>(null)
     private val _isMediaDrawerOpen = MutableStateFlow(false)
     private val _activeMediaTab = MutableStateFlow("Photos")
+    private val _channelProfileTab = MutableStateFlow("Members")
     private val _channelMessages = MutableStateFlow<Map<String, List<ChannelMessage>>>(emptyMap())
     private val _selectedFaculty = MutableStateFlow("Faculty of Engineering & Technology")
     private val _selectedDepartment = MutableStateFlow("All")
@@ -167,7 +198,7 @@ class ChannelsViewModel(
         ServerChannelItem(id = "ch_study_app", name = "study-app-react-native", isUnread = false)
     )
 
-    private val masterServersList = listOf(
+    private val initialMasterServersList = listOf(
         ServerItem(
             id = "srv_owl",
             name = "Unciv",
@@ -192,6 +223,66 @@ class ChannelsViewModel(
                 ServerChannelItem(id = "ch_unciv_music", name = "game-music", isUnread = false),
                 ServerChannelItem(id = "ch_unciv_ios", name = "ios-development", isUnread = false),
                 ServerChannelItem(id = "ch_unciv_data", name = "data-gathering", isUnread = false)
+            )
+        ),
+        ServerItem(
+            id = "srv_basi",
+            name = "BASI",
+            memberCountText = "63,075 Members",
+            categoryText = "Community",
+            isVerified = true,
+            badgeType = "booster",
+            iconResName = "server_dragon",
+            badgeCount = 0,
+            hasUnread = true,
+            bannerResName = "server_banner_basi",
+            isPreview = false,
+            boostGoalText = "37 Boosts",
+            hasServerGuide = false,
+            channels = listOf(
+                ServerChannelItem(
+                    id = "ch_basi_announcements",
+                    name = "announcements",
+                    channelType = "announcements",
+                    categoryName = "Announcements",
+                    isUnread = true,
+                    unreadBadgeCount = 17
+                ),
+                ServerChannelItem(
+                    id = "ch_basi_rules",
+                    name = "rules",
+                    channelType = "rules",
+                    categoryName = "Announcements",
+                    isUnread = false
+                ),
+                ServerChannelItem(
+                    id = "ch_basi_donations",
+                    name = "donation-contributions",
+                    channelType = "text",
+                    categoryName = "Home",
+                    isUnread = false
+                ),
+                ServerChannelItem(
+                    id = "ch_basi_general",
+                    name = "general-chat",
+                    channelType = "text",
+                    categoryName = "General",
+                    isUnread = false
+                ),
+                ServerChannelItem(
+                    id = "ch_basi_intros",
+                    name = "introductions",
+                    channelType = "text",
+                    categoryName = "General",
+                    isUnread = false
+                ),
+                ServerChannelItem(
+                    id = "ch_basi_jailbreak",
+                    name = "jailbreaking",
+                    channelType = "text",
+                    categoryName = "General",
+                    isUnread = false
+                )
             )
         ),
         ServerItem(
@@ -358,6 +449,8 @@ class ChannelsViewModel(
             )
         )
     )
+
+    private val _serversList = MutableStateFlow(initialMasterServersList)
 
     // Master Course-Mates Catalog
     private val sampleCourseMates = listOf(
@@ -727,21 +820,22 @@ class ChannelsViewModel(
 
     val uiState: StateFlow<ChannelsUiState> = combine(
         combine(
-            _viewMode,
-            _selectedServerId,
-            _selectedChannelId,
+            combine(_viewMode, _selectedServerId, _selectedChannelId) { vm, sId, cId -> Triple(vm, sId, cId) },
             _isRailCollapsed,
-            _serverSearchQuery
-        ) { vm, sId, cId, railCollapsed, sQuery ->
-            ServerStateSlice1(vm, sId, cId, railCollapsed, sQuery)
+            _serverSearchQuery,
+            _isServerProfileDrawerOpen,
+            _isAddServerSelected
+        ) { t, railCollapsed, sQuery, isProfileDrawerOpen, isAddServerSelected ->
+            ServerStateSlice1(t.first, t.second, t.third, railCollapsed, sQuery, isProfileDrawerOpen, isAddServerSelected)
         },
         combine(
             _activeChatChannel,
             _isMediaDrawerOpen,
             _activeMediaTab,
-            _channelMessages
-        ) { cChan, drawerOpen, mTab, cMsgs ->
-            ServerStateSlice2(cChan, drawerOpen, mTab, cMsgs)
+            _channelMessages,
+            _channelProfileTab
+        ) { cChan, drawerOpen, mTab, cMsgs, cpTab ->
+            ServerStateSlice2(cChan, drawerOpen, mTab, cMsgs, cpTab)
         },
         combine(
             _selectedFaculty,
@@ -758,8 +852,9 @@ class ChannelsViewModel(
             _feedbackMessage
         ) { cDisc, sProf, liked, fb ->
             PeerSlice(cDisc, sProf, liked, fb)
-        }
-    ) { slice1, slice2, academicSlice, peerSlice ->
+        },
+        _serversList
+    ) { slice1, slice2, academicSlice, peerSlice, currentServers ->
         val rawCourses = allEngineeringCourses
         val departments = listOf("All") + rawCourses.map { it.department }.distinct()
 
@@ -781,8 +876,8 @@ class ChannelsViewModel(
         val discoverMates = peerSlice.selectedCourse?.enrolledMates ?: sampleCourseMates
 
         // Resolve current server & channels
-        val currentServer = masterServersList.find { it.id == slice1.selectedServerId }
-            ?: masterServersList.first()
+        val currentServer = currentServers.find { it.id == slice1.selectedServerId }
+            ?: currentServers.firstOrNull() ?: initialMasterServersList.first()
 
         val filteredChannels = currentServer.channels.filter { channel ->
             slice1.serverSearchQuery.isBlank() ||
@@ -799,7 +894,7 @@ class ChannelsViewModel(
 
         ChannelsUiState(
             viewMode = slice1.viewMode,
-            servers = masterServersList,
+            servers = currentServers,
             selectedServerId = slice1.selectedServerId,
             selectedServer = enrichedServer,
             selectedChannelId = slice1.selectedChannelId,
@@ -812,6 +907,9 @@ class ChannelsViewModel(
             chatMessages = currentMessages,
             isMediaDrawerOpen = slice2.isMediaDrawerOpen,
             activeMediaTab = slice2.activeMediaTab,
+            activeChannelProfileTab = slice2.channelProfileTab,
+            isServerProfileDrawerOpen = slice1.isServerProfileDrawerOpen,
+            isAddServerSelected = slice1.isAddServerSelected,
             selectedFaculty = academicSlice.faculty,
             selectedDepartment = academicSlice.department,
             departments = departments,
@@ -829,16 +927,18 @@ class ChannelsViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = ChannelsUiState(
-            servers = masterServersList,
-            selectedServer = masterServersList.first()
+            servers = initialMasterServersList,
+            selectedServer = initialMasterServersList.first()
         )
     )
 
     fun onEvent(event: ChannelsEvent) {
         when (event) {
             is ChannelsEvent.SelectServer -> {
+                _isAddServerSelected.value = false
                 _selectedServerId.value = event.serverId
-                val server = masterServersList.find { it.id == event.serverId }
+                val server = _serversList.value.find { it.id == event.serverId }
+                    ?: initialMasterServersList.find { it.id == event.serverId }
                 server?.channels?.firstOrNull()?.let {
                     _selectedChannelId.value = it.id
                 }
@@ -856,6 +956,24 @@ class ChannelsViewModel(
                 _viewMode.value = ChannelViewMode.CHANNELS_HUB
                 _isMediaDrawerOpen.value = false
             }
+            is ChannelsEvent.OpenChannelProfile -> {
+                _viewMode.value = ChannelViewMode.CHANNEL_PROFILE
+            }
+            is ChannelsEvent.CloseChannelProfile -> {
+                _viewMode.value = ChannelViewMode.CHANNEL_CHAT
+            }
+            is ChannelsEvent.SelectChannelProfileTab -> {
+                _channelProfileTab.value = event.tabName
+            }
+            is ChannelsEvent.ToggleServerProfileDrawer -> {
+                _isServerProfileDrawerOpen.value = !_isServerProfileDrawerOpen.value
+            }
+            is ChannelsEvent.OpenServerProfileDrawer -> {
+                _isServerProfileDrawerOpen.value = true
+            }
+            is ChannelsEvent.CloseServerProfileDrawer -> {
+                _isServerProfileDrawerOpen.value = false
+            }
             is ChannelsEvent.ToggleMediaDrawer -> {
                 _isMediaDrawerOpen.value = !_isMediaDrawerOpen.value
             }
@@ -864,7 +982,7 @@ class ChannelsViewModel(
             }
             is ChannelsEvent.SendChannelMessage -> {
                 val activeChan = _activeChatChannel.value
-                    ?: masterServersList.find { it.id == _selectedServerId.value }?.channels?.find { it.id == _selectedChannelId.value }
+                    ?: _serversList.value.find { it.id == _selectedServerId.value }?.channels?.find { it.id == _selectedChannelId.value }
                     ?: return
                 val currentList = _channelMessages.value[activeChan.id] ?: emptyList()
                 val newMessage = ChannelMessage(
@@ -873,7 +991,9 @@ class ChannelsViewModel(
                     authorColorHex = 0xFF003B68,
                     authorAvatarRes = "avatar_lincoln",
                     timestamp = "Today at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()),
-                    text = event.text
+                    text = event.text,
+                    gifUrl = event.gifUrl,
+                    imageUris = event.imageUris
                 )
                 _channelMessages.value = _channelMessages.value + (activeChan.id to (currentList + newMessage))
             }
@@ -894,7 +1014,159 @@ class ChannelsViewModel(
                 _serverSearchQuery.value = event.query
             }
             is ChannelsEvent.AddServerClick -> {
-                _feedbackMessage.value = "Create or join a campus server"
+                _isAddServerSelected.value = true
+                _feedbackMessage.value = null
+            }
+            is ChannelsEvent.CreateServer -> {
+                _isAddServerSelected.value = false
+                val newId = "srv_custom_${System.currentTimeMillis()}"
+                val newServer = ServerItem(
+                    id = newId,
+                    name = event.name,
+                    memberCountText = "1 Member",
+                    categoryText = event.category,
+                    isVerified = false,
+                    iconResName = "server_gradient",
+                    badgeCount = 0,
+                    hasUnread = false,
+                    channels = listOf(
+                        ServerChannelItem(id = "ch_${newId}_general", name = "general", isUnread = false),
+                        ServerChannelItem(id = "ch_${newId}_hangout", name = "hangout", isUnread = false),
+                        ServerChannelItem(id = "ch_${newId}_announcements", name = "announcements", isUnread = false)
+                    )
+                )
+                _serversList.value = _serversList.value + newServer
+                _selectedServerId.value = newId
+                _selectedChannelId.value = "ch_${newId}_general"
+                _feedbackMessage.value = "Created server: ${event.name}"
+            }
+            is ChannelsEvent.JoinServerByInvite -> {
+                _isAddServerSelected.value = false
+                _feedbackMessage.value = "Joined server via invite link!"
+            }
+            is ChannelsEvent.PreviewCommunityServer -> {
+                _isAddServerSelected.value = false
+                val existing = _serversList.value.find { it.name.equals(event.serverName, ignoreCase = true) }
+                if (existing != null) {
+                    _selectedServerId.value = existing.id
+                    existing.channels.firstOrNull()?.let {
+                        _selectedChannelId.value = it.id
+                    }
+                } else if (event.serverName.equals("Clash of Clans", ignoreCase = true)) {
+                    val previewCoc = ServerItem(
+                        id = "srv_clash_preview",
+                        name = "Clash of Clans",
+                        memberCountText = "458,484 Members",
+                        categoryText = "Community",
+                        isVerified = true,
+                        badgeType = "verified",
+                        iconResName = "server_dragon",
+                        badgeCount = 0,
+                        hasUnread = false,
+                        bannerResName = "server_banner_clash",
+                        isPreview = true,
+                        hasServerGuide = true,
+                        channels = listOf(
+                            ServerChannelItem(
+                                id = "ch_coc_rules",
+                                name = "server-rules",
+                                channelType = "rules",
+                                categoryName = "Info",
+                                isSelected = true
+                            ),
+                            ServerChannelItem(
+                                id = "ch_coc_info",
+                                name = "server-info",
+                                channelType = "text",
+                                categoryName = "Info"
+                            ),
+                            ServerChannelItem(
+                                id = "ch_coc_faq",
+                                name = "server-support-faq",
+                                channelType = "text",
+                                categoryName = "Info"
+                            ),
+                            ServerChannelItem(
+                                id = "ch_coc_roles",
+                                name = "self-roles",
+                                channelType = "text",
+                                categoryName = "Info"
+                            ),
+                            ServerChannelItem(
+                                id = "ch_coc_boost",
+                                name = "boosting-info",
+                                channelType = "text",
+                                categoryName = "Info"
+                            ),
+                            ServerChannelItem(
+                                id = "ch_coc_announcements",
+                                name = "announcements",
+                                channelType = "announcements",
+                                categoryName = "Announcements"
+                            )
+                        )
+                    )
+                    _serversList.value = _serversList.value + previewCoc
+                    _selectedServerId.value = previewCoc.id
+                    _selectedChannelId.value = "ch_coc_rules"
+                } else {
+                    val newId = "srv_comm_${System.currentTimeMillis()}"
+                    val iconRes = when (event.serverName) {
+                        "Heartopia" -> "server_curly"
+                        "Campus Tech & AI Guild" -> "server_ai_brain"
+                        else -> "server_gradient"
+                    }
+                    val communityServer = ServerItem(
+                        id = newId,
+                        name = event.serverName,
+                        memberCountText = "Community Hub",
+                        categoryText = "Gaming & Community",
+                        isVerified = true,
+                        badgeType = "verified",
+                        iconResName = iconRes,
+                        bannerResName = if (event.serverName == "Heartopia") "server_banner_clash" else null,
+                        isPreview = true,
+                        hasServerGuide = true,
+                        channels = listOf(
+                            ServerChannelItem(
+                                id = "ch_${newId}_rules",
+                                name = "server-rules",
+                                channelType = "rules",
+                                categoryName = "Info",
+                                isSelected = true
+                            ),
+                            ServerChannelItem(
+                                id = "ch_${newId}_announcements",
+                                name = "announcements",
+                                channelType = "announcements",
+                                categoryName = "Announcements"
+                            ),
+                            ServerChannelItem(
+                                id = "ch_${newId}_general",
+                                name = "general-chat",
+                                channelType = "text",
+                                categoryName = "General"
+                            )
+                        )
+                    )
+                    _serversList.value = _serversList.value + communityServer
+                    _selectedServerId.value = newId
+                    _selectedChannelId.value = "ch_${newId}_rules"
+                }
+            }
+            is ChannelsEvent.ExitServerPreview -> {
+                _isAddServerSelected.value = true
+            }
+            is ChannelsEvent.JoinCurrentPreviewServer -> {
+                val currentId = _selectedServerId.value
+                _serversList.value = _serversList.value.map { srv ->
+                    if (srv.id == currentId) {
+                        srv.copy(isPreview = false)
+                    } else {
+                        srv
+                    }
+                }
+                _feedbackMessage.value = "Joined server!"
             }
             is ChannelsEvent.SelectFaculty -> {
                 _selectedFaculty.value = event.facultyName
@@ -935,7 +1207,14 @@ class ChannelsViewModel(
                 _viewMode.value = ChannelViewMode.STUDENT_PROFILE
             }
             is ChannelsEvent.BackToPreviousMode -> {
+                if (_isServerProfileDrawerOpen.value) {
+                    _isServerProfileDrawerOpen.value = false
+                    return
+                }
                 when (_viewMode.value) {
+                    ChannelViewMode.CHANNEL_PROFILE -> {
+                        _viewMode.value = ChannelViewMode.CHANNEL_CHAT
+                    }
                     ChannelViewMode.CHANNEL_CHAT -> {
                         _viewMode.value = ChannelViewMode.CHANNELS_HUB
                         _isMediaDrawerOpen.value = false
@@ -972,14 +1251,17 @@ private data class ServerStateSlice1(
     val selectedServerId: String,
     val selectedChannelId: String,
     val isRailCollapsed: Boolean,
-    val serverSearchQuery: String
+    val serverSearchQuery: String,
+    val isServerProfileDrawerOpen: Boolean = false,
+    val isAddServerSelected: Boolean = false
 )
 
 private data class ServerStateSlice2(
     val activeChatChannel: ServerChannelItem?,
     val isMediaDrawerOpen: Boolean,
     val activeMediaTab: String,
-    val channelMessages: Map<String, List<ChannelMessage>>
+    val channelMessages: Map<String, List<ChannelMessage>>,
+    val channelProfileTab: String = "Members"
 )
 
 private data class AcademicFilterSlice(

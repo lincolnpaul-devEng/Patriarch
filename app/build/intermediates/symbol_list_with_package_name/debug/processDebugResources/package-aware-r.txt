@@ -41,6 +41,8 @@ anim m3_side_sheet_slide_out
 anim mtrl_bottom_sheet_slide_in
 anim mtrl_bottom_sheet_slide_out
 anim mtrl_card_lowers_interpolator
+anim slide_down_and_fade_out
+anim slide_up_and_fade_in
 animator design_appbar_state_list_animator
 animator design_fab_hide_motion_spec
 animator design_fab_show_motion_spec
@@ -75,6 +77,10 @@ animator mtrl_fab_hide_motion_spec
 animator mtrl_fab_show_motion_spec
 animator mtrl_fab_transformation_sheet_collapse_spec
 animator mtrl_fab_transformation_sheet_expand_spec
+array category_names
+array emoji_by_category_raw_resources
+array emoji_by_category_raw_resources_gender_inclusive
+array emoji_categories_icons
 array stream_compose_avatar_gradient_colors
 attr SharedValue
 attr SharedValueId
@@ -500,6 +506,21 @@ attr elevationOverlayAccentColor
 attr elevationOverlayColor
 attr elevationOverlayEnabled
 attr emojiCompatEnabled
+attr emojiGridColumns
+attr emojiGridRows
+attr emoji_variant_selector_color_1
+attr emoji_variant_selector_color_10
+attr emoji_variant_selector_color_11
+attr emoji_variant_selector_color_12
+attr emoji_variant_selector_color_13
+attr emoji_variant_selector_color_2
+attr emoji_variant_selector_color_3
+attr emoji_variant_selector_color_4
+attr emoji_variant_selector_color_5
+attr emoji_variant_selector_color_6
+attr emoji_variant_selector_color_7
+attr emoji_variant_selector_color_8
+attr emoji_variant_selector_color_9
 attr enableEdgeToEdge
 attr endIconCheckable
 attr endIconContentDescription
@@ -1421,6 +1442,7 @@ color common_google_signin_btn_text_light_disabled
 color common_google_signin_btn_text_light_focused
 color common_google_signin_btn_text_light_pressed
 color common_google_signin_btn_tint
+color dark_skin_tone
 color design_bottom_navigation_shadow_color
 color design_box_stroke_color
 color design_dark_default_color_background
@@ -1470,6 +1492,7 @@ color foreground_material_light
 color highlighted_text_material_dark
 color highlighted_text_material_light
 color ic_launcher_background
+color light_skin_tone
 color m3_appbar_overlay_color
 color m3_assist_chip_icon_tint_color
 color m3_assist_chip_stroke_color
@@ -2038,6 +2061,9 @@ color material_timepicker_button_stroke
 color material_timepicker_clock_text_color
 color material_timepicker_clockface
 color material_timepicker_modebutton_tint
+color medium_dark_skin_tone
+color medium_light_skin_tone
+color medium_skin_tone
 color mtrl_btn_bg_color_selector
 color mtrl_btn_ripple_color
 color mtrl_btn_stroke_color_selector
@@ -2161,6 +2187,7 @@ color tooltip_background_dark
 color tooltip_background_light
 color vector_tint_color
 color vector_tint_theme_color
+color white
 dimen abc_action_bar_content_inset_material
 dimen abc_action_bar_content_inset_with_nav
 dimen abc_action_bar_default_height_material
@@ -2305,6 +2332,23 @@ dimen design_tab_text_size_2line
 dimen design_textinput_caption_translate_y
 dimen disabled_alpha_material_dark
 dimen disabled_alpha_material_light
+dimen emoji_picker_category_name_height
+dimen emoji_picker_category_name_padding_top
+dimen emoji_picker_emoji_view_padding
+dimen emoji_picker_header_height
+dimen emoji_picker_header_icon_height
+dimen emoji_picker_header_icon_holder_min_height
+dimen emoji_picker_header_icon_holder_width
+dimen emoji_picker_header_icon_underline_height
+dimen emoji_picker_header_icon_underline_width
+dimen emoji_picker_header_icon_width
+dimen emoji_picker_header_padding
+dimen emoji_picker_popup_view_elevation
+dimen emoji_picker_popup_view_holder_corner_radius
+dimen emoji_picker_popup_view_holder_padding_end
+dimen emoji_picker_popup_view_holder_padding_start
+dimen emoji_picker_popup_view_holder_padding_vertical
+dimen emoji_picker_skin_tone_circle_radius
 dimen fastscroll_default_thickness
 dimen fastscroll_margin
 dimen fastscroll_minimum_range
@@ -2936,6 +2980,8 @@ dimen tooltip_precise_anchor_threshold
 dimen tooltip_vertical_padding
 dimen tooltip_y_offset_non_touch
 dimen tooltip_y_offset_touch
+dimen variant_availability_indicator_height
+dimen variant_availability_indicator_width
 drawable abc_ab_share_pack_mtrl_alpha
 drawable abc_action_bar_item_background_material
 drawable abc_btn_borderless_material
@@ -3016,7 +3062,9 @@ drawable abc_textfield_search_default_mtrl_alpha
 drawable abc_textfield_search_material
 drawable abc_vector_test
 drawable avatar_andrew
+drawable avatar_ath
 drawable avatar_clin
+drawable avatar_deleted_user
 drawable avatar_eliza
 drawable avatar_junebog
 drawable avatar_lincoln
@@ -3071,6 +3119,14 @@ drawable common_google_signin_btn_text_light_focused
 drawable common_google_signin_btn_text_light_normal
 drawable common_google_signin_btn_text_light_normal_background
 drawable company_da
+drawable couple_heart_men_shadow_skintone
+drawable couple_heart_men_skintone_shadow
+drawable couple_heart_people_shadow_skintone
+drawable couple_heart_people_skintone_shadow
+drawable couple_heart_woman_man_shadow_skintone
+drawable couple_heart_woman_man_skintone_shadow
+drawable couple_heart_women_shadow_skintone
+drawable couple_heart_women_skintone_shadow
 drawable course_thumb_1
 drawable course_thumb_2
 drawable course_thumb_3
@@ -3088,9 +3144,28 @@ drawable event_thumb_eclipse
 drawable event_thumb_founders
 drawable event_thumb_paws
 drawable event_user_avatar
+drawable gm_filled_emoji_emotions_vd_theme_24
+drawable gm_filled_emoji_events_vd_theme_24
+drawable gm_filled_emoji_food_beverage_vd_theme_24
+drawable gm_filled_emoji_nature_vd_theme_24
+drawable gm_filled_emoji_objects_vd_theme_24
+drawable gm_filled_emoji_people_vd_theme_24
+drawable gm_filled_emoji_symbols_vd_theme_24
+drawable gm_filled_emoji_transportation_vd_theme_24
+drawable gm_filled_flag_vd_theme_24
 drawable googleg_disabled_color_18
 drawable googleg_standard_color_18
+drawable handshake_shadow_skintone
+drawable handshake_skintone_shadow
 drawable hero_campus_scenic
+drawable holding_men_shadow_skintone
+drawable holding_men_skintone_shadow
+drawable holding_people_shadow_skintone
+drawable holding_people_skintone_shadow
+drawable holding_woman_man_shadow_skintone
+drawable holding_woman_man_skintone_shadow
+drawable holding_women_shadow_skintone
+drawable holding_women_skintone_shadow
 drawable ic_arrow_back_black_24
 drawable ic_call_answer
 drawable ic_call_answer_low
@@ -3111,6 +3186,15 @@ drawable ic_mtrl_chip_checked_black
 drawable ic_mtrl_chip_checked_circle
 drawable ic_mtrl_chip_close_circle
 drawable ic_search_black_24
+drawable icon_tint_selector
+drawable kiss_men_shadow_skintone
+drawable kiss_men_skintone_shadow
+drawable kiss_people_shadow_skintone
+drawable kiss_people_skintone_shadow
+drawable kiss_woman_man_shadow_skintone
+drawable kiss_woman_man_skintone_shadow
+drawable kiss_women_shadow_skintone
+drawable kiss_women_skintone_shadow
 drawable m3_appbar_background
 drawable m3_avd_hide_password
 drawable m3_avd_show_password
@@ -3197,8 +3281,14 @@ drawable pin_steak
 drawable place_photo_1
 drawable place_photo_2
 drawable place_photo_3
+drawable popup_view_rounded_background
+drawable quantum_gm_ic_access_time_filled_vd_theme_24
+drawable ripple_emoji_view
+drawable ripple_image_view
 drawable server_ai_brain
 drawable server_avatar2
+drawable server_banner_basi
+drawable server_banner_clash
 drawable server_codesistency
 drawable server_curly
 drawable server_dragon
@@ -3304,9 +3394,12 @@ drawable student_clin
 drawable student_eliza
 drawable student_june
 drawable student_rk
+drawable swap_horiz_vd_theme_24
 drawable test_level_drawable
 drawable tooltip_frame_dark
 drawable tooltip_frame_light
+drawable underline_rounded
+drawable variant_availability_indicator
 font stream_roboto_bold
 font stream_roboto_medium
 font stream_roboto_regular
@@ -3417,6 +3510,7 @@ id cache_measures
 id callMeasure
 id cancel_button
 id carryVelocity
+id category_name
 id center
 id centerCrop
 id centerInside
@@ -3495,6 +3589,15 @@ id edit_query
 id edit_text_id
 id elastic
 id embed
+id emoji_picker_body
+id emoji_picker_empty_category_view
+id emoji_picker_header
+id emoji_picker_header_icon
+id emoji_picker_header_underline
+id emoji_picker_popup_bidirectional_icon
+id emoji_picker_popup_emoji_view
+id emoji_picker_popup_emoji_view_wrapper
+id emoji_picker_popup_image_view
 id end
 id endToStart
 id enterAlways
@@ -3819,6 +3922,7 @@ id uniform
 id unlabeled
 id up
 id useLogo
+id variant_popup
 id vertical_only
 id view_offset_helper
 id view_transition
@@ -3954,6 +4058,7 @@ layout abc_search_dropdown_item_icons_2line
 layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
+layout category_text_view
 layout custom_dialog
 layout design_bottom_navigation_item
 layout design_bottom_sheet_dialog
@@ -3970,6 +4075,12 @@ layout design_navigation_menu
 layout design_navigation_menu_item
 layout design_text_input_end_icon
 layout design_text_input_start_icon
+layout emoji_picker
+layout emoji_picker_popup_bidirectional
+layout emoji_picker_popup_emoji_view
+layout emoji_picker_popup_image_view
+layout empty_category_text_view
+layout header_icon_holder
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout m3_alert_dialog
@@ -4036,6 +4147,7 @@ layout stream_activity_attachment_document
 layout stream_toggle_dialog_fragment
 layout stream_toggle_list_item
 layout support_simple_spinner_dropdown_item
+layout variant_popup
 mipmap ic_launcher
 mipmap ic_launcher_foreground
 mipmap ic_launcher_round
@@ -4045,6 +4157,16 @@ plurals stream_compose_message_list_header_typing_users
 plurals stream_compose_message_list_thread_footnote
 plurals stream_compose_message_list_thread_separator
 plurals stream_compose_message_reactions
+raw emoji_category_activity
+raw emoji_category_animals_nature
+raw emoji_category_emotions
+raw emoji_category_flags
+raw emoji_category_food_drink
+raw emoji_category_objects
+raw emoji_category_people
+raw emoji_category_people_gender_inclusive
+raw emoji_category_symbols
+raw emoji_category_travel_places
 string abc_action_bar_home_description
 string abc_action_bar_up_description
 string abc_action_menu_overflow_description
@@ -4114,6 +4236,28 @@ string common_signin_button_text_long
 string default_error_message
 string default_popup_window_title
 string dropdown_menu
+string emoji_bidirectional_switcher_clicked_desc
+string emoji_bidirectional_switcher_content_desc
+string emoji_category_activity
+string emoji_category_animals_nature
+string emoji_category_emotions
+string emoji_category_flags
+string emoji_category_food_drink
+string emoji_category_objects
+string emoji_category_people
+string emoji_category_recent
+string emoji_category_symbols
+string emoji_category_travel_places
+string emoji_empty_non_recent_category
+string emoji_empty_recent_category
+string emoji_skin_tone_dark_content_desc
+string emoji_skin_tone_light_content_desc
+string emoji_skin_tone_medium_content_desc
+string emoji_skin_tone_medium_dark_content_desc
+string emoji_skin_tone_medium_light_content_desc
+string emoji_skin_tone_shadow_content_desc
+string emoji_variant_content_desc_template
+string emoji_variant_selector_content_desc
 string error_a11y_label
 string error_icon_content_description
 string exposed_dropdown_menu_content_description
@@ -4746,6 +4890,11 @@ style CardView
 style CardView_Dark
 style CardView_Light
 style DialogWindowTheme
+style EmojiSkintoneSelectorDark
+style EmojiSkintoneSelectorLight
+style EmojiSkintoneSelectorMedium
+style EmojiSkintoneSelectorMediumDark
+style EmojiSkintoneSelectorMediumLight
 style FloatingDialogTheme
 style FloatingDialogWindowTheme
 style MaterialAlertDialog_Material3
@@ -5080,6 +5229,7 @@ style Theme_MaterialComponents_Light_NoActionBar
 style Theme_MaterialComponents_Light_NoActionBar_Bridge
 style Theme_MaterialComponents_NoActionBar
 style Theme_MaterialComponents_NoActionBar_Bridge
+style Theme_Patriarch
 style ThemeOverlay_AppCompat
 style ThemeOverlay_AppCompat_ActionBar
 style ThemeOverlay_AppCompat_Dark
@@ -5191,6 +5341,7 @@ style ThemeOverlay_MaterialComponents_TimePicker_Display_TextInputEditText
 style ThemeOverlay_MaterialComponents_Toolbar_Popup_Primary
 style ThemeOverlay_MaterialComponents_Toolbar_Primary
 style ThemeOverlay_MaterialComponents_Toolbar_Surface
+style VariantPopupAnimation
 style Widget_AppCompat_ActionBar
 style Widget_AppCompat_ActionBar_Solid
 style Widget_AppCompat_ActionBar_TabBar
@@ -5615,6 +5766,8 @@ styleable CoordinatorLayout_Layout android_layout_gravity layout_anchor layout_a
 styleable CustomAttribute attributeName customBoolean customColorDrawableValue customColorValue customDimension customFloatValue customIntegerValue customPixelDimension customReference customStringValue methodName
 styleable DrawerArrowToggle arrowHeadLength arrowShaftLength barLength color drawableSize gapBetweenBars spinBars thickness
 styleable DrawerLayout elevation
+styleable EmojiPickerView emojiGridColumns emojiGridRows
+styleable EmojiSkintoneSelector emoji_variant_selector_color_1 emoji_variant_selector_color_10 emoji_variant_selector_color_11 emoji_variant_selector_color_12 emoji_variant_selector_color_13 emoji_variant_selector_color_2 emoji_variant_selector_color_3 emoji_variant_selector_color_4 emoji_variant_selector_color_5 emoji_variant_selector_color_6 emoji_variant_selector_color_7 emoji_variant_selector_color_8 emoji_variant_selector_color_9
 styleable ExtendedFloatingActionButton collapsedSize elevation extendMotionSpec extendStrategy hideMotionSpec showMotionSpec shrinkMotionSpec
 styleable ExtendedFloatingActionButton_Behavior_Layout behavior_autoHide behavior_autoShrink
 styleable FloatingActionButton android_enabled backgroundTint backgroundTintMode borderWidth elevation ensureMinTouchTargetSize fabCustomSize fabSize hideMotionSpec hoveredFocusedTranslationZ maxImageSize pressedTranslationZ rippleColor shapeAppearance shapeAppearanceOverlay showMotionSpec useCompatPadding

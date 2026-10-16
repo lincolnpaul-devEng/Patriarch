@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-small-v4/values-small-v4.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-small-v4/values-small-v4.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/bc817a90541543329d589717e8e8d290/transformed/material-1.9.0/res/values-small-v4/values-small-v4.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/0f8d57b5a2045137b140d944ca29a055/transformed/material-1.9.0/res/values-small-v4/values-small-v4.xml",
                     "from": {
                         "startLines": "2,3,4,5",
                         "startColumns": "4,4,4,4",

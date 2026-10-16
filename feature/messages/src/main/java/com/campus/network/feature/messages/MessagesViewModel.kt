@@ -289,23 +289,32 @@ class MessagesViewModel(
             }
 
             is MessagesEvent.SendMessage -> {
-                if (event.text.isBlank()) return
+                if (event.text.isBlank() && event.imageUri == null && event.imageUrl == null && event.gifUrl == null) return
                 val activeThread = _uiState.value.selectedThread ?: return
                 val newMsg = DirectMessageItem(
                     id = "msg-${System.currentTimeMillis()}",
                     senderName = "Lincoln",
                     isMine = true,
                     text = event.text.trim(),
-                    timestamp = "Just now"
+                    timestamp = "Just now",
+                    imageUri = event.imageUri,
+                    imageUrl = event.imageUrl,
+                    gifUrl = event.gifUrl
                 )
                 val currentList = threadMessagesMap[activeThread.id] ?: emptyList()
                 val updatedList = currentList + newMsg
                 threadMessagesMap[activeThread.id] = updatedList
 
+                val displaySnippet = when {
+                    event.gifUrl != null -> "[GIF]"
+                    event.imageUri != null || event.imageUrl != null -> "[Photo]"
+                    else -> event.text.trim()
+                }
+
                 val updatedThreads = _uiState.value.threads.map {
                     if (it.id == activeThread.id) {
                         it.copy(
-                            lastMessage = event.text.trim(),
+                            lastMessage = displaySnippet,
                             lastTimestamp = "Just now"
                         )
                     } else it

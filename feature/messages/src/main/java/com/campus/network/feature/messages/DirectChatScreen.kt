@@ -3,6 +3,11 @@ package com.campus.network.feature.messages
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -25,8 +30,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -52,7 +59,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Videocam
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.campus.network.core.ui.components.HybridEmojiReactionDrawer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -123,8 +135,18 @@ fun DirectChatScreen(
 
     var inputText by remember { mutableStateOf("") }
     var draftAttachment by remember { mutableStateOf<Int?>(null) }
+    var selectedMediaUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var isEmojiDrawerOpen by remember { mutableStateOf(false) }
     var showActionMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            selectedMediaUri = uri
+        }
+    }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -439,13 +461,13 @@ fun DirectChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Attach Cookies Photo") },
+                                text = { Text("Photo Gallery") },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Photo, contentDescription = null, tint = Color(0xFF16A34A))
+                                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFF16A34A))
                                 },
                                 onClick = {
                                     showActionMenu = false
-                                    draftAttachment = com.campus.network.core.ui.R.drawable.place_photo_1
+                                    photoPickerLauncher.launch("image/*")
                                 }
                             )
                         }
@@ -465,11 +487,23 @@ fun DirectChatScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 14.dp),
+                                .padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Emoji & GIF Access Button
+                            Icon(
+                                imageVector = Icons.Default.SentimentSatisfiedAlt,
+                                contentDescription = "Emojis & GIFs",
+                                tint = if (isEmojiDrawerOpen) Color(0xFF007AFF) else Color(0xFF64748B),
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clickable { isEmojiDrawerOpen = !isEmojiDrawerOpen }
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             Box(modifier = Modifier.weight(1f)) {
-                                if (inputText.isEmpty()) {
+                                if (inputText.isEmpty() && selectedMediaUri == null) {
                                     Text(
                                         text = "Add comment or Send",
                                         fontSize = 15.sp,
@@ -488,10 +522,17 @@ fun DirectChatScreen(
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                                     keyboardActions = KeyboardActions(
                                         onSend = {
-                                            if (inputText.isNotBlank() || draftAttachment != null) {
-                                                onEvent(MessagesEvent.SendMessage(inputText))
+                                            if (inputText.isNotBlank() || selectedMediaUri != null || draftAttachment != null) {
+                                                onEvent(
+                                                    MessagesEvent.SendMessage(
+                                                        text = inputText.trim(),
+                                                        imageUri = selectedMediaUri?.toString()
+                                                    )
+                                                )
                                                 inputText = ""
+                                                selectedMediaUri = null
                                                 draftAttachment = null
+                                                isEmojiDrawerOpen = false
                                             }
                                         }
                                     ),
@@ -501,7 +542,7 @@ fun DirectChatScreen(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            if (inputText.isEmpty() && draftAttachment == null) {
+                            if (inputText.isEmpty() && selectedMediaUri == null && draftAttachment == null) {
                                 // Mic Button: activates voice dictation with waveform animation bar
                                 Box(
                                     modifier = Modifier
@@ -533,10 +574,17 @@ fun DirectChatScreen(
                                         .clip(CircleShape)
                                         .background(Color(0xFF007AFF))
                                         .clickable {
-                                            if (inputText.isNotBlank() || draftAttachment != null) {
-                                                onEvent(MessagesEvent.SendMessage(inputText))
+                                            if (inputText.isNotBlank() || selectedMediaUri != null || draftAttachment != null) {
+                                                onEvent(
+                                                    MessagesEvent.SendMessage(
+                                                        text = inputText.trim(),
+                                                        imageUri = selectedMediaUri?.toString()
+                                                    )
+                                                )
                                                 inputText = ""
+                                                selectedMediaUri = null
                                                 draftAttachment = null
+                                                isEmojiDrawerOpen = false
                                             }
                                         },
                                     contentAlignment = Alignment.Center
@@ -554,7 +602,68 @@ fun DirectChatScreen(
                         }
                     }
                 }
+
+                // Selected Media Thumbnail Preview
+                if (selectedMediaUri != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(56.dp)) {
+                            AsyncImage(
+                                model = selectedMediaUri,
+                                contentDescription = "Draft photo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFF1F5F9))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .clickable { selectedMediaUri = null },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        // Hybrid Emoji & GIF Drawer for Direct Chat
+        AnimatedVisibility(
+            visible = isEmojiDrawerOpen,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            HybridEmojiReactionDrawer(
+                onEmojiPicked = { emoji ->
+                    inputText += emoji
+                },
+                onGifPicked = { gif ->
+                    onEvent(
+                        MessagesEvent.SendMessage(
+                            text = "",
+                            gifUrl = gif.originalUrl
+                        )
+                    )
+                    isEmojiDrawerOpen = false
+                }
+            )
         }
 
         // Send Settlement Modal
@@ -789,18 +898,40 @@ private fun DirectChatBubble(
                 )
             }
 
-            Surface(
-                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
-                color = Color(0xFF007AFF),
-                modifier = Modifier.widthIn(max = 280.dp)
-            ) {
-                Text(
-                    text = message.text,
-                    color = Color.White,
-                    fontSize = 15.5.sp,
-                    lineHeight = 21.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+            val mediaData = message.imageUri ?: message.imageUrl ?: message.gifUrl ?: message.imageResId
+            if (mediaData != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(mediaData)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Attachment",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .widthIn(max = 240.dp)
+                        .heightIn(max = 190.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFF1F5F9))
                 )
+                if (message.text.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+
+            if (message.text.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
+                    color = Color(0xFF007AFF),
+                    modifier = Modifier.widthIn(max = 280.dp)
+                ) {
+                    Text(
+                        text = message.text,
+                        color = Color.White,
+                        fontSize = 15.5.sp,
+                        lineHeight = 21.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                    )
+                }
             }
 
             if (message.isEdited) {
@@ -827,18 +958,40 @@ private fun DirectChatBubble(
                 .padding(vertical = 2.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            Surface(
-                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp),
-                color = Color(0xFFE9E9EB),
-                modifier = Modifier.widthIn(max = 280.dp)
-            ) {
-                Text(
-                    text = message.text,
-                    color = Color(0xFF0F172A),
-                    fontSize = 15.5.sp,
-                    lineHeight = 21.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+            val peerMediaData = message.imageUri ?: message.imageUrl ?: message.gifUrl ?: message.imageResId
+            if (peerMediaData != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(peerMediaData)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Attachment",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .widthIn(max = 240.dp)
+                        .heightIn(max = 190.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFF1F5F9))
                 )
+                if (message.text.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+
+            if (message.text.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp),
+                    color = Color(0xFFE9E9EB),
+                    modifier = Modifier.widthIn(max = 280.dp)
+                ) {
+                    Text(
+                        text = message.text,
+                        color = Color(0xFF0F172A),
+                        fontSize = 15.5.sp,
+                        lineHeight = 21.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                    )
+                }
             }
         }
     }

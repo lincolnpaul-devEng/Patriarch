@@ -1,5 +1,7 @@
 int drawable avatar_andrew 0x0
+int drawable avatar_ath 0x0
 int drawable avatar_clin 0x0
+int drawable avatar_deleted_user 0x0
 int drawable avatar_eliza 0x0
 int drawable avatar_junebog 0x0
 int drawable avatar_lincoln 0x0
@@ -53,6 +55,8 @@ int drawable place_photo_2 0x0
 int drawable place_photo_3 0x0
 int drawable server_ai_brain 0x0
 int drawable server_avatar2 0x0
+int drawable server_banner_basi 0x0
+int drawable server_banner_clash 0x0
 int drawable server_codesistency 0x0
 int drawable server_curly 0x0
 int drawable server_dragon 0x0
@@ -68,3 +72,4 @@ int drawable student_clin 0x0
 int drawable student_eliza 0x0
 int drawable student_june 0x0
 int drawable student_rk 0x0
+int style Theme_Patriarch 0x0

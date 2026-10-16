@@ -17,8 +17,13 @@ material3 = "1.2.1"
 activityCompose = "1.9.0"
 ktor = "2.3.10"
 coil = "2.6.0"
+emoji2 = "1.5.0"
 
 [libraries]
+# Emoji & Reaction Engine
+androidx-emoji2-emojipicker = { group = "androidx.emoji2", name = "emoji2-emojipicker", version.ref = "emoji2" }
+androidx-emoji2-bundled = { group = "androidx.emoji2", name = "emoji2-bundled", version.ref = "emoji2" }
+
 # Core Messaging Engine
 stream-chat-compose = { group = "io.getstream", name = "stream-chat-android-compose", version.ref = "streamSdk" }
 stream-chat-client = { group = "io.getstream", name = "stream-chat-android-client", version.ref = "streamSdk" }
@@ -60,6 +65,7 @@ ktor-client-websockets = { group = "io.ktor", name = "ktor-client-websockets", v
 
 # Image Loading
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

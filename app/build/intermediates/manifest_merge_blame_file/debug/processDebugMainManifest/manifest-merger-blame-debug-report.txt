@@ -34,571 +34,598 @@
 22    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 22-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:15:5-80
 22-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:15:22-77
-23    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-23-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:16:5-75
-23-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:16:22-72
-24
-25    <uses-feature
-25-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:5-85
-26        android:name="android.hardware.camera"
-26-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:19-57
-27        android:required="false" />
-27-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:58-82
-28    <uses-feature
-28-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:18:5-95
-29        android:name="android.hardware.camera.autofocus"
-29-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:18:19-67
-30        android:required="false" />
-30-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:18:68-92
-31
-32    <!-- Android 11+ (API 30+) Package Visibility Declaration for Speech Recognition Services -->
-33    <queries>
-33-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:21:5-30:15
-34        <intent>
-34-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:22:9-24:18
-35            <action android:name="android.speech.RecognitionService" />
-35-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:23:13-72
-35-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:23:21-69
-36        </intent>
-37        <intent>
-37-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:25:9-27:18
-38            <action android:name="android.intent.action.RECOGNIZE_SPEECH" />
-38-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:26:13-77
-38-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:26:21-74
-39        </intent>
-40
-41        <package android:name="com.google.android.googlequicksearchbox" />
-41-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:28:9-75
-41-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:28:18-72
-42        <package android:name="com.google.android.tts" />
-42-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:29:9-58
-42-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:29:18-55
+23    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+23-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:16:5-76
+23-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:16:22-73
+24    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+24-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:5-75
+24-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:17:22-72
+25
+26    <!-- Real Device Gallery & Media for Channel Chat Attachments -->
+27    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+27-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:20:5-76
+27-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:20:22-73
+28    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+28-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:21:5-75
+28-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:21:22-72
+29    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+29-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:22:5-75
+29-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:22:22-72
+30    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+30-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:23:5-90
+30-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:23:22-87
+31    <uses-permission
+31-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:24:5-107
+32        android:name="android.permission.READ_EXTERNAL_STORAGE"
+32-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:24:22-77
+33        android:maxSdkVersion="32" />
+33-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:24:78-104
+34
+35    <!-- Notifications & User Engagement -->
+36    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+36-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:27:5-77
+36-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:27:22-74
+37    <uses-permission android:name="android.permission.VIBRATE" />
+37-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:28:5-66
+37-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:28:22-63
+38
+39    <!-- Background Reliability & Active Call Continuity -->
+40    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+40-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:31:5-77
+40-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:31:22-74
+41    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+41-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:32:5-88
+41-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:32:22-85
+42    <uses-permission android:name="android.permission.WAKE_LOCK" />
+42-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:33:5-68
+42-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:33:22-65
 43
-44        <intent>
-44-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:33:9-35:18
-45            <action android:name="android.media.action.VIDEO_CAPTURE" />
-45-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:34:13-73
-45-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:34:21-70
-46        </intent>
-47        <intent>
-47-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:36:9-38:18
-48            <action android:name="android.media.action.IMAGE_CAPTURE" />
-48-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:37:13-73
-48-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:37:21-70
-49        </intent> <!-- Needs to be explicitly declared on Android R+ -->
-50        <package android:name="com.google.android.apps.maps" />
-50-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:33:9-64
-50-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:33:18-61
-51    </queries>
-52
-53    <uses-permission
-53-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:22:5-24:38
-54        android:name="android.permission.READ_EXTERNAL_STORAGE"
-54-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:23:9-64
-55        android:maxSdkVersion="32" />
-55-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:24:9-35
-56    <uses-permission
-56-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:25:5-27:38
-57        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-57-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:26:9-65
-58        android:maxSdkVersion="29" />
-58-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:27:9-35
-59    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-59-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:28:5-76
-59-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:28:22-73
-60    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-60-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:29:5-75
-60-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:29:22-72
-61    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-61-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:30:5-75
-61-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:30:22-72
-62    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-62-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:25:5-77
-62-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:25:22-74
-63    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-63-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:22:5-76
-63-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:22:22-73
-64
-65    <uses-feature
-65-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:26:5-28:35
-66        android:glEsVersion="0x00020000"
-66-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:27:9-41
-67        android:required="true" />
-67-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:28:9-32
-68
-69    <uses-permission android:name="android.permission.WAKE_LOCK" />
-69-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:23:5-68
-69-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:23:22-65
-70    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-70-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:25:5-81
-70-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:25:22-78
-71    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-71-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:26:5-77
-71-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:26:22-74
-72
-73    <permission
-73-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
-74        android:name="com.campus.network.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-74-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
-75        android:protectionLevel="signature" />
-75-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
-76
-77    <uses-permission android:name="com.campus.network.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-77-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
-77-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+44    <!-- Hardware Feature Declarations -->
+45    <uses-feature
+45-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:36:5-85
+46        android:name="android.hardware.camera"
+46-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:36:19-57
+47        android:required="false" />
+47-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:36:58-82
+48    <uses-feature
+48-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:37:5-95
+49        android:name="android.hardware.camera.autofocus"
+49-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:37:19-67
+50        android:required="false" />
+50-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:37:68-92
+51    <uses-feature
+51-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:38:5-89
+52        android:name="android.hardware.microphone"
+52-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:38:19-61
+53        android:required="false" />
+53-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:38:62-86
+54    <uses-feature
+54-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:39:5-91
+55        android:name="android.hardware.location.gps"
+55-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:39:19-63
+56        android:required="false" />
+56-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:39:64-88
+57
+58    <!-- Android 11+ (API 30+) Package Visibility Declaration for Speech Recognition Services -->
+59    <queries>
+59-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:42:5-51:15
+60        <intent>
+60-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:43:9-45:18
+61            <action android:name="android.speech.RecognitionService" />
+61-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:44:13-72
+61-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:44:21-69
+62        </intent>
+63        <intent>
+63-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:46:9-48:18
+64            <action android:name="android.intent.action.RECOGNIZE_SPEECH" />
+64-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:47:13-77
+64-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:47:21-74
+65        </intent>
+66
+67        <package android:name="com.google.android.googlequicksearchbox" />
+67-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:49:9-75
+67-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:49:18-72
+68        <package android:name="com.google.android.tts" />
+68-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:50:9-58
+68-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:50:18-55
+69
+70        <intent>
+70-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:33:9-35:18
+71            <action android:name="android.media.action.VIDEO_CAPTURE" />
+71-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:34:13-73
+71-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:34:21-70
+72        </intent>
+73        <intent>
+73-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:36:9-38:18
+74            <action android:name="android.media.action.IMAGE_CAPTURE" />
+74-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:37:13-73
+74-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:37:21-70
+75        </intent> <!-- Needs to be explicitly declared on Android R+ -->
+76        <package android:name="com.google.android.apps.maps" />
+76-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:33:9-64
+76-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:33:18-61
+77    </queries>
 78
-79    <application
-79-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:32:5-56:19
-80        android:name="com.campus.network.CampusApplication"
-80-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:33:9-42
-81        android:allowBackup="true"
-81-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:34:9-35
-82        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-82-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/c73e877cddbd6c5e277f28d4ad3d29d1/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
-83        android:debuggable="true"
-84        android:extractNativeLibs="false"
-85        android:icon="@mipmap/ic_launcher"
-85-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:35:9-43
-86        android:label="Patriarch"
-86-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:36:9-34
-87        android:roundIcon="@mipmap/ic_launcher_round"
-87-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:37:9-54
-88        android:supportsRtl="true"
-88-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:38:9-35
-89        android:theme="@android:style/Theme.Material.NoActionBar" >
-89-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:39:9-66
-90
-91        <!-- Google Maps API Key (UniHub) -->
-92        <meta-data
-92-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:42:9-44:71
-93            android:name="com.google.android.geo.API_KEY"
-93-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:43:13-58
-94            android:value="AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78" />
-94-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:44:13-68
-95
-96        <activity
-96-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:46:9-55:20
-97            android:name="com.campus.network.MainActivity"
-97-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:47:13-41
-98            android:exported="true"
-98-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:48:13-36
-99            android:theme="@android:style/Theme.Material.NoActionBar"
-99-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:50:13-70
-100            android:windowSoftInputMode="adjustNothing" >
-100-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:49:13-56
-101            <intent-filter>
-101-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:51:13-54:29
-102                <action android:name="android.intent.action.MAIN" />
-102-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:52:17-69
-102-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:52:25-66
-103
-104                <category android:name="android.intent.category.LAUNCHER" />
-104-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:53:17-77
-104-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:53:27-74
-105            </intent-filter>
-106        </activity>
-107        <activity
-107-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:26:9-28:40
-108            android:name="io.getstream.chat.android.compose.ui.attachments.preview.MediaPreviewActivity"
-108-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:27:13-105
-109            android:exported="false" />
-109-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:28:13-37
-110        <activity
-110-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:29:9-31:40
-111            android:name="io.getstream.chat.android.compose.ui.attachments.preview.MediaGalleryPreviewActivity"
-111-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:30:13-112
-112            android:exported="false" />
-112-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/43ec15740994f840641594783fa1bdb6/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:31:13-37
-113        <activity
-113-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:42:9-45:75
-114            android:name="io.getstream.chat.android.ui.common.feature.documents.AttachmentDocumentActivity"
-114-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:43:13-108
-115            android:exported="false"
-115-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:44:13-37
-116            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
-116-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:45:13-72
-117
-118        <provider
-118-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:47:9-55:20
-119            android:name="io.getstream.chat.android.ui.common.StreamFileProvider"
-119-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:48:13-82
-120            android:authorities="com.campus.network.streamfileprovider"
-120-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:49:13-70
-121            android:exported="false"
-121-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:50:13-37
-122            android:grantUriPermissions="true" >
-122-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:51:13-47
-123            <meta-data
-123-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:52:13-54:60
-124                android:name="android.support.FILE_PROVIDER_PATHS"
-124-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:53:17-67
-125                android:resource="@xml/stream_filepaths" />
-125-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:54:17-57
-126        </provider>
-127        <provider
-127-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:28:9-36:20
-128            android:name="io.getstream.android.push.delegate.PushDelegateProvider"
-128-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:29:13-83
-129            android:authorities="com.campus.network.io.getstream.android.push"
-129-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:30:13-77
-130            android:exported="false" >
-130-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:31:13-37
-131            <meta-data
-131-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:33:13-35:74
-132                android:name="io.getstream.chat.android.client.notifications.ChatPushDelegate"
-132-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:34:17-95
-133                android:value="io.getstream.android.push.PushDelegate" />
-133-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:35:17-71
-134        </provider>
-135
-136        <receiver
-136-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:38:9-46:20
-137            android:name="io.getstream.chat.android.client.receivers.NotificationMessageReceiver"
-137-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:39:13-98
-138            android:enabled="true"
-138-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:40:13-35
-139            android:exported="false" >
-139-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:41:13-37
-140            <intent-filter>
-140-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:42:13-45:29
-141                <action android:name="io.getstream.chat.android.READ" />
-141-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:43:17-73
-141-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:43:25-70
-142                <action android:name="io.getstream.chat.android.REPLY" />
-142-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:44:17-74
-142-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:44:25-71
-143            </intent-filter>
-144        </receiver>
-145
-146        <service
-146-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:48:9-51:34
-147            android:name="androidx.work.impl.foreground.SystemForegroundService"
-147-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:49:13-81
-148            android:directBootAware="false"
-148-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:55:13-44
-149            android:enabled="@bool/enable_system_foreground_service_default"
-149-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:56:13-77
-150            android:exported="false"
-150-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:57:13-37
-151            android:foregroundServiceType="shortService" />
-151-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:50:13-57
-152        <service
-152-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:24:9-33:19
-153            android:name="androidx.camera.core.impl.MetadataHolderService"
-153-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:25:13-75
-154            android:enabled="false"
-154-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:26:13-36
+79    <uses-permission
+79-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:25:5-27:38
+80        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+80-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:26:9-65
+81        android:maxSdkVersion="29" />
+81-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:27:9-35
+82
+83    <uses-feature
+83-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:26:5-28:35
+84        android:glEsVersion="0x00020000"
+84-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:27:9-41
+85        android:required="true" />
+85-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:28:9-32
+86
+87    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+87-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:25:5-81
+87-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:25:22-78
+88
+89    <permission
+89-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/540675f9cad96800d3f42e609e42baf2/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+90        android:name="com.campus.network.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+90-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/540675f9cad96800d3f42e609e42baf2/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+91        android:protectionLevel="signature" />
+91-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/540675f9cad96800d3f42e609e42baf2/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+92
+93    <uses-permission android:name="com.campus.network.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+93-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/540675f9cad96800d3f42e609e42baf2/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+93-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/540675f9cad96800d3f42e609e42baf2/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+94
+95    <application
+95-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:53:5-77:19
+96        android:name="com.campus.network.CampusApplication"
+96-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:54:9-42
+97        android:allowBackup="true"
+97-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:55:9-35
+98        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+98-->[androidx.core:core:1.13.1] /home/lincoln/.gradle/caches/transforms-4/540675f9cad96800d3f42e609e42baf2/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+99        android:debuggable="true"
+100        android:extractNativeLibs="false"
+101        android:icon="@mipmap/ic_launcher"
+101-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:56:9-43
+102        android:label="Patriarch"
+102-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:57:9-34
+103        android:roundIcon="@mipmap/ic_launcher_round"
+103-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:58:9-54
+104        android:supportsRtl="true"
+104-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:59:9-35
+105        android:theme="@style/Theme.Patriarch" >
+105-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:60:9-47
+106
+107        <!-- Google Maps API Key (UniHub) -->
+108        <meta-data
+108-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:63:9-65:71
+109            android:name="com.google.android.geo.API_KEY"
+109-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:64:13-58
+110            android:value="AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78" />
+110-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:65:13-68
+111
+112        <activity
+112-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:67:9-76:20
+113            android:name="com.campus.network.MainActivity"
+113-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:68:13-41
+114            android:exported="true"
+114-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:69:13-36
+115            android:theme="@android:style/Theme.Material.NoActionBar"
+115-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:71:13-70
+116            android:windowSoftInputMode="adjustNothing" >
+116-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:70:13-56
+117            <intent-filter>
+117-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:72:13-75:29
+118                <action android:name="android.intent.action.MAIN" />
+118-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:73:17-69
+118-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:73:25-66
+119
+120                <category android:name="android.intent.category.LAUNCHER" />
+120-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:74:17-77
+120-->/home/lincoln/patreon/app/src/main/AndroidManifest.xml:74:27-74
+121            </intent-filter>
+122        </activity>
+123        <activity
+123-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/ed86916e8ee63dab0cec0074dcd37c29/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:26:9-28:40
+124            android:name="io.getstream.chat.android.compose.ui.attachments.preview.MediaPreviewActivity"
+124-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/ed86916e8ee63dab0cec0074dcd37c29/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:27:13-105
+125            android:exported="false" />
+125-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/ed86916e8ee63dab0cec0074dcd37c29/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:28:13-37
+126        <activity
+126-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/ed86916e8ee63dab0cec0074dcd37c29/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:29:9-31:40
+127            android:name="io.getstream.chat.android.compose.ui.attachments.preview.MediaGalleryPreviewActivity"
+127-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/ed86916e8ee63dab0cec0074dcd37c29/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:30:13-112
+128            android:exported="false" />
+128-->[io.getstream:stream-chat-android-compose:6.0.8] /home/lincoln/.gradle/caches/transforms-4/ed86916e8ee63dab0cec0074dcd37c29/transformed/stream-chat-android-compose-6.0.8/AndroidManifest.xml:31:13-37
+129        <activity
+129-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:42:9-45:75
+130            android:name="io.getstream.chat.android.ui.common.feature.documents.AttachmentDocumentActivity"
+130-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:43:13-108
+131            android:exported="false"
+131-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:44:13-37
+132            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
+132-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:45:13-72
+133
+134        <provider
+134-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:47:9-55:20
+135            android:name="io.getstream.chat.android.ui.common.StreamFileProvider"
+135-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:48:13-82
+136            android:authorities="com.campus.network.streamfileprovider"
+136-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:49:13-70
+137            android:exported="false"
+137-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:50:13-37
+138            android:grantUriPermissions="true" >
+138-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:51:13-47
+139            <meta-data
+139-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:52:13-54:60
+140                android:name="android.support.FILE_PROVIDER_PATHS"
+140-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:53:17-67
+141                android:resource="@xml/stream_filepaths" />
+141-->[io.getstream:stream-chat-android-ui-common:6.0.8] /home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/AndroidManifest.xml:54:17-57
+142        </provider>
+143        <provider
+143-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:28:9-36:20
+144            android:name="io.getstream.android.push.delegate.PushDelegateProvider"
+144-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:29:13-83
+145            android:authorities="com.campus.network.io.getstream.android.push"
+145-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:30:13-77
+146            android:exported="false" >
+146-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:31:13-37
+147            <meta-data
+147-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:33:13-35:74
+148                android:name="io.getstream.chat.android.client.notifications.ChatPushDelegate"
+148-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:34:17-95
+149                android:value="io.getstream.android.push.PushDelegate" />
+149-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:35:17-71
+150        </provider>
+151
+152        <receiver
+152-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:38:9-46:20
+153            android:name="io.getstream.chat.android.client.receivers.NotificationMessageReceiver"
+153-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:39:13-98
+154            android:enabled="true"
+154-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:40:13-35
 155            android:exported="false" >
-155-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:27:13-37
-156            <meta-data
-156-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:30:13-32:89
-157                android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
-157-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:31:17-103
-158                android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
-158-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/725df52b0f460c4f33af447f113a991a/transformed/camera-camera2-1.3.4/AndroidManifest.xml:32:17-86
-159        </service>
-160
-161        <provider
-161-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:27:9-35:20
-162            android:name="androidx.startup.InitializationProvider"
-162-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:28:13-67
-163            android:authorities="com.campus.network.androidx-startup"
-163-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:29:13-68
-164            android:exported="false" >
-164-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:30:13-37
-165            <meta-data
-165-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:32:13-34:52
-166                android:name="io.getstream.android.push.permissions.PushPermissionsInitializer"
-166-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:33:17-96
-167                android:value="androidx.startup" />
-167-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/07f603d80dc805bcda24483043ca6ff5/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:34:17-49
-168            <meta-data
-168-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:34:13-36:52
-169                android:name="androidx.work.WorkManagerInitializer"
-169-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:35:17-68
-170                android:value="androidx.startup" />
-170-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:36:17-49
-171            <meta-data
-171-->[androidx.emoji2:emoji2:1.3.0] /home/lincoln/.gradle/caches/transforms-4/de759d8efa7c0ba5027819b2d795c5e9/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
-172                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-172-->[androidx.emoji2:emoji2:1.3.0] /home/lincoln/.gradle/caches/transforms-4/de759d8efa7c0ba5027819b2d795c5e9/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
-173                android:value="androidx.startup" />
-173-->[androidx.emoji2:emoji2:1.3.0] /home/lincoln/.gradle/caches/transforms-4/de759d8efa7c0ba5027819b2d795c5e9/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
-174            <meta-data
-174-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/lincoln/.gradle/caches/transforms-4/f25c1c7d994d6618012a979a9d4aae57/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
-175                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-175-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/lincoln/.gradle/caches/transforms-4/f25c1c7d994d6618012a979a9d4aae57/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
-176                android:value="androidx.startup" />
-176-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/lincoln/.gradle/caches/transforms-4/f25c1c7d994d6618012a979a9d4aae57/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
-177            <meta-data
-177-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
-178                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-178-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
-179                android:value="androidx.startup" />
-179-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
-180        </provider>
-181
-182        <service
-182-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:26:9-33:19
-183            android:name="androidx.core.telecom.internal.JetpackConnectionService"
-183-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:27:13-83
-184            android:exported="true"
-184-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:28:13-36
-185            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE" >
-185-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:29:13-84
-186            <intent-filter>
-186-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:30:13-32:29
-187                <action android:name="android.telecom.ConnectionService" />
-187-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:31:17-76
-187-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/19352ccbd86be62a7ef95ccf884ed2e5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:31:25-73
-188            </intent-filter>
-189        </service> <!-- Needs to be explicitly declared on P+ -->
-190        <uses-library
-190-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:39:9-41:40
-191            android:name="org.apache.http.legacy"
-191-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:40:13-50
-192            android:required="false" />
-192-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/96b141b5f7fd53a437f1711893076556/transformed/play-services-maps-18.2.0/AndroidManifest.xml:41:13-37
-193
-194        <activity
-194-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/8fccf1852408d49ef8bac9759f977bdc/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:9-22:45
-195            android:name="com.google.android.gms.common.api.GoogleApiActivity"
-195-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/8fccf1852408d49ef8bac9759f977bdc/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:19-85
-196            android:exported="false"
-196-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/8fccf1852408d49ef8bac9759f977bdc/transformed/play-services-base-18.0.1/AndroidManifest.xml:22:19-43
-197            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-197-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/8fccf1852408d49ef8bac9759f977bdc/transformed/play-services-base-18.0.1/AndroidManifest.xml:21:19-78
-198
-199        <meta-data
-199-->[com.google.android.gms:play-services-basement:18.0.0] /home/lincoln/.gradle/caches/transforms-4/1cb9d869cbc6d492fbd579ee634c853e/transformed/play-services-basement-18.0.0/AndroidManifest.xml:21:9-23:69
-200            android:name="com.google.android.gms.version"
-200-->[com.google.android.gms:play-services-basement:18.0.0] /home/lincoln/.gradle/caches/transforms-4/1cb9d869cbc6d492fbd579ee634c853e/transformed/play-services-basement-18.0.0/AndroidManifest.xml:22:13-58
-201            android:value="@integer/google_play_services_version" />
-201-->[com.google.android.gms:play-services-basement:18.0.0] /home/lincoln/.gradle/caches/transforms-4/1cb9d869cbc6d492fbd579ee634c853e/transformed/play-services-basement-18.0.0/AndroidManifest.xml:23:13-66
-202
-203        <service
-203-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:39:9-45:35
-204            android:name="androidx.work.impl.background.systemalarm.SystemAlarmService"
-204-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:40:13-88
-205            android:directBootAware="false"
-205-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:41:13-44
-206            android:enabled="@bool/enable_system_alarm_service_default"
-206-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:42:13-72
-207            android:exported="false" />
-207-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:43:13-37
-208        <service
-208-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:46:9-52:35
-209            android:name="androidx.work.impl.background.systemjob.SystemJobService"
-209-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:47:13-84
-210            android:directBootAware="false"
-210-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:48:13-44
-211            android:enabled="@bool/enable_system_job_service_default"
-211-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:49:13-70
-212            android:exported="true"
-212-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:50:13-36
-213            android:permission="android.permission.BIND_JOB_SERVICE" />
-213-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:51:13-69
-214
-215        <receiver
-215-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:61:9-66:35
-216            android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver"
-216-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:62:13-88
-217            android:directBootAware="false"
-217-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:63:13-44
-218            android:enabled="true"
-218-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:64:13-35
-219            android:exported="false" />
-219-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:65:13-37
-220        <receiver
-220-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:67:9-77:20
-221            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy"
-221-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:68:13-106
-222            android:directBootAware="false"
-222-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:69:13-44
-223            android:enabled="false"
-223-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:70:13-36
-224            android:exported="false" >
-224-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:71:13-37
-225            <intent-filter>
-225-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:73:13-76:29
-226                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
-226-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:74:17-87
-226-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:74:25-84
-227                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
-227-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:75:17-90
-227-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:75:25-87
-228            </intent-filter>
-229        </receiver>
-230        <receiver
-230-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:78:9-88:20
-231            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy"
-231-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:79:13-104
-232            android:directBootAware="false"
-232-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:80:13-44
-233            android:enabled="false"
-233-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:81:13-36
-234            android:exported="false" >
-234-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:82:13-37
-235            <intent-filter>
-235-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:84:13-87:29
-236                <action android:name="android.intent.action.BATTERY_OKAY" />
-236-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:85:17-77
-236-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:85:25-74
-237                <action android:name="android.intent.action.BATTERY_LOW" />
-237-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:86:17-76
-237-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:86:25-73
-238            </intent-filter>
-239        </receiver>
-240        <receiver
-240-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:89:9-99:20
-241            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy"
-241-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:90:13-104
-242            android:directBootAware="false"
-242-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:91:13-44
-243            android:enabled="false"
-243-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:92:13-36
-244            android:exported="false" >
-244-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:93:13-37
-245            <intent-filter>
-245-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:95:13-98:29
-246                <action android:name="android.intent.action.DEVICE_STORAGE_LOW" />
-246-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:96:17-83
-246-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:96:25-80
-247                <action android:name="android.intent.action.DEVICE_STORAGE_OK" />
-247-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:97:17-82
-247-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:97:25-79
-248            </intent-filter>
-249        </receiver>
-250        <receiver
-250-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:100:9-109:20
-251            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy"
-251-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:101:13-103
-252            android:directBootAware="false"
-252-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:102:13-44
-253            android:enabled="false"
-253-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:103:13-36
-254            android:exported="false" >
-254-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:104:13-37
-255            <intent-filter>
-255-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:106:13-108:29
-256                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
-256-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:107:17-79
-256-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:107:25-76
+155-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:41:13-37
+156            <intent-filter>
+156-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:42:13-45:29
+157                <action android:name="io.getstream.chat.android.READ" />
+157-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:43:17-73
+157-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:43:25-70
+158                <action android:name="io.getstream.chat.android.REPLY" />
+158-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:44:17-74
+158-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:44:25-71
+159            </intent-filter>
+160        </receiver>
+161
+162        <service
+162-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:48:9-51:34
+163            android:name="androidx.work.impl.foreground.SystemForegroundService"
+163-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:49:13-81
+164            android:directBootAware="false"
+164-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:55:13-44
+165            android:enabled="@bool/enable_system_foreground_service_default"
+165-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:56:13-77
+166            android:exported="false"
+166-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:57:13-37
+167            android:foregroundServiceType="shortService" />
+167-->[io.getstream:stream-chat-android-client:6.0.8] /home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/AndroidManifest.xml:50:13-57
+168
+169        <activity
+169-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/lincoln/.gradle/caches/transforms-4/4cc6eba783a487b5564991ed70524685/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+170            android:name="androidx.compose.ui.tooling.PreviewActivity"
+170-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/lincoln/.gradle/caches/transforms-4/4cc6eba783a487b5564991ed70524685/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+171            android:exported="true" /> <!-- Needs to be explicitly declared on P+ -->
+171-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/lincoln/.gradle/caches/transforms-4/4cc6eba783a487b5564991ed70524685/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+172        <uses-library
+172-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:39:9-41:40
+173            android:name="org.apache.http.legacy"
+173-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:40:13-50
+174            android:required="false" />
+174-->[com.google.android.gms:play-services-maps:18.2.0] /home/lincoln/.gradle/caches/transforms-4/b375eb5baf4a361f2a051bbe7aaf3465/transformed/play-services-maps-18.2.0/AndroidManifest.xml:41:13-37
+175
+176        <activity
+176-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/39d2aefc3a80ebbad3970e7931fc0e9d/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:9-22:45
+177            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+177-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/39d2aefc3a80ebbad3970e7931fc0e9d/transformed/play-services-base-18.0.1/AndroidManifest.xml:20:19-85
+178            android:exported="false"
+178-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/39d2aefc3a80ebbad3970e7931fc0e9d/transformed/play-services-base-18.0.1/AndroidManifest.xml:22:19-43
+179            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+179-->[com.google.android.gms:play-services-base:18.0.1] /home/lincoln/.gradle/caches/transforms-4/39d2aefc3a80ebbad3970e7931fc0e9d/transformed/play-services-base-18.0.1/AndroidManifest.xml:21:19-78
+180
+181        <meta-data
+181-->[com.google.android.gms:play-services-basement:18.0.0] /home/lincoln/.gradle/caches/transforms-4/537fb4a4e2e1146ff1816d3157fc2171/transformed/play-services-basement-18.0.0/AndroidManifest.xml:21:9-23:69
+182            android:name="com.google.android.gms.version"
+182-->[com.google.android.gms:play-services-basement:18.0.0] /home/lincoln/.gradle/caches/transforms-4/537fb4a4e2e1146ff1816d3157fc2171/transformed/play-services-basement-18.0.0/AndroidManifest.xml:22:13-58
+183            android:value="@integer/google_play_services_version" />
+183-->[com.google.android.gms:play-services-basement:18.0.0] /home/lincoln/.gradle/caches/transforms-4/537fb4a4e2e1146ff1816d3157fc2171/transformed/play-services-basement-18.0.0/AndroidManifest.xml:23:13-66
+184
+185        <provider
+185-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:27:9-35:20
+186            android:name="androidx.startup.InitializationProvider"
+186-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:28:13-67
+187            android:authorities="com.campus.network.androidx-startup"
+187-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:29:13-68
+188            android:exported="false" >
+188-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:30:13-37
+189            <meta-data
+189-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:32:13-34:52
+190                android:name="io.getstream.android.push.permissions.PushPermissionsInitializer"
+190-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:33:17-96
+191                android:value="androidx.startup" />
+191-->[io.getstream:stream-android-push-permissions:1.1.6] /home/lincoln/.gradle/caches/transforms-4/178058dfe110f055720e6a6044b7d129/transformed/stream-android-push-permissions-1.1.6/AndroidManifest.xml:34:17-49
+192            <meta-data
+192-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:34:13-36:52
+193                android:name="androidx.work.WorkManagerInitializer"
+193-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:35:17-68
+194                android:value="androidx.startup" />
+194-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:36:17-49
+195            <meta-data
+195-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/lincoln/.gradle/caches/transforms-4/decf4d1e43280868138e1bc5b04f4d20/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+196                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+196-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/lincoln/.gradle/caches/transforms-4/decf4d1e43280868138e1bc5b04f4d20/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+197                android:value="androidx.startup" />
+197-->[androidx.lifecycle:lifecycle-process:2.7.0] /home/lincoln/.gradle/caches/transforms-4/decf4d1e43280868138e1bc5b04f4d20/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+198            <meta-data
+198-->[androidx.emoji2:emoji2:1.5.0] /home/lincoln/.gradle/caches/transforms-4/f846cc2be126f780fbbd09e24795e96d/transformed/emoji2-1.5.0/AndroidManifest.xml:29:13-31:52
+199                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+199-->[androidx.emoji2:emoji2:1.5.0] /home/lincoln/.gradle/caches/transforms-4/f846cc2be126f780fbbd09e24795e96d/transformed/emoji2-1.5.0/AndroidManifest.xml:30:17-75
+200                android:value="androidx.startup" />
+200-->[androidx.emoji2:emoji2:1.5.0] /home/lincoln/.gradle/caches/transforms-4/f846cc2be126f780fbbd09e24795e96d/transformed/emoji2-1.5.0/AndroidManifest.xml:31:17-49
+201            <meta-data
+201-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+202                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+202-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+203                android:value="androidx.startup" />
+203-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+204        </provider>
+205
+206        <service
+206-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:24:9-33:19
+207            android:name="androidx.camera.core.impl.MetadataHolderService"
+207-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:25:13-75
+208            android:enabled="false"
+208-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:26:13-36
+209            android:exported="false" >
+209-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:27:13-37
+210            <meta-data
+210-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:30:13-32:89
+211                android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
+211-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:31:17-103
+212                android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
+212-->[androidx.camera:camera-camera2:1.3.4] /home/lincoln/.gradle/caches/transforms-4/0e9419b583b3b9412c23f455db55b30e/transformed/camera-camera2-1.3.4/AndroidManifest.xml:32:17-86
+213        </service>
+214        <service
+214-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:26:9-33:19
+215            android:name="androidx.core.telecom.internal.JetpackConnectionService"
+215-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:27:13-83
+216            android:exported="true"
+216-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:28:13-36
+217            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE" >
+217-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:29:13-84
+218            <intent-filter>
+218-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:30:13-32:29
+219                <action android:name="android.telecom.ConnectionService" />
+219-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:31:17-76
+219-->[androidx.core:core-telecom:1.0.0-alpha03] /home/lincoln/.gradle/caches/transforms-4/f001ee9d7b335f3902517dfa7e508ec5/transformed/core-telecom-1.0.0-alpha03/AndroidManifest.xml:31:25-73
+220            </intent-filter>
+221        </service>
+222        <service
+222-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:39:9-45:35
+223            android:name="androidx.work.impl.background.systemalarm.SystemAlarmService"
+223-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:40:13-88
+224            android:directBootAware="false"
+224-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:41:13-44
+225            android:enabled="@bool/enable_system_alarm_service_default"
+225-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:42:13-72
+226            android:exported="false" />
+226-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:43:13-37
+227        <service
+227-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:46:9-52:35
+228            android:name="androidx.work.impl.background.systemjob.SystemJobService"
+228-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:47:13-84
+229            android:directBootAware="false"
+229-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:48:13-44
+230            android:enabled="@bool/enable_system_job_service_default"
+230-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:49:13-70
+231            android:exported="true"
+231-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:50:13-36
+232            android:permission="android.permission.BIND_JOB_SERVICE" />
+232-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:51:13-69
+233
+234        <receiver
+234-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:61:9-66:35
+235            android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver"
+235-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:62:13-88
+236            android:directBootAware="false"
+236-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:63:13-44
+237            android:enabled="true"
+237-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:64:13-35
+238            android:exported="false" />
+238-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:65:13-37
+239        <receiver
+239-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:67:9-77:20
+240            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy"
+240-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:68:13-106
+241            android:directBootAware="false"
+241-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:69:13-44
+242            android:enabled="false"
+242-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:70:13-36
+243            android:exported="false" >
+243-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:71:13-37
+244            <intent-filter>
+244-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:73:13-76:29
+245                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+245-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:74:17-87
+245-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:74:25-84
+246                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+246-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:75:17-90
+246-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:75:25-87
+247            </intent-filter>
+248        </receiver>
+249        <receiver
+249-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:78:9-88:20
+250            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy"
+250-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:79:13-104
+251            android:directBootAware="false"
+251-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:80:13-44
+252            android:enabled="false"
+252-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:81:13-36
+253            android:exported="false" >
+253-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:82:13-37
+254            <intent-filter>
+254-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:84:13-87:29
+255                <action android:name="android.intent.action.BATTERY_OKAY" />
+255-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:85:17-77
+255-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:85:25-74
+256                <action android:name="android.intent.action.BATTERY_LOW" />
+256-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:86:17-76
+256-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:86:25-73
 257            </intent-filter>
 258        </receiver>
 259        <receiver
-259-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:110:9-121:20
-260            android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver"
-260-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:111:13-88
+259-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:89:9-99:20
+260            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy"
+260-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:90:13-104
 261            android:directBootAware="false"
-261-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:112:13-44
+261-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:91:13-44
 262            android:enabled="false"
-262-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:113:13-36
+262-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:92:13-36
 263            android:exported="false" >
-263-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:114:13-37
+263-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:93:13-37
 264            <intent-filter>
-264-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:116:13-120:29
-265                <action android:name="android.intent.action.BOOT_COMPLETED" />
-265-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:117:17-79
-265-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:117:25-76
-266                <action android:name="android.intent.action.TIME_SET" />
-266-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:118:17-73
-266-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:118:25-70
-267                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-267-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:119:17-81
-267-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:119:25-78
-268            </intent-filter>
-269        </receiver>
-270        <receiver
-270-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:122:9-131:20
-271            android:name="androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver"
-271-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:123:13-99
-272            android:directBootAware="false"
-272-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:124:13-44
-273            android:enabled="@bool/enable_system_alarm_service_default"
-273-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:125:13-72
-274            android:exported="false" >
-274-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:126:13-37
-275            <intent-filter>
-275-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:128:13-130:29
-276                <action android:name="androidx.work.impl.background.systemalarm.UpdateProxies" />
-276-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:129:17-98
-276-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:129:25-95
-277            </intent-filter>
-278        </receiver>
-279        <receiver
-279-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:132:9-142:20
-280            android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver"
-280-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:133:13-78
-281            android:directBootAware="false"
-281-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:134:13-44
-282            android:enabled="true"
-282-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:135:13-35
-283            android:exported="true"
-283-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:136:13-36
-284            android:permission="android.permission.DUMP" >
-284-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:137:13-57
-285            <intent-filter>
-285-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:139:13-141:29
-286                <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS" />
-286-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:140:17-88
-286-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/77ba9cb03c0002a4e0c0c5afbe10781c/transformed/work-runtime-2.8.1/AndroidManifest.xml:140:25-85
+264-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:95:13-98:29
+265                <action android:name="android.intent.action.DEVICE_STORAGE_LOW" />
+265-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:96:17-83
+265-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:96:25-80
+266                <action android:name="android.intent.action.DEVICE_STORAGE_OK" />
+266-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:97:17-82
+266-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:97:25-79
+267            </intent-filter>
+268        </receiver>
+269        <receiver
+269-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:100:9-109:20
+270            android:name="androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy"
+270-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:101:13-103
+271            android:directBootAware="false"
+271-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:102:13-44
+272            android:enabled="false"
+272-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:103:13-36
+273            android:exported="false" >
+273-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:104:13-37
+274            <intent-filter>
+274-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:106:13-108:29
+275                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+275-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:107:17-79
+275-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:107:25-76
+276            </intent-filter>
+277        </receiver>
+278        <receiver
+278-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:110:9-121:20
+279            android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver"
+279-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:111:13-88
+280            android:directBootAware="false"
+280-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:112:13-44
+281            android:enabled="false"
+281-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:113:13-36
+282            android:exported="false" >
+282-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:114:13-37
+283            <intent-filter>
+283-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:116:13-120:29
+284                <action android:name="android.intent.action.BOOT_COMPLETED" />
+284-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:117:17-79
+284-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:117:25-76
+285                <action android:name="android.intent.action.TIME_SET" />
+285-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:118:17-73
+285-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:118:25-70
+286                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+286-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:119:17-81
+286-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:119:25-78
 287            </intent-filter>
 288        </receiver>
-289
-290        <activity
-290-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/lincoln/.gradle/caches/transforms-4/d8c5cebf0dff443959f89686ad72a106/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
-291            android:name="androidx.compose.ui.tooling.PreviewActivity"
-291-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/lincoln/.gradle/caches/transforms-4/d8c5cebf0dff443959f89686ad72a106/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
-292            android:exported="true" />
-292-->[androidx.compose.ui:ui-tooling-android:1.6.7] /home/lincoln/.gradle/caches/transforms-4/d8c5cebf0dff443959f89686ad72a106/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
-293
-294        <service
-294-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/4ba3440b2a4f5cd98a7f9f2b8aac1419/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
-295            android:name="androidx.room.MultiInstanceInvalidationService"
-295-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/4ba3440b2a4f5cd98a7f9f2b8aac1419/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
-296            android:directBootAware="true"
-296-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/4ba3440b2a4f5cd98a7f9f2b8aac1419/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
-297            android:exported="false" />
-297-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/4ba3440b2a4f5cd98a7f9f2b8aac1419/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
-298
-299        <receiver
-299-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
-300            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-300-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
-301            android:directBootAware="false"
-301-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
-302            android:enabled="true"
-302-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
-303            android:exported="true"
-303-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
-304            android:permission="android.permission.DUMP" >
-304-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
-305            <intent-filter>
-305-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
-306                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-306-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
-306-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
-307            </intent-filter>
-308            <intent-filter>
-308-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
-309                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-309-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
-309-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
-310            </intent-filter>
-311            <intent-filter>
-311-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
-312                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-312-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
-312-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
-313            </intent-filter>
-314            <intent-filter>
-314-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
-315                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-315-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
-315-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/2a6c9cbade66de389a61369f64c19eb1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
-316            </intent-filter>
-317        </receiver>
-318    </application>
-319
-320</manifest>
+289        <receiver
+289-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:122:9-131:20
+290            android:name="androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver"
+290-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:123:13-99
+291            android:directBootAware="false"
+291-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:124:13-44
+292            android:enabled="@bool/enable_system_alarm_service_default"
+292-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:125:13-72
+293            android:exported="false" >
+293-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:126:13-37
+294            <intent-filter>
+294-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:128:13-130:29
+295                <action android:name="androidx.work.impl.background.systemalarm.UpdateProxies" />
+295-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:129:17-98
+295-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:129:25-95
+296            </intent-filter>
+297        </receiver>
+298        <receiver
+298-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:132:9-142:20
+299            android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver"
+299-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:133:13-78
+300            android:directBootAware="false"
+300-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:134:13-44
+301            android:enabled="true"
+301-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:135:13-35
+302            android:exported="true"
+302-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:136:13-36
+303            android:permission="android.permission.DUMP" >
+303-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:137:13-57
+304            <intent-filter>
+304-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:139:13-141:29
+305                <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS" />
+305-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:140:17-88
+305-->[androidx.work:work-runtime:2.8.1] /home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/AndroidManifest.xml:140:25-85
+306            </intent-filter>
+307        </receiver>
+308
+309        <service
+309-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/77f0c539ef9702c78465c8f45a97b73a/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+310            android:name="androidx.room.MultiInstanceInvalidationService"
+310-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/77f0c539ef9702c78465c8f45a97b73a/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+311            android:directBootAware="true"
+311-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/77f0c539ef9702c78465c8f45a97b73a/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+312            android:exported="false" />
+312-->[androidx.room:room-runtime:2.6.1] /home/lincoln/.gradle/caches/transforms-4/77f0c539ef9702c78465c8f45a97b73a/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+313
+314        <receiver
+314-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+315            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+315-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+316            android:directBootAware="false"
+316-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+317            android:enabled="true"
+317-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+318            android:exported="true"
+318-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+319            android:permission="android.permission.DUMP" >
+319-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+320            <intent-filter>
+320-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+321                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+321-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+321-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+322            </intent-filter>
+323            <intent-filter>
+323-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+324                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+324-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+324-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+325            </intent-filter>
+326            <intent-filter>
+326-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+327                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+327-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+327-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+328            </intent-filter>
+329            <intent-filter>
+329-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+330                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+330-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+330-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/lincoln/.gradle/caches/transforms-4/75f35ca5c72f6ae91b4ad96daf8d19f2/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+331            </intent-filter>
+332        </receiver>
+333    </application>
+334
+335</manifest>

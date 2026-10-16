@@ -1,0 +1,762 @@
+package com.campus.network.feature.channels.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/**
+ * Screen modes for Server Creation and Joining bottom sheets.
+ */
+enum class ServerSheetMode {
+    CREATE_SERVER,
+    JOIN_SERVER
+}
+
+/**
+ * Pixel-Perfect Modal Sheet hosting "Create Your Server" and "Join an existing server"
+ * matching uploaded_media_0_1792149447421.png and uploaded_media_1_1792149447421.png.
+ *
+ * ZERO EMOJI POLICY: Strictly retro pixel-art canvas illustrations and typography.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateServerModalSheet(
+    mode: ServerSheetMode,
+    onDismiss: () -> Unit,
+    onNavigateToJoin: () -> Unit,
+    onNavigateToCreate: () -> Unit,
+    onCreateServer: (serverName: String, category: String) -> Unit,
+    onJoinInvite: (inviteCode: String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        dragHandle = null,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        when (mode) {
+            ServerSheetMode.CREATE_SERVER -> {
+                CreateYourServerContent(
+                    onDismiss = onDismiss,
+                    onSelectTemplate = { templateTitle, category ->
+                        onCreateServer("$templateTitle Server", category)
+                    },
+                    onJoinServerClick = onNavigateToJoin
+                )
+            }
+            ServerSheetMode.JOIN_SERVER -> {
+                JoinExistingServerContent(
+                    onBackClick = onNavigateToCreate,
+                    onJoinWithInvite = onJoinInvite,
+                    onJoinStudentHub = {
+                        onJoinInvite("campus-student-hub")
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * SCREEN 1: "Create Your Server" matching uploaded_media_0_1792149447421.png
+ */
+@Composable
+fun CreateYourServerContent(
+    onDismiss: () -> Unit,
+    onSelectTemplate: (title: String, category: String) -> Unit,
+    onJoinServerClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Top-left Close Button 'X'
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = Color(0xFF1E1F22),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Title: Create Your Server
+        Text(
+            text = "Create Your Server",
+            fontSize = 25.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF1E1F22),
+            textAlign = TextAlign.Center,
+            letterSpacing = (-0.4).sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Subtitle
+        Text(
+            text = "Your server is where you and your friends hang out. Make yours and start talking.",
+            fontSize = 14.5.sp,
+            color = Color(0xFF4E5058),
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Card: "Create My Own"
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable { onSelectTemplate("Lincoln's", "Custom") },
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFF2F3F5)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                PixelArtHatIcon(modifier = Modifier.size(34.dp))
+
+                Text(
+                    text = "Create My Own",
+                    fontSize = 16.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1E1F22)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Section Label: "Start from a template"
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, bottom = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                text = "Start from a template",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF4E5058)
+            )
+        }
+
+        // Grouped Card Container for the 6 Templates
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFF2F3F5)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 1. Gaming
+                TemplateListItem(
+                    icon = { PixelArtGamepadIcon(modifier = Modifier.size(30.dp)) },
+                    title = "Gaming",
+                    onClick = { onSelectTemplate("Gaming Squad", "Gaming") }
+                )
+                TemplateDivider()
+
+                // 2. School Club
+                TemplateListItem(
+                    icon = { PixelArtBookIcon(modifier = Modifier.size(30.dp)) },
+                    title = "School Club",
+                    onClick = { onSelectTemplate("Campus Club", "Education") }
+                )
+                TemplateDivider()
+
+                // 3. Study Group
+                TemplateListItem(
+                    icon = { PixelArtFruitIcon(modifier = Modifier.size(30.dp)) },
+                    title = "Study Group",
+                    onClick = { onSelectTemplate("Study Group", "Education") }
+                )
+                TemplateDivider()
+
+                // 4. Friends
+                TemplateListItem(
+                    icon = { PixelArtHeartIcon(modifier = Modifier.size(30.dp)) },
+                    title = "Friends",
+                    onClick = { onSelectTemplate("Friends Hangout", "Social") }
+                )
+                TemplateDivider()
+
+                // 5. Artists & Creators
+                TemplateListItem(
+                    icon = { PixelArtPaletteIcon(modifier = Modifier.size(30.dp)) },
+                    title = "Artists & Creators",
+                    onClick = { onSelectTemplate("Artists Studio", "Art & Design") }
+                )
+                TemplateDivider()
+
+                // 6. Local Community
+                TemplateListItem(
+                    icon = { PixelArtLeafIcon(modifier = Modifier.size(30.dp)) },
+                    title = "Local Community",
+                    onClick = { onSelectTemplate("Campus Local Community", "Community") }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(36.dp))
+
+        // Bottom Section: "Have an invite already?"
+        Text(
+            text = "Have an invite already?",
+            fontSize = 18.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1E1F22),
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // "Join a Server" Button (Solid blurple)
+        Button(
+            onClick = onJoinServerClick,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text(
+                text = "Join a Server",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+/**
+ * SCREEN 2: "Join an existing server" matching uploaded_media_1_1792149447421.png
+ */
+@Composable
+fun JoinExistingServerContent(
+    onBackClick: () -> Unit,
+    onJoinWithInvite: (inviteCode: String) -> Unit,
+    onJoinStudentHub: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var inviteLink by remember { mutableStateOf("") }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+    ) {
+        // Top App Bar with Back Arrow and Centered Title
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color(0xFF1E1F22),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Text(
+                text = "Join an existing server",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E1F22),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 36.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Centered Big Heading
+        Text(
+            text = "Join an existing server",
+            fontSize = 25.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF1E1F22),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+            letterSpacing = (-0.4).sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Subtitle
+        Text(
+            text = "Enter an invite below to join an existing server.",
+            fontSize = 14.5.sp,
+            color = Color(0xFF4E5058),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // Label: "Invite link"
+        Text(
+            text = "Invite link",
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF4E5058)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Input Field Container
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFF2F3F5))
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (inviteLink.isEmpty()) {
+                Text(
+                    text = "https://discord.gg/hTKzmak",
+                    color = Color(0xFF949BA4),
+                    fontSize = 15.sp
+                )
+            }
+
+            BasicTextField(
+                value = inviteLink,
+                onValueChange = { inviteLink = it },
+                textStyle = TextStyle(
+                    fontSize = 15.sp,
+                    color = Color(0xFF1E1F22),
+                    fontWeight = FontWeight.Normal
+                ),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Helper explanation text
+        Text(
+            text = "Invites should look like https://discord.gg/hTKzmak, hTKzmak, or https://discord.gg/wumpus-friends",
+            fontSize = 13.5.sp,
+            color = Color(0xFF4E5058),
+            lineHeight = 18.5.sp
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // "Join with Invite Link" Button (Solid blurple)
+        Button(
+            onClick = {
+                val code = if (inviteLink.isNotBlank()) inviteLink.trim() else "campus-invite"
+                onJoinWithInvite(code)
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text(
+                text = "Join with Invite Link",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // "OR" Divider
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = Color(0xFFE3E5E8),
+                thickness = 1.dp
+            )
+            Text(
+                text = "OR",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF5C5E66),
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = Color(0xFFE3E5E8),
+                thickness = 1.dp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // "Join a Student Hub" Button (Light gray)
+        Button(
+            onClick = onJoinStudentHub,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2F3F5)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text(
+                text = "Join a Student Hub",
+                color = Color(0xFF1E1F22),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Reusable list item for template choices.
+ */
+@Composable
+private fun TemplateListItem(
+    icon: @Composable () -> Unit,
+    title: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        icon()
+
+        Text(
+            text = title,
+            fontSize = 15.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1E1F22)
+        )
+    }
+}
+
+@Composable
+private fun TemplateDivider() {
+    HorizontalDivider(
+        color = Color(0xFFE3E5E8),
+        thickness = 1.dp,
+        modifier = Modifier.padding(start = 62.dp)
+    )
+}
+
+// =======================================================================
+// RETRO 8-BIT PIXEL ART ICONS (CANVAS)
+// Pixel-perfect reproductions of Discord's retro icon set
+// Strictly ZERO EMOJIS!
+// =======================================================================
+
+/**
+ * Helper to render an ASCII pixel map onto a Compose Canvas.
+ */
+private fun renderPixelMap(
+    canvas: androidx.compose.ui.graphics.drawscope.DrawScope,
+    map: List<String>,
+    palette: Map<Char, Color>
+) {
+    val rows = map.size
+    val cols = map.firstOrNull()?.length ?: return
+    val pixelW = canvas.size.width / cols
+    val pixelH = canvas.size.height / rows
+
+    for (r in 0 until rows) {
+        val rowStr = map[r]
+        for (c in 0 until cols) {
+            val ch = rowStr[c]
+            val color = palette[ch]
+            if (color != null && color != Color.Transparent) {
+                canvas.drawRect(
+                    color = color,
+                    topLeft = Offset(c * pixelW, r * pixelH),
+                    size = Size(pixelW + 0.5f, pixelH + 0.5f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Pixel Party Hat icon for "Create My Own"
+ */
+@Composable
+fun PixelArtHatIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            "...XXXX...",
+            "..XGGGGX..",
+            ".XGGGGGGX.",
+            ".XGGYYGGX.",
+            "XGYYYYYYGX",
+            "XYYPPPPYYX",
+            "XPPPPPPPPX",
+            "XPPPPPPPPX",
+            ".XXXXXXXX."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'G' to Color(0xFF23A55A),
+            'Y' to Color(0xFFFEE75C),
+            'P' to Color(0xFFEB459E)
+        )
+        renderPixelMap(this, map, palette)
+    }
+}
+
+/**
+ * Pixel Gamepad icon for "Gaming"
+ */
+@Composable
+fun PixelArtGamepadIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            "..XXXXXXXX..",
+            ".XBBBBBBBBX.",
+            "XBBWBBBBWBBX",
+            "XBWWWBBRRBBR",
+            "XBBWBBBBRRBX",
+            "XBBBBBBBBBBX",
+            ".XBBXXXXBBX.",
+            ".XX......XX."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'B' to Color(0xFF5865F2),
+            'W' to Color.White,
+            'R' to Color(0xFFED4245)
+        )
+        renderPixelMap(this, map, palette)
+    }
+}
+
+/**
+ * Pixel Book icon for "School Club"
+ */
+@Composable
+fun PixelArtBookIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            ".XXXXXXXX.",
+            "XPPPPPPPPX",
+            "XPWWWWWWPX",
+            "XPWWWWWWPX",
+            "XPPPPPPPPX",
+            "XPWWWWWWPX",
+            "XPRRRPPWPX",
+            ".XXXXXXXX."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'P' to Color(0xFF5865F2),
+            'W' to Color.White,
+            'R' to Color(0xFFEB459E)
+        )
+        renderPixelMap(this, map, palette)
+    }
+}
+
+/**
+ * Pixel Peach / Apple Fruit icon for "Study Group"
+ */
+@Composable
+fun PixelArtFruitIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            "....XX....",
+            "...XGGX...",
+            "..XRRRRX..",
+            ".XRRWWRRX.",
+            "XRRRRRRRRX",
+            "XRRRYYYRRX",
+            ".XRYYYYYX.",
+            "..XXXXXX.."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'G' to Color(0xFF57F287),
+            'R' to Color(0xFFED4245),
+            'W' to Color.White,
+            'Y' to Color(0xFFFEE75C)
+        )
+        renderPixelMap(this, map, palette)
+    }
+}
+
+/**
+ * Pixel Heart icon for "Friends"
+ */
+@Composable
+fun PixelArtHeartIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            ".XXX...XXX.",
+            "XWWWX.XPPPX",
+            "XWWPPXPPPPX",
+            "XPPPPPPPPPX",
+            ".XPPPPPPPX.",
+            "..XPPPPPX..",
+            "...XPPPX...",
+            "....XPX....",
+            ".....X....."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'P' to Color(0xFFEB459E),
+            'W' to Color.White
+        )
+        renderPixelMap(this, map, palette)
+    }
+}
+
+/**
+ * Pixel Artist Palette icon for "Artists & Creators"
+ */
+@Composable
+fun PixelArtPaletteIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            "..XXXXXX..",
+            ".XOOOOOOX.",
+            "XOROOYOOOX",
+            "XOOOOOOGOX",
+            "XOBBOOOOOX",
+            ".XOOOOOOX.",
+            "..XXXXXX.."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'O' to Color(0xFFE5A93C),
+            'R' to Color(0xFFED4245),
+            'Y' to Color(0xFFFEE75C),
+            'G' to Color(0xFF57F287),
+            'B' to Color(0xFF5865F2)
+        )
+        renderPixelMap(this, map, palette)
+    }
+}
+
+/**
+ * Pixel Leaf icon for "Local Community"
+ */
+@Composable
+fun PixelArtLeafIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val map = listOf(
+            "....XXXXX.",
+            "...XGGGGGX",
+            "..XGGWWGGX",
+            ".XGGWGGGGX",
+            "XGGGGGGGGX",
+            ".XGGGGGGX.",
+            "..XGGGGX..",
+            "...XGGX...",
+            "....XX...."
+        )
+        val palette = mapOf(
+            'X' to Color(0xFF1E1F22),
+            'G' to Color(0xFF57F287),
+            'W' to Color.White
+        )
+        renderPixelMap(this, map, palette)
+    }
+}

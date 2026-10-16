@@ -2,7 +2,9 @@ R_DEF: Internal format may change without notice
 local
 color ic_launcher_background
 drawable avatar_andrew
+drawable avatar_ath
 drawable avatar_clin
+drawable avatar_deleted_user
 drawable avatar_eliza
 drawable avatar_junebog
 drawable avatar_lincoln
@@ -44,6 +46,8 @@ drawable place_photo_2
 drawable place_photo_3
 drawable server_ai_brain
 drawable server_avatar2
+drawable server_banner_basi
+drawable server_banner_clash
 drawable server_codesistency
 drawable server_curly
 drawable server_dragon

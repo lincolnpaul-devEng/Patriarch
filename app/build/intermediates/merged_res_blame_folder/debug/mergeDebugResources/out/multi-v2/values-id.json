@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-89:/values-id/values-id.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-id/values-id.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/2f22cee96888d05d75f5207728ed5552/transformed/stream-chat-android-client-6.0.8/res/values-id/values-id.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/b576c8f8701f66475d128a8765f7d49b/transformed/stream-chat-android-client-6.0.8/res/values-id/values-id.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4",
@@ -14,7 +14,7 @@
                     }
                 },
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/90ed04cea6068fdeb51b7a4ba3c620fe/transformed/stream-chat-android-ui-common-6.0.8/res/values-id/values-id.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/05f254e2f5b5d6d6d1b4cff77725bf9c/transformed/stream-chat-android-ui-common-6.0.8/res/values-id/values-id.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7",
                         "startColumns": "4,4,4,4,4,4",

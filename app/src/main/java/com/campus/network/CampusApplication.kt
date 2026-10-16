@@ -1,6 +1,8 @@
 package com.campus.network
 
 import android.app.Application
+import androidx.emoji2.bundled.BundledEmojiCompatConfig
+import androidx.emoji2.text.EmojiCompat
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +23,10 @@ class CampusApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Initialize Room Local Cache
+        // 1. Initialize Bundled Google Unicode Emoji Font (Supports all ~3,700+ emojis offline)
+        EmojiCompat.init(BundledEmojiCompatConfig(this))
+
+        // 2. Initialize Room Local Cache
         database = CampusDatabase.getInstance(this)
 
         // 2. Offload Stream Chat engine initialization to secondary worker thread

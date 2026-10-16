@@ -1,302 +1,318 @@
 [
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_event_stage.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_event_stage.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xhdpi/ic_launcher.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-hdpi_ic_launcher_round.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-hdpi/ic_launcher_round.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xxxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_dragon.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_dragon.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_top_picks.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_top_picks.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-hdpi_ic_launcher_foreground.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-hdpi/ic_launcher_foreground.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_home_cluster.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_home_cluster.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_place_photo_2.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/place_photo_2.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_w_red.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_w_red.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_lincoln.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_lincoln.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_plate.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_plate.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_student_eliza.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/student_eliza.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xxxhdpi_ic_launcher.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xxxhdpi/ic_launcher.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_events.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_events.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_avatar_lincoln.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/avatar_lincoln.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_bars.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_bars.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_ic_clock_open_now.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/ic_clock_open_now.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_banner_clash.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_banner_clash.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_gradient.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_gradient.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_w_red.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_w_red.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_course_thumb_6.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/course_thumb_6.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_eliza.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_eliza.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_hero_campus_scenic.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/hero_campus_scenic.jpg"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_logo2.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_logo2.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_clin.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_clin.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_course_thumb_3.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/course_thumb_3.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_gradient.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_gradient.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_cookie.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_cookie.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_logo2.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_logo2.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xhdpi/ic_launcher_foreground.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_pasta.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_pasta.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_student_june.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/student_june.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_company_da.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/company_da.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_student_andrew.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/student_andrew.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_cloud_bank_closing.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cloud_bank_closing.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_bakery.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_bakery.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_hero_campus_scenic.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/hero_campus_scenic.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_patriarch_balloon_silver.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/patriarch_balloon_silver.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_avatar_junebog.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/avatar_junebog.jpg"
+        "merged": "com.campus.network.app-debug-93:/mipmap-hdpi_ic_launcher_foreground.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-hdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_place_photo_1.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/place_photo_1.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_codesistency.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_codesistency.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_cafes.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_cafes.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_place_photo_3.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/place_photo_3.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_course_thumb_2.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/course_thumb_2.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_card_student_founder.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/card_student_founder.jpg"
+        "merged": "com.campus.network.app-debug-93:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-hdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xhdpi_ic_launcher_round.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xhdpi/ic_launcher_round.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-mdpi/ic_launcher.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_pasta.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_pasta.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_bakery.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_bakery.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_ic_logo_transparent.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/ic_logo_transparent.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_student_june.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/student_june.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_onboarding_bridge_scenic.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/onboarding_bridge_scenic.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_cookie.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_cookie.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_student_clin.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/student_clin.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_home_cluster.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_home_cluster.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_dumpling.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_dumpling.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_avatar2.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_avatar2.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-mdpi_ic_launcher_round.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-mdpi/ic_launcher_round.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xxhdpi/ic_launcher.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_company_da.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/company_da.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_event_stage.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_event_stage.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_ai_brain.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_ai_brain.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_junebog.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_junebog.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_course_thumb_4.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/course_thumb_4.jpg"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xxxhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_steak.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_steak.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xxxhdpi/ic_launcher.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_avatar_me.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/avatar_me.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_course_thumb_5.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/course_thumb_5.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_shops.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_shops.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_ai_brain.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_ai_brain.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_events.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_events.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_banner_basi.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_banner_basi.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cloud_cumulus_drift.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cloud_cumulus_drift.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_student_clin.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/student_clin.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_course_thumb_1.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/course_thumb_1.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_eliza.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_eliza.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "com.campus.network.app-debug-93:/drawable_card_campus_landmark.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/card_campus_landmark.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-hdpi_ic_launcher.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-hdpi/ic_launcher.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cloud_cumulus_drift.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cloud_cumulus_drift.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_place_photo_2.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/place_photo_2.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_place_photo_1.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/place_photo_1.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_student_rk.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/student_rk.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_course_thumb_1.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/course_thumb_1.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_chilli.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_chilli.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-hdpi/ic_launcher.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-mdpi_ic_launcher_foreground.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-mdpi/ic_launcher_foreground.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_go_out.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_go_out.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.campus.network.app-debug-93:/drawable_card_student_founder.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/card_student_founder.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xxxhdpi/ic_launcher_round.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_dumpling.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_dumpling.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_eat.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_eat.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_shops.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_shops.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_student_eliza.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/student_eliza.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_owl.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_owl.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_codesistency.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_codesistency.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_cafes.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_cafes.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_top_picks.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_top_picks.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_ic_logo_transparent.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/ic_logo_transparent.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_course_thumb_5.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/course_thumb_5.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_chilli.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_chilli.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xxhdpi/ic_launcher_foreground.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_cat_eat.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/cat_eat.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xxxhdpi/ic_launcher_foreground.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_ath.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_ath.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_bars.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_bars.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_patriarch_balloon_silver.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/patriarch_balloon_silver.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xxhdpi_ic_launcher_round.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xxhdpi/ic_launcher_round.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_course_thumb_4.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/course_thumb_4.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cat_go_out.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cat_go_out.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_eureka.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_eureka.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_cloud_bank_closing.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/cloud_bank_closing.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_student_rk.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/student_rk.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xhdpi_ic_launcher.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xhdpi/ic_launcher.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-xxhdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-mdpi_ic_launcher.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-mdpi/ic_launcher.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_andrew.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_andrew.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_avatar2.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_avatar2.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-mdpi_ic_launcher_foreground.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-mdpi/ic_launcher_foreground.png"
     },
     {
-        "merged": "com.campus.network.app-debug-91:/drawable_server_owl.png.flat",
-        "source": "com.campus.network.app-main-93:/drawable/server_owl.png"
+        "merged": "com.campus.network.app-debug-93:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_avatar_eliza.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/avatar_eliza.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_nvidia.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_nvidia.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_avatar_andrew.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/avatar_andrew.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_ic_clock_open_now.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/ic_clock_open_now.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_avatar_clin.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/avatar_clin.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_steak.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_steak.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_eureka.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_eureka.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_pin_plate.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/pin_plate.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_pin_eliza.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/pin_eliza.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_place_photo_3.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/place_photo_3.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_card_campus_landmark.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/card_campus_landmark.jpg"
+        "merged": "com.campus.network.app-debug-93:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.campus.network.app-main-95:/mipmap-mdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/mipmap-xxhdpi_ic_launcher.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/mipmap-xxhdpi/ic_launcher.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_course_thumb_6.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/course_thumb_6.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_nvidia.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_nvidia.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_me.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_me.jpg"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_course_thumb_2.jpg.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/course_thumb_2.jpg"
+        "merged": "com.campus.network.app-debug-93:/drawable_server_curly.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_curly.png"
     },
     {
-        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-91:/drawable_server_curly.png.flat",
-        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-93:/drawable/server_curly.png"
+        "merged": "com.campus.network.app-debug-93:/drawable_course_thumb_3.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/course_thumb_3.jpg"
+    },
+    {
+        "merged": "com.campus.network.app-debug-93:/drawable_server_dragon.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/server_dragon.png"
+    },
+    {
+        "merged": "com.campus.network.app-debug-93:/drawable_student_andrew.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/student_andrew.jpg"
+    },
+    {
+        "merged": "com.campus.network.app-debug-93:/drawable_onboarding_bridge_scenic.jpg.flat",
+        "source": "com.campus.network.app-main-95:/drawable/onboarding_bridge_scenic.jpg"
+    },
+    {
+        "merged": "com.campus.network.app-debug-93:/drawable_avatar_deleted_user.png.flat",
+        "source": "com.campus.network.app-main-95:/drawable/avatar_deleted_user.png"
     }
 ]
