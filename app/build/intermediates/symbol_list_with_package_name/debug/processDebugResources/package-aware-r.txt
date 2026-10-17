@@ -3071,6 +3071,9 @@ drawable avatar_lincoln
 drawable avatar_me
 drawable avd_hide_password
 drawable avd_show_password
+drawable banner_campus_quad
+drawable banner_gradient_cyber
+drawable banner_tech_neon
 drawable banner_welcome_perk
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation

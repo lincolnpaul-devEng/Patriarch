@@ -1,5 +1,6 @@
 package com.campus.network.feature.channels.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,18 +45,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.campus.network.core.network.CloudinaryUploader
+import kotlinx.coroutines.launch
 
 /**
  * Screen modes for Server Creation and Joining bottom sheets.
@@ -81,7 +93,7 @@ fun CreateServerModalSheet(
     onNavigateToCreate: () -> Unit,
     onCreateServer: (serverName: String, category: String) -> Unit,
     onJoinInvite: (inviteCode: String) -> Unit,
-    onCreateServerFull: ((serverName: String, category: String, description: String, avatarResName: String) -> Unit)? = null
+    onCreateServerFull: ((serverName: String, category: String, description: String, avatarResName: String, bannerResName: String?) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var currentMode by remember(mode) { mutableStateOf(mode) }
@@ -114,9 +126,9 @@ fun CreateServerModalSheet(
                     initialCategory = selectedCategory,
                     onBackClick = { currentMode = ServerSheetMode.CREATE_SERVER },
                     onDismiss = onDismiss,
-                    onCreateServer = { name, category, description, avatarResName ->
+                    onCreateServer = { name, category, description, avatarResName, bannerResName ->
                         if (onCreateServerFull != null) {
-                            onCreateServerFull(name, category, description, avatarResName)
+                            onCreateServerFull(name, category, description, avatarResName, bannerResName)
                         } else {
                             onCreateServer(name, category)
                         }
@@ -345,13 +357,58 @@ fun CustomizeServerContent(
     initialCategory: String,
     onBackClick: () -> Unit,
     onDismiss: () -> Unit,
-    onCreateServer: (name: String, category: String, description: String, avatarResName: String) -> Unit,
+    onCreateServer: (name: String, category: String, description: String, avatarResName: String, bannerResName: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     var serverName by remember { mutableStateOf(initialName) }
     var serverDescription by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(initialCategory) }
     var selectedAvatar by remember { mutableStateOf("server_gradient") }
+    var isUploadingAvatar by remember { mutableStateOf(false) }
+    var avatarUploadError by remember { mutableStateOf<String?>(null) }
+
+    var selectedBanner by remember { mutableStateOf<String?>("banner_gradient_cyber") }
+    var isUploadingBanner by remember { mutableStateOf(false) }
+    var bannerUploadError by remember { mutableStateOf<String?>(null) }
+
+    val avatarPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            isUploadingAvatar = true
+            avatarUploadError = null
+            coroutineScope.launch {
+                val result = CloudinaryUploader().uploadFromUri(context, uri)
+                isUploadingAvatar = false
+                if (result.isSuccess) {
+                    selectedAvatar = result.getOrThrow()
+                } else {
+                    avatarUploadError = "Upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Unknown error"}"
+                }
+            }
+        }
+    }
+
+    val bannerPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            isUploadingBanner = true
+            bannerUploadError = null
+            coroutineScope.launch {
+                val result = CloudinaryUploader().uploadFromUri(context, uri)
+                isUploadingBanner = false
+                if (result.isSuccess) {
+                    selectedBanner = result.getOrThrow()
+                } else {
+                    bannerUploadError = "Upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Unknown error"}"
+                }
+            }
+        }
+    }
 
     val presetAvatars = remember {
         listOf(
@@ -366,6 +423,15 @@ fun CustomizeServerContent(
             "server_logo2",
             "server_avatar2",
             "server_w_red"
+        )
+    }
+
+    val presetBanners = remember {
+        listOf(
+            "banner_gradient_cyber" to "Cyber",
+            "banner_campus_quad" to "Quad",
+            "banner_tech_neon" to "Neon",
+            "banner_welcome_perk" to "Welcome"
         )
     }
 
@@ -427,7 +493,7 @@ fun CustomizeServerContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Give your new server a personality with a name and an icon. You can always change it later.",
+            text = "Give your new server a personality with a name, an icon, and a banner. You can always change them later.",
             fontSize = 14.5.sp,
             color = Color(0xFF4E5058),
             textAlign = TextAlign.Center,
@@ -437,10 +503,11 @@ fun CustomizeServerContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Avatar selector squircle with camera badge
-        val avatarResId = resolveServerAvatarDrawable(selectedAvatar)
+        // Avatar selector squircle with camera badge & upload support
         Box(
-            modifier = Modifier.size(80.dp),
+            modifier = Modifier
+                .size(80.dp)
+                .clickable { avatarPickerLauncher.launch("image/*") },
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -451,15 +518,40 @@ fun CustomizeServerContent(
                     .border(2.dp, Color(0xFF5865F2).copy(alpha = 0.5f), RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = avatarResId),
-                    contentDescription = "Selected Server Avatar",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (selectedAvatar.startsWith("http")) {
+                    AsyncImage(
+                        model = selectedAvatar,
+                        contentDescription = "Selected Server Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    val avatarResId = resolveServerAvatarDrawable(selectedAvatar)
+                    Image(
+                        painter = painterResource(id = avatarResId),
+                        contentDescription = "Selected Server Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                if (isUploadingAvatar) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
             }
 
-            // Camera Badge in bottom right corner
+            // Camera / Upload Badge in bottom right corner
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -470,15 +562,50 @@ fun CustomizeServerContent(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Change Icon",
+                    imageVector = Icons.Default.CloudUpload,
+                    contentDescription = "Upload Icon",
                     tint = Color.White,
                     modifier = Modifier.size(16.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Upload custom image button
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { avatarPickerLauncher.launch("image/*") }
+                .background(Color(0xFFF2F3F5))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Image,
+                contentDescription = null,
+                tint = Color(0xFF5865F2),
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = if (selectedAvatar.startsWith("http")) "Custom Icon Uploaded" else "Upload Custom Icon",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF5865F2)
+            )
+        }
+
+        avatarUploadError?.let { err ->
+            Text(
+                text = err,
+                fontSize = 11.sp,
+                color = Color(0xFFDA373C),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = "Choose an Icon Preset",
@@ -525,7 +652,161 @@ fun CustomizeServerContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Banner Section Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "SERVER BANNER",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4E5058),
+                letterSpacing = 0.5.sp
+            )
+            if (selectedBanner != null) {
+                Text(
+                    text = "Remove",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFDA373C),
+                    modifier = Modifier.clickable { selectedBanner = null }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Banner Preview Box
+        val bannerDrawableId = resolveServerBannerDrawable(selectedBanner)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF2B2D31))
+                .clickable { bannerPickerLauncher.launch("image/*") }
+        ) {
+            if (selectedBanner?.startsWith("http") == true) {
+                AsyncImage(
+                    model = selectedBanner,
+                    contentDescription = "Server Banner",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (bannerDrawableId != null) {
+                Image(
+                    painter = painterResource(id = bannerDrawableId),
+                    contentDescription = "Server Banner",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF2B2D31), Color(0xFF1E1F22))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No Banner Selected",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Upload Overlay / Button Badge
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = Color.Black.copy(alpha = 0.65f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
+                        contentDescription = "Upload Banner",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = if (isUploadingBanner) "Uploading..." else "Upload Banner",
+                        color = Color.White,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            if (isUploadingBanner) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        }
+
+        bannerUploadError?.let { err ->
+            Text(
+                text = err,
+                fontSize = 11.sp,
+                color = Color(0xFFDA373C),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Banner Presets Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            presetBanners.forEach { (presetKey, label) ->
+                val isSelected = selectedBanner == presetKey
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isSelected) Color(0xFF5865F2) else Color(0xFFF2F3F5),
+                    modifier = Modifier.clickable { selectedBanner = presetKey }
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color.White else Color(0xFF1E1F22),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Server Name Input
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -683,8 +964,9 @@ fun CustomizeServerContent(
         Button(
             onClick = {
                 val finalName = serverName.trim().ifEmpty { "New Campus Server" }
-                onCreateServer(finalName, selectedCategory, serverDescription.trim(), selectedAvatar)
+                onCreateServer(finalName, selectedCategory, serverDescription.trim(), selectedAvatar, selectedBanner)
             },
+            enabled = !isUploadingAvatar && !isUploadingBanner,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
@@ -692,7 +974,7 @@ fun CustomizeServerContent(
                 .height(48.dp)
         ) {
             Text(
-                text = "Create Server",
+                text = if (isUploadingAvatar || isUploadingBanner) "Uploading Media..." else "Create Server",
                 color = Color.White,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold
@@ -700,6 +982,16 @@ fun CustomizeServerContent(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+fun resolveServerBannerDrawable(name: String?): Int? {
+    return when (name) {
+        "banner_gradient_cyber" -> com.campus.network.core.ui.R.drawable.banner_gradient_cyber
+        "banner_campus_quad" -> com.campus.network.core.ui.R.drawable.banner_campus_quad
+        "banner_tech_neon" -> com.campus.network.core.ui.R.drawable.banner_tech_neon
+        "banner_welcome_perk" -> com.campus.network.core.ui.R.drawable.banner_welcome_perk
+        else -> null
     }
 }
 

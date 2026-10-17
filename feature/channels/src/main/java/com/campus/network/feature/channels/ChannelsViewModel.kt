@@ -10,7 +10,12 @@ import com.campus.network.core.model.ServerRule
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.CourseMate
+import com.campus.network.feature.channels.model.FriendRequestStatus
 import com.campus.network.feature.channels.model.InDemandCompany
+import com.campus.network.feature.channels.model.PerServerProfile
+import com.campus.network.feature.channels.model.ServerMemberItem
+import com.campus.network.feature.channels.model.ServerMemberRole
+import com.campus.network.feature.channels.model.ServerRoleType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -118,7 +123,13 @@ data class ChannelsUiState(
     val isServerInviteSheetOpen: Boolean = false,
     val targetChannelCategory: String = "TEXT CHANNELS",
     val currentServerRules: List<ServerRule> = emptyList(),
-    val currentServerInviteCode: String = ""
+    val currentServerInviteCode: String = "",
+    val serverMembers: Map<String, List<ServerMemberItem>> = emptyMap(),
+    val perServerProfiles: Map<String, PerServerProfile> = emptyMap(),
+    val selectedMemberForProfile: ServerMemberItem? = null,
+    val isEditServerProfileOpen: Boolean = false,
+    val isServerMembersSheetOpen: Boolean = false,
+    val currentMemberFilterChannelId: String? = null
 )
 
 sealed interface ChannelsEvent {
@@ -131,7 +142,8 @@ sealed interface ChannelsEvent {
         val name: String,
         val category: String = "Community",
         val description: String = "",
-        val avatarResName: String = "server_gradient"
+        val avatarResName: String = "server_gradient",
+        val bannerResName: String? = null
     ) : ChannelsEvent
     data class JoinServerByInvite(val inviteCode: String) : ChannelsEvent
     data class PreviewCommunityServer(val serverName: String) : ChannelsEvent
@@ -179,6 +191,21 @@ sealed interface ChannelsEvent {
     data class DeleteServerRule(val serverId: String, val ruleId: String) : ChannelsEvent
     data object OpenServerInviteSheet : ChannelsEvent
     data object CloseServerInviteSheet : ChannelsEvent
+    data class OpenMemberProfile(val member: ServerMemberItem) : ChannelsEvent
+    data object CloseMemberProfile : ChannelsEvent
+    data class SendFriendRequest(val memberId: String) : ChannelsEvent
+    data class CancelFriendRequest(val memberId: String) : ChannelsEvent
+    data class AcceptFriendRequest(val memberId: String) : ChannelsEvent
+    data object OpenEditServerProfile : ChannelsEvent
+    data object CloseEditServerProfile : ChannelsEvent
+    data class SavePerServerProfile(
+        val serverId: String,
+        val nickname: String,
+        val tag: String,
+        val tagColorHex: Long
+    ) : ChannelsEvent
+    data class OpenServerMembersSheet(val serverId: String, val channelId: String? = null) : ChannelsEvent
+    data object CloseServerMembersSheet : ChannelsEvent
 }
 
 class ChannelsViewModel(
@@ -213,6 +240,12 @@ class ChannelsViewModel(
     private val _targetChannelCategory = MutableStateFlow("TEXT CHANNELS")
     private val _currentServerRules = MutableStateFlow<List<ServerRule>>(emptyList())
     private val _currentServerInviteCode = MutableStateFlow("CODESISTENCY-2026")
+    private val _serverMembers = MutableStateFlow<Map<String, List<ServerMemberItem>>>(emptyMap())
+    private val _perServerProfiles = MutableStateFlow<Map<String, PerServerProfile>>(emptyMap())
+    private val _selectedMemberForProfile = MutableStateFlow<ServerMemberItem?>(null)
+    private val _isEditServerProfileOpen = MutableStateFlow(false)
+    private val _isServerMembersSheetOpen = MutableStateFlow(false)
+    private val _currentMemberFilterChannelId = MutableStateFlow<String?>(null)
 
     // Master Servers & Channels Catalog (Matching patriarch Layout & Campus Community)
     private val codesistencyChannels = listOf(
@@ -853,11 +886,13 @@ class ChannelsViewModel(
             )
         )
         loadDefaultRules()
+        seedDefaultServerMembers()
         if (serverRepository != null) {
             viewModelScope.launch {
                 serverRepository.getServers().collect { dbServers ->
                     if (dbServers.isNotEmpty()) {
                         val mapped = dbServers.map { srv ->
+                            val existing = _serversList.value.find { it.id == srv.id }
                             ServerItem(
                                 id = srv.id,
                                 name = srv.name,
@@ -865,12 +900,48 @@ class ChannelsViewModel(
                                 categoryText = srv.category,
                                 isVerified = srv.isVerified,
                                 iconResName = srv.avatarResName,
-                                bannerResName = srv.bannerResName
+                                bannerResName = srv.bannerResName,
+                                channels = existing?.channels.orEmpty().ifEmpty {
+                                    listOf(
+                                        ServerChannelItem(id = "ch_${srv.id}_rules", name = "rules", channelType = "rules", categoryName = "WELCOME"),
+                                        ServerChannelItem(id = "ch_${srv.id}_announcements", name = "announcements", channelType = "announcements", categoryName = "WELCOME"),
+                                        ServerChannelItem(id = "ch_${srv.id}_general", name = "general", channelType = "text", categoryName = "TEXT CHANNELS")
+                                    )
+                                }
                             )
                         }
                         val existingIds = mapped.map { it.id }.toSet()
                         val remaining = _serversList.value.filter { it.id !in existingIds }
-                        _serversList.value = mapped + remaining
+                        _serversList.value = (mapped + remaining).distinctBy { it.id }
+                    }
+                }
+            }
+            viewModelScope.launch {
+                _selectedServerId.collect { serverId ->
+                    serverRepository.getChannelsForServer(serverId).collect { dbChannels ->
+                        if (dbChannels.isNotEmpty()) {
+                            val mappedChannels = dbChannels.map { ch ->
+                                ServerChannelItem(
+                                    id = ch.id,
+                                    name = ch.name,
+                                    channelType = when (ch.channelType) {
+                                        ServerChannelType.RULES -> "rules"
+                                        ServerChannelType.ANNOUNCEMENT -> "announcements"
+                                        ServerChannelType.VOICE -> "voice"
+                                        else -> "text"
+                                    },
+                                    categoryName = ch.categoryName,
+                                    isUnread = ch.unreadCount > 0,
+                                    unreadBadgeCount = ch.unreadCount
+                                )
+                            }.distinctBy { it.id }
+
+                            _serversList.value = _serversList.value.map { srv ->
+                                if (srv.id == serverId) {
+                                    srv.copy(channels = mappedChannels)
+                                } else srv
+                            }
+                        }
                     }
                 }
             }
@@ -926,6 +997,155 @@ class ChannelsViewModel(
         )
     }
 
+    private fun seedDefaultServerMembers() {
+        val initialProfiles = mapOf(
+            "srv_codesistency" to PerServerProfile(
+                serverId = "srv_codesistency",
+                nickname = "Lincoln Paul",
+                tag = "DEV",
+                tagColorHex = 0xFF5865F2,
+                role = "Server Owner"
+            ),
+            "srv_owl" to PerServerProfile(
+                serverId = "srv_owl",
+                nickname = "Lincoln (Modder)",
+                tag = "MOD",
+                tagColorHex = 0xFF23A55A,
+                role = "Mod Contributor"
+            )
+        )
+        _perServerProfiles.value = initialProfiles
+
+        val codesistencyMembers = listOf(
+            ServerMemberItem(
+                id = "mem_lincoln",
+                serverId = "srv_codesistency",
+                name = "Lincoln Paul",
+                handle = "@lincolnpaul",
+                avatarResName = "avatar_lincoln",
+                serverNickname = "Lincoln Paul",
+                serverTag = "DEV",
+                serverTagColorHex = 0xFF5865F2,
+                role = ServerMemberRole("Server Owner", ServerRoleType.OWNER, 0xFFEAB308, isOwner = true),
+                isOnline = true,
+                statusText = "Building Campus Network",
+                joinedDate = "Joined Sep 2026",
+                bio = "Lead Developer & Campus Patriarch Ambassador. Building next-gen campus workspace.",
+                friendStatus = FriendRequestStatus.FRIENDS
+            ),
+            ServerMemberItem(
+                id = "mem_robloach",
+                serverId = "srv_codesistency",
+                name = "RobLoach",
+                handle = "@robloach",
+                avatarResName = "server_avatar2",
+                serverTag = "MOD",
+                serverTagColorHex = 0xFF23A55A,
+                role = ServerMemberRole("Audio Lead & Moderator", ServerRoleType.MODERATOR, 0xFF23A55A),
+                isOnline = true,
+                statusText = "Composing soundtrack",
+                joinedDate = "Joined Oct 2026",
+                bio = "Game soundtrack sound designer & modular synth enthusiast.",
+                friendStatus = FriendRequestStatus.NONE,
+                channels = listOf("ch_unciv_music", "game-music", "poll-chat", "redis-chat-app")
+            ),
+            ServerMemberItem(
+                id = "mem_ath",
+                serverId = "srv_codesistency",
+                name = "Ath",
+                handle = "@ath_sound",
+                avatarResName = "avatar_ath",
+                serverTag = "TDS",
+                serverTagColorHex = 0xFFA855F7,
+                role = ServerMemberRole("Soundtrack Contributor", ServerRoleType.CONTRIBUTOR, 0xFFA855F7),
+                isOnline = true,
+                statusText = "Working on 8-bit beats",
+                joinedDate = "Joined Oct 2026",
+                bio = "Electronic beats & orchestral compositions for campus indie games.",
+                friendStatus = FriendRequestStatus.NONE,
+                channels = listOf("ch_unciv_music", "game-music", "poll-chat")
+            ),
+            ServerMemberItem(
+                id = "mem_sarah",
+                serverId = "srv_codesistency",
+                name = "Sarah Nduta",
+                handle = "@sarah_n",
+                avatarResName = "avatar_ath",
+                serverTag = "CAMP",
+                serverTagColorHex = 0xFF5865F2,
+                role = ServerMemberRole("Campus Peer", ServerRoleType.MEMBER, 0xFF5865F2),
+                isOnline = true,
+                joinedDate = "Joined Oct 2026",
+                bio = "Research Assistant & Peer Escrow Mentor.",
+                friendStatus = FriendRequestStatus.REQUEST_SENT
+            ),
+            ServerMemberItem(
+                id = "mem_faith",
+                serverId = "srv_codesistency",
+                name = "Faith Wangari",
+                handle = "@faith_w",
+                avatarResName = "server_eureka",
+                serverTag = "TECH",
+                serverTagColorHex = 0xFFEC4899,
+                role = ServerMemberRole("CS Sophomore", ServerRoleType.MEMBER, 0xFFEC4899),
+                isOnline = true,
+                joinedDate = "Joined Oct 2026",
+                bio = "Distributed systems student & active lab presenter.",
+                friendStatus = FriendRequestStatus.NONE
+            ),
+            ServerMemberItem(
+                id = "mem_brian",
+                serverId = "srv_codesistency",
+                name = "Brian Ochieng",
+                handle = "@brian_och",
+                avatarResName = "server_dragon",
+                serverTag = "ENG",
+                serverTagColorHex = 0xFF0284C7,
+                role = ServerMemberRole("Mechanical Peer", ServerRoleType.MEMBER, 0xFF0284C7),
+                isOnline = false,
+                joinedDate = "Joined Oct 2026",
+                bio = "Hardware enthusiast & calculator swap coordinator.",
+                friendStatus = FriendRequestStatus.NONE
+            ),
+            ServerMemberItem(
+                id = "mem_jane",
+                serverId = "srv_codesistency",
+                name = "Jane Doe",
+                handle = "@janedoe",
+                avatarResName = "server_curly",
+                serverTag = "STUDY",
+                serverTagColorHex = 0xFF5C6470,
+                role = ServerMemberRole("Student Peer", ServerRoleType.MEMBER, 0xFF5C6470),
+                isOnline = false,
+                joinedDate = "Joined Oct 2026",
+                bio = "Study group organizer.",
+                friendStatus = FriendRequestStatus.NONE
+            ),
+            ServerMemberItem(
+                id = "mem_deleted",
+                serverId = "srv_codesistency",
+                name = "Deleted User",
+                handle = "@deleted_user",
+                avatarResName = "avatar_deleted_user",
+                role = ServerMemberRole("Former Member", ServerRoleType.MEMBER, 0xFF80848E),
+                isOnline = false,
+                joinedDate = "Joined Aug 2026",
+                bio = "",
+                friendStatus = FriendRequestStatus.NONE
+            )
+        )
+
+        val owlMembers = codesistencyMembers.map {
+            it.copy(serverId = "srv_owl", id = "${it.id}_owl")
+        }
+
+        _serverMembers.value = mapOf(
+            "srv_codesistency" to codesistencyMembers,
+            "srv_owl" to owlMembers,
+            "srv_basi" to codesistencyMembers.map { it.copy(serverId = "srv_basi", id = "${it.id}_basi") }
+        )
+    }
+
     val uiState: StateFlow<ChannelsUiState> = combine(
         combine(
             combine(_viewMode, _selectedServerId, _selectedChannelId) { vm, sId, cId -> Triple(vm, sId, cId) },
@@ -954,12 +1174,25 @@ class ChannelsViewModel(
             AcademicFilterSlice(fac, dept, exp, q)
         },
         combine(
-            _selectedCourseForDiscovery,
-            _selectedStudentForProfile,
-            _likedStudentIds,
-            _feedbackMessage
-        ) { cDisc, sProf, liked, fb ->
-            PeerSlice(cDisc, sProf, liked, fb)
+            combine(
+                _selectedCourseForDiscovery,
+                _selectedStudentForProfile,
+                _likedStudentIds,
+                _feedbackMessage
+            ) { cDisc, sProf, liked, fb ->
+                PeerSlice(cDisc, sProf, liked, fb)
+            },
+            combine(
+                _serverMembers,
+                _perServerProfiles,
+                _selectedMemberForProfile,
+                _isEditServerProfileOpen,
+                _isServerMembersSheetOpen
+            ) { members, profiles, selMember, editOpen, membersSheetOpen ->
+                ServerMemberSlice(members, profiles, selMember, editOpen, membersSheetOpen, _currentMemberFilterChannelId.value)
+            }
+        ) { peerSlice, memberSlice ->
+            Pair(peerSlice, memberSlice)
         },
         combine(
             combine(
@@ -986,7 +1219,9 @@ class ChannelsViewModel(
                 currentServers
             )
         }
-    ) { slice1, slice2, academicSlice, peerSlice, mgmtAndServers ->
+    ) { slice1, slice2, academicSlice, peerAndMember, mgmtAndServers ->
+        val peerSlice = peerAndMember.first
+        val memberSlice = peerAndMember.second
         val mgmtSlice = mgmtAndServers.first
         val currentServers = mgmtAndServers.second
         val rawCourses = allEngineeringCourses
@@ -1050,6 +1285,12 @@ class ChannelsViewModel(
             targetChannelCategory = mgmtSlice.targetChannelCategory,
             currentServerRules = mgmtSlice.currentServerRules,
             currentServerInviteCode = mgmtSlice.currentServerInviteCode,
+            serverMembers = memberSlice.serverMembers,
+            perServerProfiles = memberSlice.perServerProfiles,
+            selectedMemberForProfile = memberSlice.selectedMember,
+            isEditServerProfileOpen = memberSlice.isEditServerProfileOpen,
+            isServerMembersSheetOpen = memberSlice.isServerMembersSheetOpen,
+            currentMemberFilterChannelId = memberSlice.filterChannelId,
             selectedFaculty = academicSlice.faculty,
             selectedDepartment = academicSlice.department,
             departments = departments,
@@ -1161,6 +1402,11 @@ class ChannelsViewModel(
                 _isAddServerSelected.value = false
                 val newId = "srv_custom_${System.currentTimeMillis()}"
                 val cleanAvatar = if (event.avatarResName.isNotBlank()) event.avatarResName else "server_gradient"
+                val defaultChannels = listOf(
+                    ServerChannelItem(id = "ch_${newId}_rules", name = "rules", channelType = "rules", categoryName = "WELCOME", isUnread = false),
+                    ServerChannelItem(id = "ch_${newId}_announcements", name = "announcements", channelType = "announcements", categoryName = "WELCOME", isUnread = false),
+                    ServerChannelItem(id = "ch_${newId}_general", name = "general", channelType = "text", categoryName = "TEXT CHANNELS", isUnread = false)
+                )
                 val newServer = ServerItem(
                     id = newId,
                     name = event.name,
@@ -1168,19 +1414,32 @@ class ChannelsViewModel(
                     categoryText = event.category,
                     isVerified = false,
                     iconResName = cleanAvatar,
+                    bannerResName = event.bannerResName,
                     badgeCount = 0,
                     hasUnread = false,
-                    channels = listOf(
-                        ServerChannelItem(id = "ch_${newId}_rules", name = "rules", channelType = "rules", categoryName = "WELCOME", isUnread = false),
-                        ServerChannelItem(id = "ch_${newId}_announcements", name = "announcements", channelType = "announcements", categoryName = "WELCOME", isUnread = false),
-                        ServerChannelItem(id = "ch_${newId}_general", name = "general", channelType = "text", categoryName = "TEXT CHANNELS", isUnread = false)
-                    )
+                    channels = defaultChannels
                 )
-                _serversList.value = _serversList.value + newServer
+                _serversList.value = (_serversList.value + newServer).distinctBy { it.id }
                 _selectedServerId.value = newId
                 _selectedChannelId.value = "ch_${newId}_general"
-                _currentServerInviteCode.value = "${event.name.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(8)}-${System.currentTimeMillis().toString().takeLast(4)}"
                 _feedbackMessage.value = "Created server: ${event.name}"
+                val newMember = ServerMemberItem(
+                    id = "mem_lincoln_$newId",
+                    serverId = newId,
+                    name = "Lincoln Paul",
+                    handle = "@lincolnpaul",
+                    avatarResName = "avatar_lincoln",
+                    serverNickname = "Lincoln Paul",
+                    serverTag = "OWNER",
+                    serverTagColorHex = 0xFFEAB308,
+                    role = ServerMemberRole("Server Owner", ServerRoleType.OWNER, 0xFFEAB308, isOwner = true),
+                    isOnline = true,
+                    joinedDate = "Joined Just Now",
+                    bio = "Server Founder & Owner.",
+                    friendStatus = FriendRequestStatus.FRIENDS
+                )
+                _serverMembers.value = _serverMembers.value + (newId to listOf(newMember))
+                _perServerProfiles.value = _perServerProfiles.value + (newId to PerServerProfile(newId, "Lincoln Paul", "OWNER", 0xFFEAB308, "Server Owner"))
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
@@ -1189,7 +1448,9 @@ class ChannelsViewModel(
                                 name = event.name,
                                 category = event.category,
                                 description = event.description,
-                                avatarResName = cleanAvatar
+                                avatarResName = cleanAvatar,
+                                bannerResName = event.bannerResName,
+                                customServerId = newId
                             )
                         }
                     }
@@ -1204,21 +1465,23 @@ class ChannelsViewModel(
             }
             is ChannelsEvent.CreateChannel -> {
                 _isCreateChannelSheetOpen.value = false
-                val channelId = "ch_${event.serverId}_${event.name.replace(" ", "-")}"
+                val cleanSlug = event.name.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "-").ifEmpty { "channel" }
+                val uniqueSuffix = System.currentTimeMillis().toString().takeLast(4)
+                val channelId = "ch_${event.serverId}_${cleanSlug.take(14)}_$uniqueSuffix"
                 val newChannelItem = ServerChannelItem(
                     id = channelId,
-                    name = event.name,
+                    name = cleanSlug,
                     channelType = event.channelType,
                     categoryName = event.categoryName,
                     isUnread = false
                 )
                 _serversList.value = _serversList.value.map { server ->
                     if (server.id == event.serverId) {
-                        server.copy(channels = server.channels + newChannelItem)
+                        server.copy(channels = (server.channels + newChannelItem).distinctBy { it.id })
                     } else server
                 }
                 _selectedChannelId.value = channelId
-                _feedbackMessage.value = "Created #${event.name}"
+                _feedbackMessage.value = "Created #$cleanSlug"
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
@@ -1502,6 +1765,106 @@ class ChannelsViewModel(
             }
             is ChannelsEvent.ClearFeedback -> _feedbackMessage.value = null
             is ChannelsEvent.ClearSelectedChannel -> _selectedChannel.value = null
+
+            is ChannelsEvent.OpenMemberProfile -> {
+                _selectedMemberForProfile.value = event.member
+            }
+
+            is ChannelsEvent.CloseMemberProfile -> {
+                _selectedMemberForProfile.value = null
+            }
+
+            is ChannelsEvent.SendFriendRequest -> {
+                val memberId = event.memberId
+                var targetName = "Member"
+                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                    members.map { mem ->
+                        if (mem.id == memberId) {
+                            targetName = mem.serverNickname ?: mem.name
+                            mem.copy(friendStatus = FriendRequestStatus.REQUEST_SENT)
+                        } else mem
+                    }
+                }
+                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.REQUEST_SENT) else it
+                }
+                _feedbackMessage.value = "Friend request sent to $targetName!"
+            }
+
+            is ChannelsEvent.CancelFriendRequest -> {
+                val memberId = event.memberId
+                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                    members.map { mem ->
+                        if (mem.id == memberId) {
+                            mem.copy(friendStatus = FriendRequestStatus.NONE)
+                        } else mem
+                    }
+                }
+                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
+                }
+                _feedbackMessage.value = "Friend request cancelled."
+            }
+
+            is ChannelsEvent.AcceptFriendRequest -> {
+                val memberId = event.memberId
+                var targetName = "Member"
+                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                    members.map { mem ->
+                        if (mem.id == memberId) {
+                            targetName = mem.serverNickname ?: mem.name
+                            mem.copy(friendStatus = FriendRequestStatus.FRIENDS)
+                        } else mem
+                    }
+                }
+                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.FRIENDS) else it
+                }
+                _feedbackMessage.value = "You are now friends with $targetName!"
+            }
+
+            is ChannelsEvent.OpenEditServerProfile -> {
+                _isEditServerProfileOpen.value = true
+            }
+
+            is ChannelsEvent.CloseEditServerProfile -> {
+                _isEditServerProfileOpen.value = false
+            }
+
+            is ChannelsEvent.SavePerServerProfile -> {
+                val profile = PerServerProfile(
+                    serverId = event.serverId,
+                    nickname = event.nickname,
+                    tag = event.tag,
+                    tagColorHex = event.tagColorHex
+                )
+                _perServerProfiles.value = _perServerProfiles.value + (event.serverId to profile)
+
+                _serverMembers.value = _serverMembers.value.mapValues { (sId, members) ->
+                    if (sId == event.serverId) {
+                        members.map { mem ->
+                            if (mem.name.contains("Lincoln", ignoreCase = true)) {
+                                mem.copy(
+                                    serverNickname = event.nickname,
+                                    serverTag = event.tag,
+                                    serverTagColorHex = event.tagColorHex
+                                )
+                            } else mem
+                        }
+                    } else members
+                }
+                _feedbackMessage.value = "Updated server profile tag [${event.tag.uppercase()}]!"
+            }
+
+            is ChannelsEvent.OpenServerMembersSheet -> {
+                _currentMemberFilterChannelId.value = event.channelId
+                _isServerMembersSheetOpen.value = true
+            }
+
+            is ChannelsEvent.CloseServerMembersSheet -> {
+                _isServerMembersSheetOpen.value = false
+                _currentMemberFilterChannelId.value = null
+            }
         }
     }
 }
@@ -1552,4 +1915,13 @@ private data class ServerManagementSlice(
     val targetChannelCategory: String,
     val currentServerRules: List<ServerRule>,
     val currentServerInviteCode: String
+)
+
+private data class ServerMemberSlice(
+    val serverMembers: Map<String, List<ServerMemberItem>>,
+    val perServerProfiles: Map<String, PerServerProfile>,
+    val selectedMember: ServerMemberItem?,
+    val isEditServerProfileOpen: Boolean,
+    val isServerMembersSheetOpen: Boolean,
+    val filterChannelId: String?
 )

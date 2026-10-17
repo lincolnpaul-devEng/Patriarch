@@ -88,8 +88,11 @@ import com.campus.network.feature.channels.components.CreateChannelModalSheet
 import com.campus.network.feature.channels.components.DiscoverServersPanel
 import com.campus.network.feature.channels.components.CourseMateAvatarLineup
 import com.campus.network.feature.channels.components.CourseMateDiscoverScreen
+import com.campus.network.feature.channels.components.EditServerProfileSheet
 import com.campus.network.feature.channels.components.IndividualStudentProfileScreen
 import com.campus.network.feature.channels.components.ServerInviteSheet
+import com.campus.network.feature.channels.components.ServerMemberProfileSheet
+import com.campus.network.feature.channels.components.ServerMembersSheet
 import com.campus.network.feature.channels.components.ServerProfileDrawer
 import com.campus.network.feature.channels.components.ServerRulesSheet
 import com.campus.network.feature.channels.model.CareerCourse
@@ -127,6 +130,7 @@ fun ChannelsScreen(
     onNavigateToMessages: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onBackClick: () -> Unit = {},
+    onNavigateToDirectChat: ((peerId: String, peerName: String, peerHandle: String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -229,6 +233,30 @@ fun ChannelsScreen(
             }
         }
 
+        // SERVER MEMBER PROFILE SHEET (Accessible globally across channels hub & channel profile)
+        if (uiState.selectedMemberForProfile != null) {
+            ServerMemberProfileSheet(
+                member = uiState.selectedMemberForProfile,
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseMemberProfile)
+                },
+                onSendFriendRequest = { memberId ->
+                    viewModel.onEvent(ChannelsEvent.SendFriendRequest(memberId))
+                },
+                onCancelFriendRequest = { memberId ->
+                    viewModel.onEvent(ChannelsEvent.CancelFriendRequest(memberId))
+                },
+                onDirectMessage = { member ->
+                    viewModel.onEvent(ChannelsEvent.CloseMemberProfile)
+                    if (onNavigateToDirectChat != null) {
+                        onNavigateToDirectChat(member.id, member.serverNickname ?: member.name, member.handle)
+                    } else {
+                        onNavigateToMessages()
+                    }
+                }
+            )
+        }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -298,8 +326,8 @@ private fun patriarchServersHubContent(
                         onCreateServerSubmit = { name, category ->
                             viewModel.onEvent(ChannelsEvent.CreateServer(name, category))
                         },
-                        onCreateServerFullSubmit = { name, category, description, avatarResName ->
-                            viewModel.onEvent(ChannelsEvent.CreateServer(name, category, description, avatarResName))
+                        onCreateServerFullSubmit = { name, category, description, avatarResName, bannerResName ->
+                            viewModel.onEvent(ChannelsEvent.CreateServer(name, category, description, avatarResName, bannerResName))
                         },
                         onJoinInviteSubmit = { inviteCode ->
                             viewModel.onEvent(ChannelsEvent.JoinServerByInvite(inviteCode))
@@ -343,6 +371,7 @@ private fun patriarchServersHubContent(
             ServerProfileDrawer(
                 isOpen = uiState.isServerProfileDrawerOpen,
                 server = currentServer,
+                userProfile = uiState.perServerProfiles[currentServer.id],
                 onDismiss = {
                     viewModel.onEvent(ChannelsEvent.CloseServerProfileDrawer)
                 },
@@ -362,7 +391,10 @@ private fun patriarchServersHubContent(
                     viewModel.onEvent(ChannelsEvent.CloseServerProfileDrawer)
                 },
                 onEditProfileClick = {
-                    onProfileClick()
+                    viewModel.onEvent(ChannelsEvent.OpenEditServerProfile)
+                },
+                onMembersClick = {
+                    viewModel.onEvent(ChannelsEvent.OpenServerMembersSheet(currentServer.id))
                 },
                 onLeaveServerClick = {
                     viewModel.onEvent(ChannelsEvent.ClearFeedback("Leave server confirmation"))
@@ -439,6 +471,52 @@ private fun patriarchServersHubContent(
                 },
                 onCopiedFeedback = {
                     viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                }
+            )
+        }
+
+        // EDIT PER-SERVER PROFILE SHEET
+        if (uiState.isEditServerProfileOpen && currentServer != null) {
+            EditServerProfileSheet(
+                isOpen = uiState.isEditServerProfileOpen,
+                serverId = currentServer.id,
+                serverName = currentServer.name,
+                initialProfile = uiState.perServerProfiles[currentServer.id],
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseEditServerProfile)
+                },
+                onSaveProfile = { nick, tag, colorHex ->
+                    viewModel.onEvent(
+                        ChannelsEvent.SavePerServerProfile(
+                            serverId = currentServer.id,
+                            nickname = nick,
+                            tag = tag,
+                            tagColorHex = colorHex
+                        )
+                    )
+                }
+            )
+        }
+
+        // SERVER / CHANNEL MEMBERS SHEET
+        if (uiState.isServerMembersSheetOpen && currentServer != null) {
+            val serverMembers = uiState.serverMembers[currentServer.id].orEmpty()
+            val filteredByChannel = if (uiState.currentMemberFilterChannelId != null) {
+                serverMembers.filter { it.channels.contains(uiState.currentMemberFilterChannelId) }
+            } else {
+                serverMembers
+            }
+            val channelName = currentServer.channels.firstOrNull { it.id == uiState.currentMemberFilterChannelId }?.name
+            ServerMembersSheet(
+                isOpen = uiState.isServerMembersSheetOpen,
+                serverName = currentServer.name,
+                channelName = channelName,
+                members = filteredByChannel,
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseServerMembersSheet)
+                },
+                onMemberClick = { member ->
+                    viewModel.onEvent(ChannelsEvent.OpenMemberProfile(member))
                 }
             )
         }
@@ -598,15 +676,27 @@ private fun ServerRail(
                         modifier = Modifier.size(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(getServerDrawableRes(server.iconResName)),
-                            contentDescription = server.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(cornerRadius))
-                                .clickable { onSelectServer(server.id) }
-                        )
+                        if (server.iconResName.startsWith("http")) {
+                            coil.compose.AsyncImage(
+                                model = server.iconResName,
+                                contentDescription = server.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(cornerRadius))
+                                    .clickable { onSelectServer(server.id) }
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(getServerDrawableRes(server.iconResName)),
+                                contentDescription = server.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(cornerRadius))
+                                    .clickable { onSelectServer(server.id) }
+                            )
+                        }
 
                         // Red mention badge at bottom right
                         if (server.badgeCount > 0) {
@@ -694,8 +784,13 @@ private fun ServerDetailsPanel(
     val bannerResId: Int? = when (server.bannerResName) {
         "server_banner_clash" -> com.campus.network.core.ui.R.drawable.server_banner_clash
         "server_banner_basi" -> com.campus.network.core.ui.R.drawable.server_banner_basi
+        "banner_gradient_cyber" -> com.campus.network.core.ui.R.drawable.banner_gradient_cyber
+        "banner_campus_quad" -> com.campus.network.core.ui.R.drawable.banner_campus_quad
+        "banner_tech_neon" -> com.campus.network.core.ui.R.drawable.banner_tech_neon
+        "banner_welcome_perk" -> com.campus.network.core.ui.R.drawable.banner_welcome_perk
         else -> null
     }
+    val isBannerUrl = server.bannerResName?.startsWith("http") == true
 
     Column(
         modifier = modifier
@@ -703,19 +798,28 @@ private fun ServerDetailsPanel(
             .background(Color.White)
     ) {
         // 1. OPTIONAL SERVER BANNER (Rendered if server owner created a banner)
-        if (bannerResId != null) {
+        if (isBannerUrl || bannerResId != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(138.dp)
                     .clip(RoundedCornerShape(topStart = 20.dp))
             ) {
-                Image(
-                    painter = painterResource(id = bannerResId),
-                    contentDescription = "Server Banner",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (isBannerUrl) {
+                    coil.compose.AsyncImage(
+                        model = server.bannerResName,
+                        contentDescription = "Server Banner",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (bannerResId != null) {
+                    Image(
+                        painter = painterResource(id = bannerResId),
+                        contentDescription = "Server Banner",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
                 // If in Preview Mode (Matching Image 1): overlay back button and SERVER PREVIEW badge
                 if (server.isPreview) {
@@ -1012,8 +1116,11 @@ private fun ServerDetailsPanel(
         HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFF2F3F5))
 
         // 4. CHANNELS LIST GROUPED BY CATEGORY
-        val channelsByCategory = remember(server.channels) {
-            server.channels.groupBy { it.categoryName }
+        val distinctChannels = remember(server.channels) {
+            server.channels.distinctBy { it.id }
+        }
+        val channelsByCategory = remember(distinctChannels) {
+            distinctChannels.groupBy { it.categoryName }
         }
 
         LazyColumn(
@@ -1057,7 +1164,7 @@ private fun ServerDetailsPanel(
                     }
                 }
 
-                items(channelsInCategory, key = { it.id }) { channel ->
+                items(channelsInCategory, key = { "${categoryName}_${it.id}" }) { channel ->
                     val isCurrentSelected = channel.id == selectedChannelId || channel.isSelected
                     val isProminent = channel.isUnread || isCurrentSelected
 

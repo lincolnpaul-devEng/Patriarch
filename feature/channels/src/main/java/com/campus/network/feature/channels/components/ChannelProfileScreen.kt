@@ -61,6 +61,8 @@ import androidx.compose.ui.unit.sp
 import com.campus.network.feature.channels.ChannelsEvent
 import com.campus.network.feature.channels.ChannelsUiState
 import com.campus.network.feature.channels.ChannelsViewModel
+import com.campus.network.feature.channels.model.ServerMemberItem
+import com.campus.network.feature.channels.model.ServerRoleType
 
 /**
  * Pixel-Perfect Channel Profile / Details Screen matching uploaded_media_1792143197305.png
@@ -252,10 +254,16 @@ fun ChannelProfileScreen(
         // 5. TAB CONTENT
         when (selectedTab) {
             "Members" -> {
+                val currentServerId = uiState.activeChatServer?.id ?: uiState.selectedServerId
+                val serverMemberList = uiState.serverMembers[currentServerId].orEmpty()
                 MembersTabContent(
                     channelName = channelName,
+                    members = serverMemberList,
+                    onMemberClick = { member ->
+                        viewModel.onEvent(ChannelsEvent.OpenMemberProfile(member))
+                    },
                     onInviteClick = {
-                        viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                        viewModel.onEvent(ChannelsEvent.OpenServerInviteSheet)
                     }
                 )
             }
@@ -275,10 +283,16 @@ fun ChannelProfileScreen(
                 FilesTabContent()
             }
             else -> {
+                val currentServerId = uiState.activeChatServer?.id ?: uiState.selectedServerId
+                val serverMemberList = uiState.serverMembers[currentServerId].orEmpty()
                 MembersTabContent(
                     channelName = channelName,
+                    members = serverMemberList,
+                    onMemberClick = { member ->
+                        viewModel.onEvent(ChannelsEvent.OpenMemberProfile(member))
+                    },
                     onInviteClick = {
-                        viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied!"))
+                        viewModel.onEvent(ChannelsEvent.OpenServerInviteSheet)
                     }
                 )
             }
@@ -287,22 +301,31 @@ fun ChannelProfileScreen(
 }
 
 /**
- * Members tab matching uploaded_media_1792143197305.png
+ * Dynamic Members tab matching reference layout.
  * Top card: 'Invite Members' with user-plus icon and chevron
- * Followed by categorized online & offline members
+ * Followed by categorized members by Server Role Hierarchy.
  */
 @Composable
 private fun MembersTabContent(
     channelName: String,
+    members: List<ServerMemberItem>,
+    onMemberClick: (ServerMemberItem) -> Unit,
     onInviteClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val channelMembers = members.filter { it.channels.isEmpty() || it.channels.contains(channelName) }
+    val owners = channelMembers.filter { it.role.roleType == ServerRoleType.OWNER }
+    val admins = channelMembers.filter { it.role.roleType == ServerRoleType.ADMIN || it.role.roleType == ServerRoleType.MODERATOR }
+    val contributors = channelMembers.filter { it.role.roleType == ServerRoleType.CONTRIBUTOR }
+    val onlineMembers = channelMembers.filter { it.role.roleType == ServerRoleType.MEMBER && it.isOnline }
+    val offlineMembers = channelMembers.filter { it.role.roleType == ServerRoleType.MEMBER && !it.isOnline }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 14.dp),
         contentPadding = PaddingValues(bottom = 60.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Invite Members Card
         item {
@@ -348,155 +371,84 @@ private fun MembersTabContent(
             }
         }
 
-        // Section: ONLINE — 3
-        item {
-            Text(
-                text = "ONLINE — 3",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF5C6470),
-                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
-            )
-        }
-
-        item {
-            MemberRowItem(
-                name = "RobLoach",
-                role = "Mod / Audio Lead",
-                colorHex = 0xFF23A55A,
-                avatarRes = com.campus.network.core.ui.R.drawable.server_avatar2,
-                isOnline = true
-            )
-        }
-
-        item {
-            MemberRowItem(
-                name = "Ath",
-                role = "Soundtrack Contributor",
-                badge = "TDS",
-                colorHex = 0xFF84CC16,
-                avatarRes = com.campus.network.core.ui.R.drawable.avatar_ath,
-                isOnline = true
-            )
-        }
-
-        item {
-            MemberRowItem(
-                name = "Lincoln Paul (You)",
-                role = "Campus Engineer",
-                colorHex = 0xFF003B68,
-                avatarRes = com.campus.network.core.ui.R.drawable.avatar_lincoln,
-                isOnline = true
-            )
-        }
-
-        // Section: OFFLINE — 8
-        item {
-            Text(
-                text = "OFFLINE — 8",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF5C6470),
-                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
-            )
-        }
-
-        item {
-            MemberRowItem(
-                name = "Deleted User",
-                role = "Member",
-                colorHex = 0xFF5C6470,
-                avatarRes = com.campus.network.core.ui.R.drawable.avatar_deleted_user,
-                isOnline = false
-            )
-        }
-
-        item {
-            MemberRowItem(
-                name = "ReallyBasicName the ...",
-                role = "Audio Engineer",
-                colorHex = 0xFF0284C7,
-                avatarRes = com.campus.network.core.ui.R.drawable.server_dragon,
-                isOnline = false
-            )
-        }
-    }
-}
-
-@Composable
-private fun MemberRowItem(
-    name: String,
-    role: String,
-    badge: String? = null,
-    colorHex: Long,
-    avatarRes: Int,
-    isOnline: Boolean
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { /* View member mini-profile */ }
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Avatar with status indicator
-        Box(modifier = Modifier.size(38.dp)) {
-            Image(
-                painter = painterResource(avatarRes),
-                contentDescription = name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-            )
-
-            // Online status indicator
-            if (isOnline) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(11.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF23A55A))
-                        .border(1.5.dp, Color.White, CircleShape)
-                )
-            }
-        }
-
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+        if (owners.isNotEmpty()) {
+            item {
                 Text(
-                    text = name,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(colorHex)
+                    text = "SERVER OWNER — ${owners.size}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C6470),
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp, start = 4.dp)
                 )
-                if (badge != null) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF1E1F22))
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                    ) {
-                        Text(
-                            text = badge,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
             }
-            Text(
-                text = role,
-                fontSize = 12.sp,
-                color = Color(0xFF80848E)
-            )
+            items(owners, key = { "cp_owner_${it.id}" }) { member ->
+                ServerMemberRow(member = member, onClick = { onMemberClick(member) })
+            }
+        }
+
+        if (admins.isNotEmpty()) {
+            item {
+                Text(
+                    text = "ADMINS & MODS — ${admins.size}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C6470),
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp, start = 4.dp)
+                )
+            }
+            items(admins, key = { "cp_admin_${it.id}" }) { member ->
+                ServerMemberRow(member = member, onClick = { onMemberClick(member) })
+            }
+        }
+
+        if (contributors.isNotEmpty()) {
+            item {
+                Text(
+                    text = "CONTRIBUTORS — ${contributors.size}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C6470),
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp, start = 4.dp)
+                )
+            }
+            items(contributors, key = { "cp_contrib_${it.id}" }) { member ->
+                ServerMemberRow(member = member, onClick = { onMemberClick(member) })
+            }
+        }
+
+        if (onlineMembers.isNotEmpty()) {
+            item {
+                Text(
+                    text = "ONLINE — ${onlineMembers.size}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C6470),
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp, start = 4.dp)
+                )
+            }
+            items(onlineMembers, key = { "cp_online_${it.id}" }) { member ->
+                ServerMemberRow(member = member, onClick = { onMemberClick(member) })
+            }
+        }
+
+        if (offlineMembers.isNotEmpty()) {
+            item {
+                Text(
+                    text = "OFFLINE — ${offlineMembers.size}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C6470),
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp, start = 4.dp)
+                )
+            }
+            items(offlineMembers, key = { "cp_offline_${it.id}" }) { member ->
+                ServerMemberRow(member = member, onClick = { onMemberClick(member) })
+            }
         }
     }
 }

@@ -64,9 +64,10 @@ class ServerRepository(
         ownerDisplayName: String = "Lincoln Paul",
         ownerHandle: String = "@lincoln_lead",
         avatarResName: String = "server_codesistency",
-        bannerResName: String? = null
+        bannerResName: String? = null,
+        customServerId: String? = null
     ): Server = withContext(ioDispatcher) {
-        val serverId = "srv_${UUID.randomUUID().toString().take(8)}"
+        val serverId = customServerId ?: "srv_${UUID.randomUUID().toString().take(8)}"
         val cleanName = name.trim().ifEmpty { "New Server" }
         val slug = cleanName.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(12)
         val inviteCode = "$slug-${UUID.randomUUID().toString().take(6).uppercase()}"

@@ -98,6 +98,12 @@ data class MessagesUiState(
 
 sealed interface MessagesEvent {
     data class SelectThread(val threadId: String, val activateVoice: Boolean = false) : MessagesEvent
+    data class OpenOrCreateDirectChat(
+        val peerId: String,
+        val peerName: String,
+        val peerHandle: String? = null,
+        val avatarInitials: String? = null
+    ) : MessagesEvent
     object ConsumeVoiceActivation : MessagesEvent
     object BackToThreads : MessagesEvent
     data class SearchQueryChanged(val query: String) : MessagesEvent

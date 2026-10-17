@@ -143,6 +143,16 @@ fun CampusNavHost(
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
+                },
+                onNavigateToDirectChat = { peerId, peerName, peerHandle ->
+                    messagesViewModel.onEvent(
+                        com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
+                            peerId = peerId,
+                            peerName = peerName,
+                            peerHandle = peerHandle
+                        )
+                    )
+                    navController.navigate(Screen.Messages.route)
                 }
             )
         }

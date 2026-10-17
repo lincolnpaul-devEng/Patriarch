@@ -6,6 +6,9 @@ int drawable avatar_eliza 0x0
 int drawable avatar_junebog 0x0
 int drawable avatar_lincoln 0x0
 int drawable avatar_me 0x0
+int drawable banner_campus_quad 0x0
+int drawable banner_gradient_cyber 0x0
+int drawable banner_tech_neon 0x0
 int drawable banner_welcome_perk 0x0
 int drawable cat_bars 0x0
 int drawable cat_cafes 0x0

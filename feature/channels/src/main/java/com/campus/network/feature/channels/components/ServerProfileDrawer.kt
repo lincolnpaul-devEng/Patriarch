@@ -80,11 +80,13 @@ import com.campus.network.feature.channels.ServerItem
 fun ServerProfileDrawer(
     isOpen: Boolean,
     server: ServerItem,
+    userProfile: com.campus.network.feature.channels.model.PerServerProfile? = null,
     onDismiss: () -> Unit,
     onInviteClick: () -> Unit,
     onMarkAsReadClick: () -> Unit,
     onBrowseChannelsClick: () -> Unit,
     onEditProfileClick: () -> Unit,
+    onMembersClick: () -> Unit = {},
     onLeaveServerClick: () -> Unit,
     onCreateChannelClick: () -> Unit = {},
     onRulesClick: () -> Unit = {},
@@ -138,12 +140,21 @@ fun ServerProfileDrawer(
                         .clip(RoundedCornerShape(18.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(resolveServerDrawableRes(server.iconResName)),
-                        contentDescription = server.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (server.iconResName.startsWith("http")) {
+                        coil.compose.AsyncImage(
+                            model = server.iconResName,
+                            contentDescription = server.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(resolveServerDrawableRes(server.iconResName)),
+                            contentDescription = server.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -416,6 +427,23 @@ fun ServerProfileDrawer(
                                 color = Color(0xFF1E1F22)
                             )
                         }
+
+                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onMembersClick)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Server Members",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1E1F22)
+                            )
+                        }
                     }
                 }
 
@@ -450,11 +478,15 @@ fun ServerProfileDrawer(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable(onClick = onEditProfileClick)
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             // ZERO EMOJI POLICY: Vector Leaf Icon + Server Tag
+                            val tagColor = Color(userProfile?.tagColorHex ?: 0xFFEAB308)
+                            val tagText = userProfile?.tag?.ifBlank { null }
+                                ?: server.name.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("").ifBlank { "CAMP" }
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
@@ -469,12 +501,11 @@ fun ServerProfileDrawer(
                                     Icon(
                                         imageVector = Icons.Default.Eco,
                                         contentDescription = null,
-                                        tint = Color(0xFFEAB308),
+                                        tint = tagColor,
                                         modifier = Modifier.size(13.dp)
                                     )
-                                    val tagInitials = server.name.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
                                     Text(
-                                        text = tagInitials.ifBlank { "CAMP" },
+                                        text = tagText,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF1E1F22)
@@ -486,8 +517,16 @@ fun ServerProfileDrawer(
                                 text = "Server Tag",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF1E1F22)
+                                color = Color(0xFF1E1F22),
+                                modifier = Modifier.weight(1f)
                             )
+                            if (userProfile?.nickname?.isNotBlank() == true) {
+                                Text(
+                                    text = userProfile.nickname,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF5C6470)
+                                )
+                            }
                         }
 
                         HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))

@@ -105,7 +105,7 @@ fun DiscoverServersPanel(
     onCreateServerSubmit: (name: String, category: String) -> Unit,
     onJoinInviteSubmit: (inviteCode: String) -> Unit,
     onPreviewCommunitySubmit: (serverName: String) -> Unit,
-    onCreateServerFullSubmit: ((name: String, category: String, description: String, avatarResName: String) -> Unit)? = null,
+    onCreateServerFullSubmit: ((name: String, category: String, description: String, avatarResName: String, bannerResName: String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var activeSheetMode by remember { mutableStateOf<ServerSheetMode?>(null) }
@@ -342,10 +342,10 @@ fun DiscoverServersPanel(
                 activeSheetMode = null
                 onJoinInviteSubmit(inviteCode)
             },
-            onCreateServerFull = { name, category, desc, avatar ->
+            onCreateServerFull = { name, category, desc, avatar, banner ->
                 activeSheetMode = null
                 if (onCreateServerFullSubmit != null) {
-                    onCreateServerFullSubmit(name, category, desc, avatar)
+                    onCreateServerFullSubmit(name, category, desc, avatar, banner)
                 } else {
                     onCreateServerSubmit(name, category)
                 }

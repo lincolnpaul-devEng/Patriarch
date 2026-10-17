@@ -273,6 +273,59 @@ class MessagesViewModel(
                 _uiState.update { it.copy(activateVoiceInChat = false) }
             }
 
+            is MessagesEvent.OpenOrCreateDirectChat -> {
+                val existing = _uiState.value.threads.find {
+                    it.id == event.peerId || it.id == "thread_${event.peerId}" || it.peerName.equals(event.peerName, ignoreCase = true)
+                }
+                if (existing != null) {
+                    val messages = threadMessagesMap[existing.id] ?: emptyList()
+                    val updatedThreads = _uiState.value.threads.map {
+                        if (it.id == existing.id) it.copy(unreadCount = 0) else it
+                    }
+                    _uiState.update {
+                        it.copy(
+                            currentScreen = MessagesScreenMode.CHAT,
+                            selectedThread = existing.copy(unreadCount = 0),
+                            threads = updatedThreads,
+                            messages = messages
+                        )
+                    }
+                } else {
+                    val newThreadId = if (event.peerId.startsWith("thread_")) event.peerId else "thread_${event.peerId}"
+                    val initials = event.avatarInitials ?: event.peerName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
+                    val newThread = ConversationThread(
+                        id = newThreadId,
+                        peerName = event.peerName,
+                        peerHandle = event.peerHandle ?: "@${event.peerName.lowercase().replace(" ", "")}",
+                        avatarInitials = initials.ifBlank { "M" },
+                        lastMessage = "Started direct chat from server",
+                        lastTimestamp = "Just now",
+                        unreadCount = 0,
+                        isOnline = true,
+                        isVerified = true,
+                        category = ThreadCategory.DIRECT
+                    )
+                    val welcomeMsg = listOf(
+                        DirectMessageItem(
+                            id = "msg_${System.currentTimeMillis()}",
+                            senderName = event.peerName,
+                            isMine = false,
+                            text = "Hey Lincoln! Connected from campus server.",
+                            timestamp = "Just now"
+                        )
+                    )
+                    threadMessagesMap[newThreadId] = welcomeMsg
+                    _uiState.update {
+                        it.copy(
+                            currentScreen = MessagesScreenMode.CHAT,
+                            selectedThread = newThread,
+                            threads = listOf(newThread) + it.threads,
+                            messages = welcomeMsg
+                        )
+                    }
+                }
+            }
+
             is MessagesEvent.BackToThreads -> {
                 _uiState.update {
                     it.copy(

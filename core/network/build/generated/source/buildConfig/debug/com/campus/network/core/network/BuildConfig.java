@@ -8,6 +8,14 @@ public final class BuildConfig {
   public static final String LIBRARY_PACKAGE_NAME = "com.campus.network.core.network";
   public static final String BUILD_TYPE = "debug";
   // Field from default config.
+  public static final String CLOUDINARY_API_KEY = "673296238753588";
+  // Field from default config.
+  public static final String CLOUDINARY_API_SECRET = "Q2h0O3x2e6uKvz-3Yf0e6FQpZz8";
+  // Field from default config.
+  public static final String CLOUDINARY_CLOUD_NAME = "dpupj8sr0";
+  // Field from default config.
+  public static final String CLOUDINARY_UPLOAD_PRESET = "photo";
+  // Field from default config.
   public static final String OPENROUTER_API_KEY = "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";
   // Field from default config.
   public static final String STREAM_API_KEY = "ere637qj6ze8";
