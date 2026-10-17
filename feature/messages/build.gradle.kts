@@ -6,9 +6,19 @@ plugins {
 android {
     namespace = "com.campus.network.feature.messages"
     compileSdk = 35
+    ndkVersion = "27.1.12297006"
 
     defaultConfig {
         minSdk = 26
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     compileOptions {
@@ -22,10 +32,18 @@ android {
 
     buildFeatures {
         compose = true
+        prefab = true
     }
 
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.11"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 
@@ -39,6 +57,8 @@ dependencies {
     implementation(libs.stream.chat.compose)
     implementation(libs.stream.chat.client)
 
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
@@ -58,6 +78,9 @@ dependencies {
 
     // Android Core-Telecom for Self-Managed VoIP Calls
     implementation("androidx.core:core-telecom:1.0.0-alpha03")
+
+    // Google Oboe Low Latency Audio
+    implementation("com.google.oboe:oboe:1.9.0")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -4,7 +4,7 @@
             "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-v23/values-v23.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/5c473240c758d21685031883da2dc1e2/transformed/appcompat-1.6.1/res/values-v23/values-v23.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/3739f64886b28597f787ef587fa11841/transformed/appcompat-1.6.1/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,20,34,35,36,39,43,44,45,46",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -23,26 +23,7 @@
                     }
                 },
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/85fa58f01aa075e16653555c969c345f/transformed/cardview-1.0.0/res/values-v23/values-v23.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endLines": "4",
-                        "endColumns": "12",
-                        "endOffsets": "200"
-                    },
-                    "to": {
-                        "startLines": "52",
-                        "startColumns": "4",
-                        "startOffsets": "3361",
-                        "endLines": "54",
-                        "endColumns": "12",
-                        "endOffsets": "3506"
-                    }
-                },
-                {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/0f8d57b5a2045137b140d944ca29a055/transformed/material-1.9.0/res/values-v23/values-v23.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/17f9045d1913d92b0d028ca3b3a5931d/transformed/material-1.9.0/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2,5,8,13,17,20,23,26,31,34,38",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4",
@@ -61,13 +42,32 @@
                     }
                 },
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/c48d1d20589055c009956913679a8e98/transformed/work-runtime-2.8.1/res/values-v23/values-v23.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/b61afbdf1b015f94ce02351f32de7d7e/transformed/work-runtime-2.8.1/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2,3",
                         "startColumns": "4,4",
                         "startOffsets": "55,121",
                         "endColumns": "65,62",
                         "endOffsets": "116,179"
+                    }
+                },
+                {
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/af3e1f1ec77b9b82204376d224c8810d/transformed/cardview-1.0.0/res/values-v23/values-v23.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "4",
+                        "endColumns": "12",
+                        "endOffsets": "200"
+                    },
+                    "to": {
+                        "startLines": "52",
+                        "startColumns": "4",
+                        "startOffsets": "3361",
+                        "endLines": "54",
+                        "endColumns": "12",
+                        "endOffsets": "3506"
                     }
                 }
             ]

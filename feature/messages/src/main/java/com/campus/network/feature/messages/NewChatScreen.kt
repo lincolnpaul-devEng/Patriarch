@@ -58,7 +58,7 @@ import com.campus.network.core.ui.theme.BrandBlueMid
 import com.campus.network.core.ui.theme.BrandBluePrimary
 
 /**
- * Dedicated WhatsApp/Discord-style New Message / Contact Selection screen.
+ * Dedicated WhatsApp/patriarch-style New Message / Contact Selection screen.
  * Supports instantaneous single chat opening or multi-contact group selection.
  */
 @Composable
@@ -386,7 +386,8 @@ fun NewChatScreen(
                     Text(
                         text = "Next (${selectedPeerIds.size})",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        color = Color.White
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(

@@ -1,6 +1,7 @@
 package com.campus.network.feature.messages
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -65,6 +66,7 @@ import androidx.compose.material.icons.filled.Videocam
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.campus.network.core.ui.components.HybridEmojiReactionDrawer
+import com.campus.network.core.ui.components.KeyboardMediaTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -96,6 +98,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.viewinterop.AndroidView
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
+import android.net.Uri
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
+import androidx.appcompat.widget.AppCompatEditText
+import androidx.core.view.OnReceiveContentListener
+import androidx.core.view.ViewCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -127,6 +141,7 @@ fun DirectChatScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val transcriber = remember { OnDeviceTranscriber(context) }
     val transcriptionState by transcriber.state.collectAsState()
     val audioRms by transcriber.audioRms.collectAsState()
@@ -139,6 +154,16 @@ fun DirectChatScreen(
     var isEmojiDrawerOpen by remember { mutableStateOf(false) }
     var showActionMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    BackHandler(enabled = isEmojiDrawerOpen || isVoiceRecordingActive) {
+        if (isVoiceRecordingActive) {
+            transcriber.cancel()
+            isVoiceRecordingActive = false
+        } else if (isEmojiDrawerOpen) {
+            isEmojiDrawerOpen = false
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -349,46 +374,17 @@ fun DirectChatScreen(
                 item { Spacer(modifier = Modifier.height(10.dp)) }
             }
 
-            // 3. Optional Drafted Attachment Preview Card
-            if (draftAttachment != null) {
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .size(135.dp)
-                ) {
-                    Image(
-                        painter = painterResource(draftAttachment!!),
-                        contentDescription = "Attached Photo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(18.dp))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.55f))
-                            .clickable { draftAttachment = null },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Remove",
-                            tint = Color.White,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
+            val bottomInsetsModifier = if (isEmojiDrawerOpen) {
+                Modifier.windowInsetsPadding(WindowInsets.ime)
+            } else {
+                Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
             }
 
             // 4. Bottom Input Bar (Transforms into Waveform Animation Bar when Voice is active)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+                    .then(bottomInsetsModifier)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -475,195 +471,221 @@ fun DirectChatScreen(
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    // Pill Capsule Input Bar
+                    // Integrated Input Window with Embedded Media Preview
                     Surface(
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(22.dp),
                         color = Color.White,
                         border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            // Emoji & GIF Access Button
-                            Icon(
-                                imageVector = Icons.Default.SentimentSatisfiedAlt,
-                                contentDescription = "Emojis & GIFs",
-                                tint = if (isEmojiDrawerOpen) Color(0xFF007AFF) else Color(0xFF64748B),
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .clickable { isEmojiDrawerOpen = !isEmojiDrawerOpen }
-                            )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Box(modifier = Modifier.weight(1f)) {
-                                if (inputText.isEmpty() && selectedMediaUri == null) {
-                                    Text(
-                                        text = "Add comment or Send",
-                                        fontSize = 15.sp,
-                                        color = Color(0xFF94A3B8)
-                                    )
-                                }
-                                BasicTextField(
-                                    value = inputText,
-                                    onValueChange = { inputText = it },
-                                    singleLine = true,
-                                    textStyle = TextStyle(
-                                        fontSize = 15.sp,
-                                        color = Color(0xFF0F172A),
-                                        fontWeight = FontWeight.Normal
-                                    ),
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                    keyboardActions = KeyboardActions(
-                                        onSend = {
-                                            if (inputText.isNotBlank() || selectedMediaUri != null || draftAttachment != null) {
-                                                onEvent(
-                                                    MessagesEvent.SendMessage(
-                                                        text = inputText.trim(),
-                                                        imageUri = selectedMediaUri?.toString()
-                                                    )
-                                                )
-                                                inputText = ""
-                                                selectedMediaUri = null
+                            // Embedded Media Preview Chip inside input window
+                            if (selectedMediaUri != null || draftAttachment != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(start = 2.dp, top = 2.dp, bottom = 6.dp)
+                                        .size(68.dp)
+                                ) {
+                                    if (selectedMediaUri != null) {
+                                        AsyncImage(
+                                            model = selectedMediaUri,
+                                            contentDescription = "Selected media",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFFF1F5F9))
+                                        )
+                                    } else if (draftAttachment != null) {
+                                        Image(
+                                            painter = painterResource(draftAttachment!!),
+                                            contentDescription = "Draft photo",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(10.dp))
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(2.dp)
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.65f))
+                                            .clickable {
                                                 draftAttachment = null
+                                                selectedMediaUri = null
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 36.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Emoji & GIF Access Button
+                                Icon(
+                                    imageVector = Icons.Default.SentimentSatisfiedAlt,
+                                    contentDescription = "Emojis & GIFs",
+                                    tint = if (isEmojiDrawerOpen) Color(0xFF007AFF) else Color(0xFF64748B),
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .clickable {
+                                            if (!isEmojiDrawerOpen) {
+                                                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                                imm?.hideSoftInputFromWindow(view.windowToken, 0)
+                                                keyboardController?.hide()
+                                                isEmojiDrawerOpen = true
+                                            } else {
                                                 isEmojiDrawerOpen = false
                                             }
                                         }
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
                                 )
-                            }
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
 
-                            if (inputText.isEmpty() && selectedMediaUri == null && draftAttachment == null) {
-                                // Mic Button: activates voice dictation with waveform animation bar
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF007AFF))
-                                        .clickable {
-                                            if (transcriber.hasRecordPermission()) {
-                                                isVoiceRecordingActive = true
-                                                transcriber.startListening()
-                                            } else {
-                                                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = "Voice Input",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(17.dp)
-                                    )
-                                }
-                            } else {
-                                // Blue Circular Send Button with Up Arrow
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF007AFF))
-                                        .clickable {
-                                            if (inputText.isNotBlank() || selectedMediaUri != null || draftAttachment != null) {
-                                                onEvent(
-                                                    MessagesEvent.SendMessage(
-                                                        text = inputText.trim(),
-                                                        imageUri = selectedMediaUri?.toString()
-                                                    )
+                                // Rich KeyboardMediaTextField with Gboard GIF/image commit support
+                                KeyboardMediaTextField(
+                                    value = inputText,
+                                    onValueChange = {
+                                        inputText = it
+                                        if (isEmojiDrawerOpen) {
+                                            isEmojiDrawerOpen = false
+                                        }
+                                    },
+                                    hint = "Add comment or Send",
+                                    onMediaReceived = { uri ->
+                                        selectedMediaUri = uri
+                                        if (isEmojiDrawerOpen) {
+                                            isEmojiDrawerOpen = false
+                                        }
+                                    },
+                                    onSend = {
+                                        if (inputText.isNotBlank() || selectedMediaUri != null || draftAttachment != null) {
+                                            onEvent(
+                                                MessagesEvent.SendMessage(
+                                                    text = inputText.trim(),
+                                                    imageUri = selectedMediaUri?.toString()
                                                 )
-                                                inputText = ""
-                                                selectedMediaUri = null
-                                                draftAttachment = null
-                                                isEmojiDrawerOpen = false
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Send",
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .rotate(90f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Selected Media Thumbnail Preview
-                if (selectedMediaUri != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(56.dp)) {
-                            AsyncImage(
-                                model = selectedMediaUri,
-                                contentDescription = "Draft photo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF1F5F9))
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .size(18.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.65f))
-                                    .clickable { selectedMediaUri = null },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Remove",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
+                                            )
+                                            inputText = ""
+                                            selectedMediaUri = null
+                                            draftAttachment = null
+                                            isEmojiDrawerOpen = false
+                                        }
+                                    },
+                                    onFocusRequested = {
+                                        if (isEmojiDrawerOpen) {
+                                            isEmojiDrawerOpen = false
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 34.dp)
                                 )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                if (inputText.isEmpty() && selectedMediaUri == null && draftAttachment == null) {
+                                    // Mic Button: activates voice dictation with waveform animation bar
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF007AFF))
+                                            .clickable {
+                                                if (transcriber.hasRecordPermission()) {
+                                                    isVoiceRecordingActive = true
+                                                    transcriber.startListening()
+                                                } else {
+                                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                                }
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Mic,
+                                            contentDescription = "Voice Input",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+                                } else {
+                                    // Blue Circular Send Button with Up Arrow
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF007AFF))
+                                            .clickable {
+                                                if (inputText.isNotBlank() || selectedMediaUri != null || draftAttachment != null) {
+                                                    onEvent(
+                                                        MessagesEvent.SendMessage(
+                                                            text = inputText.trim(),
+                                                            imageUri = selectedMediaUri?.toString()
+                                                        )
+                                                    )
+                                                    inputText = ""
+                                                    selectedMediaUri = null
+                                                    draftAttachment = null
+                                                    isEmojiDrawerOpen = false
+                                                }
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Send",
+                                            tint = Color.White,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .rotate(90f)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Hybrid Emoji & GIF Drawer for Direct Chat
-        AnimatedVisibility(
-            visible = isEmojiDrawerOpen,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            HybridEmojiReactionDrawer(
-                onEmojiPicked = { emoji ->
-                    inputText += emoji
-                },
-                onGifPicked = { gif ->
-                    onEvent(
-                        MessagesEvent.SendMessage(
-                            text = "",
-                            gifUrl = gif.originalUrl
+            // 5. Hybrid Emoji & GIF Drawer for Direct Chat (docks at bottom of screen below input bar)
+            AnimatedVisibility(
+                visible = isEmojiDrawerOpen,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                HybridEmojiReactionDrawer(
+                    onEmojiPicked = { emoji ->
+                        inputText += emoji
+                    },
+                    onGifPicked = { gif ->
+                        onEvent(
+                            MessagesEvent.SendMessage(
+                                text = "",
+                                gifUrl = gif.originalUrl
+                            )
                         )
-                    )
-                    isEmojiDrawerOpen = false
-                }
-            )
+                        isEmojiDrawerOpen = false
+                    }
+                )
+            }
         }
 
         // Send Settlement Modal

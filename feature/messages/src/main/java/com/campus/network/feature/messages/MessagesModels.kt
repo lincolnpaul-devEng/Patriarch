@@ -75,7 +75,11 @@ data class CallUiState(
     val isFrontCamera: Boolean = true,
     val isPeerOnline: Boolean = true,
     val connectionQuality: String = "HD 1080p • 60 FPS",
-    val connectionState: String = "Connected • Stream WebRTC"
+    val connectionState: String = "Connected • Stream WebRTC",
+    val activeVoiceFilter: com.campus.network.feature.messages.audio.VoiceFilterPreset = com.campus.network.feature.messages.audio.VoiceFilterPreset.NATURAL,
+    val customPitchShift: Float = 0f,
+    val customFormantScale: Float = 1.0f,
+    val isSelfMonitoring: Boolean = false
 )
 
 data class MessagesUiState(
@@ -115,6 +119,9 @@ sealed interface MessagesEvent {
     object ToggleVideo : MessagesEvent
     object FlipCamera : MessagesEvent
     object AcceptCall : MessagesEvent
+    data class SetVoiceFilter(val preset: com.campus.network.feature.messages.audio.VoiceFilterPreset) : MessagesEvent
+    data class UpdateCustomPitchAndFormant(val pitchSemiTones: Float, val formantScale: Float) : MessagesEvent
+    data class ToggleSelfMonitoring(val context: android.content.Context) : MessagesEvent
     object OpenNewChat : MessagesEvent
     object OpenAddNote : MessagesEvent
     object OpenBroadcast : MessagesEvent

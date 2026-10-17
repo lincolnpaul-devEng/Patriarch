@@ -72,6 +72,20 @@ sealed class Screen(
         icon = Icons.Default.Person
     )
 
+    data object LiveFeed : Screen(
+        route = "campus_live_feed?storyId={storyId}",
+        title = "Live Feed",
+        icon = Icons.Default.Home
+    ) {
+        fun createRoute(storyId: String): String = "campus_live_feed?storyId=$storyId"
+    }
+
+    data object GoLive : Screen(
+        route = "go_live",
+        title = "Go Live",
+        icon = Icons.Default.Home
+    )
+
     companion object {
         val bottomTabs: List<Screen>
             get() = listOf(Hub, Map, Channels, Messages, Profile)

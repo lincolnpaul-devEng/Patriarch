@@ -105,6 +105,7 @@ fun DiscoverServersPanel(
     onCreateServerSubmit: (name: String, category: String) -> Unit,
     onJoinInviteSubmit: (inviteCode: String) -> Unit,
     onPreviewCommunitySubmit: (serverName: String) -> Unit,
+    onCreateServerFullSubmit: ((name: String, category: String, description: String, avatarResName: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var activeSheetMode by remember { mutableStateOf<ServerSheetMode?>(null) }
@@ -157,7 +158,7 @@ fun DiscoverServersPanel(
                 name = "Heartopia",
                 isVerified = true,
                 verifiedBadgeColor = Color(0xFF23A55A),
-                description = "Heartopia Official Discord where you can contact official group and communicate with other players here",
+                description = "Heartopia Official patriarch where you can contact official group and communicate with other players here",
                 onlineCountText = "90,935 Online",
                 membersCountText = "811,139 Members",
                 bannerGradient = Brush.linearGradient(
@@ -171,7 +172,7 @@ fun DiscoverServersPanel(
                 name = "Clash of Clans",
                 isVerified = true,
                 verifiedBadgeColor = Color(0xFF5865F2),
-                description = "Official Discord server for Clash of Clans. Join the biggest server dedicated to Clash of Clans!",
+                description = "Official patriarch server for Clash of Clans. Join the biggest server dedicated to Clash of Clans!",
                 onlineCountText = "30,449 Online",
                 membersCountText = "458,299 Members",
                 bannerGradient = Brush.linearGradient(
@@ -340,6 +341,14 @@ fun DiscoverServersPanel(
             onJoinInvite = { inviteCode ->
                 activeSheetMode = null
                 onJoinInviteSubmit(inviteCode)
+            },
+            onCreateServerFull = { name, category, desc, avatar ->
+                activeSheetMode = null
+                if (onCreateServerFullSubmit != null) {
+                    onCreateServerFullSubmit(name, category, desc, avatar)
+                } else {
+                    onCreateServerSubmit(name, category)
+                }
             }
         )
     }

@@ -265,11 +265,14 @@ fun PrivateQuestCard(
                 } else if (quest.currentProgress >= quest.targetProgress) {
                     Button(
                         onClick = onCompleteClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = CampusPrimary),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CampusPrimary,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.height(28.dp)
                     ) {
-                        Text("Claim", fontSize = 11.sp)
+                        Text("Claim", fontSize = 11.sp, color = Color.White)
                     }
                 }
             }

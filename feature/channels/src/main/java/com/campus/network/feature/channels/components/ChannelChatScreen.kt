@@ -103,6 +103,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -117,6 +121,7 @@ import com.campus.network.feature.channels.ChannelMessage
 import com.campus.network.feature.channels.ChannelMessageEmbed
 import com.campus.network.feature.channels.ChannelsEvent
 import com.campus.network.feature.channels.ChannelsUiState
+import com.campus.network.core.ui.components.KeyboardMediaTextField
 import com.campus.network.feature.channels.ChannelsViewModel
 import com.campus.network.feature.channels.audio.OnDeviceTranscriber
 import com.campus.network.feature.channels.audio.TranscriptionState
@@ -127,7 +132,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Pixel-Perfect Channel Chat Screen matching the Discord Mobile Channel Sessions UI
+ * Pixel-Perfect Channel Chat Screen matching the patriarch Mobile Channel Sessions UI
  * Reference images:
  * - uploaded_media_1_1792142138193.png (Channel chat stream, embeds, reactions, header)
  * - uploaded_media_0_1792142138193.png (Media drawer bottom sheet toggled by '+', device photos)
@@ -144,6 +149,8 @@ fun ChannelChatScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val activeChannel = uiState.activeChatChannel
     val channelName = activeChannel?.name ?: "game-music"
     val messages = uiState.chatMessages
@@ -286,56 +293,31 @@ fun ChannelChatScreen(
             }
         }
 
-        // 3. Optional Drafted Attachment Preview (Matching DirectChatScreen)
-        if (selectedMediaUris.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(selectedMediaUris) { uri ->
-                    Box(modifier = Modifier.size(90.dp)) {
-                        AsyncImage(
-                            model = uri,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(14.dp))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(4.dp)
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.6f))
-                                .clickable { selectedMediaUris.remove(uri) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Remove",
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. BOTTOM CHAT INPUT DOCK (Matching DirectChatScreen interface & elevated with IME)
+        // 4. BOTTOM CHAT INPUT DOCK (Matching DirectChatScreen interface with embedded media preview & Keyboard rich content)
         ChatInputDock(
             channelName = channelName,
             inputText = inputText,
+            selectedMediaUris = selectedMediaUris,
+            onRemoveMediaUri = { selectedMediaUris.remove(it) },
+            onMediaReceived = { uri ->
+                if (!selectedMediaUris.contains(uri)) {
+                    selectedMediaUris.add(uri)
+                }
+            },
             isDrawerOpen = uiState.isMediaDrawerOpen,
             isEmojiOpen = isEmojiDrawerOpen,
             isVoiceRecordingActive = isVoiceRecordingActive,
             isSpeechDetected = isSpeechDetected,
             audioRms = audioRms,
             onTextChanged = { inputText = it },
+            onFocusRequested = {
+                if (isEmojiDrawerOpen) {
+                    isEmojiDrawerOpen = false
+                }
+                if (uiState.isMediaDrawerOpen) {
+                    viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                }
+            },
             onToggleDrawer = {
                 if (isVoiceRecordingActive) {
                     transcriber.cancel()
@@ -354,7 +336,14 @@ fun ChannelChatScreen(
                 if (uiState.isMediaDrawerOpen) {
                     viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
                 }
-                isEmojiDrawerOpen = !isEmojiDrawerOpen
+                if (!isEmojiDrawerOpen) {
+                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                    imm?.hideSoftInputFromWindow(view.windowToken, 0)
+                    keyboardController?.hide()
+                    isEmojiDrawerOpen = true
+                } else {
+                    isEmojiDrawerOpen = false
+                }
             },
             onStartVoice = {
                 if (uiState.isMediaDrawerOpen) {
@@ -436,7 +425,7 @@ fun ChannelChatScreen(
 }
 
 /**
- * Top bar matching Discord mobile:
+ * Top bar matching patriarch mobile:
  * [Back + '99' badge] # channel-name > [Search]
  */
 @Composable
@@ -578,7 +567,7 @@ private fun DateDividerItem(
 }
 
 /**
- * Discord Channel Message row with reply support, rich embeds, and reaction chips
+ * patriarch Channel Message row with reply support, rich embeds, and reaction chips
  */
 @Composable
 private fun ChannelMessageItem(
@@ -782,7 +771,7 @@ private fun ChannelMessageItem(
 }
 
 /**
- * Rich message embed card matching Discord GitHub embed
+ * Rich message embed card matching patriarch GitHub embed
  */
 @Composable
 private fun MessageEmbedCard(
@@ -923,6 +912,9 @@ private fun EmbedStatItem(
 private fun ChatInputDock(
     channelName: String,
     inputText: String,
+    selectedMediaUris: List<Uri> = emptyList(),
+    onRemoveMediaUri: (Uri) -> Unit = {},
+    onMediaReceived: (Uri) -> Unit = {},
     isDrawerOpen: Boolean,
     isEmojiOpen: Boolean,
     isVoiceRecordingActive: Boolean,
@@ -934,6 +926,7 @@ private fun ChatInputDock(
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     onSendMessage: () -> Unit,
+    onFocusRequested: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val insetsModifier = if (isDrawerOpen || isEmojiOpen) {
@@ -981,109 +974,135 @@ private fun ChatInputDock(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Pill Capsule Input Bar (White surface, border #E2E8F0, height 46dp)
+            // Integrated Input Window with Embedded Media Preview & KeyboardMediaTextField
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = Color.White,
                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(46.dp)
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    // Text input field with placeholder
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (inputText.isEmpty()) {
-                            Text(
-                                text = "Message #$channelName",
-                                fontSize = 15.sp,
-                                color = Color(0xFF94A3B8),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        BasicTextField(
-                            value = inputText,
-                            onValueChange = onTextChanged,
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontSize = 15.sp,
-                                color = Color(0xFF0F172A),
-                                fontWeight = FontWeight.Normal
-                            ),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(
-                                onSend = {
-                                    if (inputText.isNotBlank()) {
-                                        onSendMessage()
+                    // Embedded Draft Media Preview inside input window
+                    if (selectedMediaUris.isNotEmpty()) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 2.dp, top = 2.dp, bottom = 6.dp)
+                        ) {
+                            items(selectedMediaUris) { uri ->
+                                Box(modifier = Modifier.size(64.dp)) {
+                                    AsyncImage(
+                                        model = uri,
+                                        contentDescription = "Selected media",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFFF1F5F9))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(2.dp)
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.65f))
+                                            .clickable { onRemoveMediaUri(uri) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(11.dp)
+                                        )
                                     }
                                 }
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    // Emoji Picker Toggle Button (Discord style smiley icon)
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onToggleEmoji),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .heightIn(min = 36.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.SentimentSatisfiedAlt,
-                            contentDescription = "Emojis & Reactions",
-                            tint = if (isEmojiOpen) Color(0xFF007AFF) else Color(0xFF64748B),
-                            modifier = Modifier.size(22.dp)
+                        // Rich KeyboardMediaTextField with Gboard GIF/image commit support
+                        KeyboardMediaTextField(
+                            value = inputText,
+                            onValueChange = onTextChanged,
+                            hint = "Message #$channelName",
+                            onMediaReceived = onMediaReceived,
+                            onSend = onSendMessage,
+                            onFocusRequested = onFocusRequested,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 34.dp)
                         )
-                    }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
-                    // Mic / Send Button
-                    if (inputText.isBlank()) {
-                        // Blue Circular Mic Button (32dp, #007AFF)
+                        // Emoji Picker Toggle Button (patriarch style smiley icon)
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF007AFF))
-                                .clickable(onClick = onStartVoice),
+                                .clickable(onClick = onToggleEmoji),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Mic,
-                                contentDescription = "Voice Input",
-                                tint = Color.White,
-                                modifier = Modifier.size(17.dp)
+                                imageVector = Icons.Default.SentimentSatisfiedAlt,
+                                contentDescription = "Emojis & Reactions",
+                                tint = if (isEmojiOpen) Color(0xFF007AFF) else Color(0xFF64748B),
+                                modifier = Modifier.size(22.dp)
                             )
                         }
-                    } else {
-                        // Blue Circular Send Button with Up Arrow (matching DirectChatScreen)
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF007AFF))
-                                .clickable(onClick = onSendMessage),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Send",
-                                tint = Color.White,
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Mic / Send Button
+                        if (inputText.isBlank() && selectedMediaUris.isEmpty()) {
+                            // Blue Circular Mic Button (32dp, #007AFF)
+                            Box(
                                 modifier = Modifier
-                                    .size(16.dp)
-                                    .rotate(90f)
-                            )
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF007AFF))
+                                    .clickable(onClick = onStartVoice),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = "Voice Input",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        } else {
+                            // Blue Circular Send Button with Up Arrow (matching DirectChatScreen)
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF007AFF))
+                                    .clickable(onClick = onSendMessage),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Send",
+                                    tint = Color.White,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .rotate(90f)
+                                )
+                            }
                         }
                     }
                 }

@@ -95,3 +95,53 @@ data class MicroGigEntity(
     val spotsAvailable: Int,
     val timestampMs: Long
 )
+@Entity(tableName = "live_streams")
+data class LiveStreamEntity(
+    @PrimaryKey val id: String,
+    val broadcasterId: String,
+    val broadcasterName: String,
+    val broadcasterHandle: String,
+    val broadcasterAvatarRes: Int = 0,
+    val broadcasterAvatarUrl: String? = null,
+    val title: String,
+    val description: String,
+    val category: String,
+    val audience: String = "CAMPUS",
+    val isLive: Boolean = true,
+    val streamPlaybackUrl: String? = null,
+    val backdropImageRes: Int = 0,
+    val backdropImageUrl: String? = null,
+    val viewerCount: Int = 0,
+    val peakViewers: Int = 0,
+    val likeCount: Int = 0,
+    val startedAtEpochMs: Long = System.currentTimeMillis(),
+    val endedAtEpochMs: Long? = null,
+    val durationSeconds: Int = 0,
+    val serverId: String? = null
+)
+
+@Entity(tableName = "streamer_profiles")
+data class StreamerProfileEntity(
+    @PrimaryKey val studentId: String,
+    val location: String,
+    val joinedDate: String,
+    val hoursLive: Int,
+    val followersCount: String,
+    val bestDay: String,
+    val streamsPerWeek: Int,
+    val topTopicsCsv: String,
+    val weeklyActivityCsv: String
+)
+
+@Entity(tableName = "stream_comments")
+data class StreamCommentEntity(
+    @PrimaryKey val id: String,
+    val streamId: String,
+    val senderId: String,
+    val senderName: String,
+    val senderAvatarUrl: String? = null,
+    val senderAvatarRes: Int = 0,
+    val commentText: String,
+    val timestampEpochMs: Long = System.currentTimeMillis()
+)
+

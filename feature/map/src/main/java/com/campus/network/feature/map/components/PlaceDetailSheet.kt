@@ -8,7 +8,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import com.campus.network.feature.map.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,20 +26,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Power
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -65,23 +70,27 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.campus.network.core.model.CampusPlace
+import com.campus.network.core.model.PlaceCategory
 import com.campus.network.core.model.SavedByUser
+import com.campus.network.core.ui.theme.BrandBluePrimary
+import com.campus.network.core.ui.theme.BrandGreen
+import com.campus.network.feature.map.R
 import kotlin.math.cos
 import kotlin.math.sin
 
-private val SavesBadgePink = Color(0xFFF43F5E)
+private val SavesBadgeBlue = Color(0xFF007AFF)
 private val DarkSearchNavy = Color(0xFF0F172A)
-private val StarburstPink = Color(0xFFFF71B2)
+private val StarburstBadgeGold = Color(0xFFF59E0B)
 
 /**
- * Pixel-Perfect Place Detail Drawer / Sheet:
- * Faithful realization of reference image #2 with Patriarch styling:
- * Top dark search bar, place header with "to try" / "been", photo carousel
- * with starburst badge, editorial blurb, "SAVED BY" social stats & avatars,
- * feedback input, and bottom action pill bar.
+ * Staff-Level Place Detail Drawer / Sheet:
+ * Displays complete campus location intelligence, security level,
+ * peer-to-peer SafeTrade verification, Wi-Fi/Power amenities,
+ * social saves by classmates, community thoughts, and one-tap flash meet creation.
  */
 @Composable
 fun PlaceDetailSheet(
@@ -94,12 +103,28 @@ fun PlaceDetailSheet(
     onSubmitComment: (String) -> Unit,
     onShare: () -> Unit,
     onDirections: () -> Unit,
-    onSite: () -> Unit,
-    onSocial: () -> Unit,
+    onHostMeetHere: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var commentText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
+
+    val badgeColor = when {
+        place.isVerifiedSafeTrade -> Color(0xFF007AFF)
+        place.category == PlaceCategory.STUDY_ZONES -> Color(0xFF16A34A)
+        place.category == PlaceCategory.ACADEMIC_LABS -> Color(0xFF8B5CF6)
+        place.category == PlaceCategory.EVENTS -> Color(0xFFEC4899)
+        else -> BrandOnboardingNavy
+    }
+
+    val badgeIcon = when {
+        place.isVerifiedSafeTrade -> Icons.Default.Security
+        place.category == PlaceCategory.STUDY_ZONES -> Icons.AutoMirrored.Filled.MenuBook
+        place.category == PlaceCategory.ACADEMIC_LABS -> Icons.Default.Computer
+        place.category == PlaceCategory.GUILD_SERVICES -> Icons.Default.AccountBalance
+        place.category == PlaceCategory.EVENTS -> Icons.Default.Event
+        else -> Icons.Default.Star
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         // 1. Top Floating Dark Search Bar
@@ -124,22 +149,25 @@ fun PlaceDetailSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        imageVector = badgeIcon,
+                        contentDescription = "Category",
+                        tint = badgeColor,
+                        modifier = Modifier.size(19.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Text(
                         text = place.name,
                         color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f, fill = false),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                         Icon(
@@ -193,7 +221,7 @@ fun PlaceDetailSheet(
                         .verticalScroll(scrollState)
                         .padding(horizontal = 20.dp)
                 ) {
-                    // Header Row: Title & Actions ("to try", "been")
+                    // Header Row: Title & Actions ("Save Bookmark", "Check-in")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -203,51 +231,73 @@ fun PlaceDetailSheet(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
-                            val iconRes = getMarkerIconDrawable(place.iconResName)
-                            Image(
-                                painter = painterResource(iconRes),
-                                contentDescription = null,
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(34.dp)
-                            )
+                            Surface(
+                                modifier = Modifier.size(38.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = badgeColor.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.3f))
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = badgeIcon,
+                                        contentDescription = null,
+                                        tint = badgeColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
 
                             Spacer(modifier = Modifier.width(10.dp))
 
-                            Text(
-                                text = place.name.uppercase(),
-                                fontSize = 21.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A),
-                                letterSpacing = (-0.3).sp
-                            )
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    text = place.name,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${place.campusRegion} Campus · ${place.neighborhood}",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
 
-                        // Right: "to try" & "been" buttons
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            // "to try"
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        // Right: "bookmark" & "been" buttons
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // "bookmark"
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "to try",
-                                    fontSize = 11.sp,
+                                    text = "save",
+                                    fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF64748B)
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
                                 Surface(
-                                    modifier = Modifier.size(42.dp),
+                                    modifier = Modifier.size(38.dp),
                                     shape = CircleShape,
-                                    color = if (isSavedToTry) BrandOnboardingNavy.copy(alpha = 0.12f) else Color.White,
-                                    border = BorderStroke(1.5.dp, if (isSavedToTry) BrandOnboardingNavy else Color(0xFFE2E8F0)),
+                                    color = if (isSavedToTry) SavesBadgeBlue.copy(alpha = 0.12f) else Color.White,
+                                    border = BorderStroke(1.5.dp, if (isSavedToTry) SavesBadgeBlue else Color(0xFFE2E8F0)),
                                     onClick = onToggleSavedToTry
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = if (isSavedToTry) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                            contentDescription = "Save to try",
-                                            tint = if (isSavedToTry) BrandOnboardingNavy else Color(0xFF334155),
-                                            modifier = Modifier.size(20.dp)
+                                            contentDescription = "Save Bookmark",
+                                            tint = if (isSavedToTry) SavesBadgeBlue else Color(0xFF334155),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -257,16 +307,18 @@ fun PlaceDetailSheet(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = "been",
-                                    fontSize = 11.sp,
+                                    fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF64748B)
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
                                 Surface(
-                                    modifier = Modifier.size(42.dp),
+                                    modifier = Modifier.size(38.dp),
                                     shape = CircleShape,
-                                    color = if (hasBeen) BrandOnboardingNavy else Color.White,
-                                    border = BorderStroke(1.5.dp, if (hasBeen) BrandOnboardingNavy else Color(0xFFE2E8F0)),
+                                    color = if (hasBeen) BrandGreen else Color.White,
+                                    border = BorderStroke(1.5.dp, if (hasBeen) BrandGreen else Color(0xFFE2E8F0)),
                                     onClick = onToggleBeen
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -274,7 +326,7 @@ fun PlaceDetailSheet(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = "Mark as been",
                                             tint = if (hasBeen) Color.White else Color(0xFF334155),
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -282,82 +334,110 @@ fun PlaceDetailSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // Metadata Row: Saves Badge & Subtitle
+                    // Campus Amenities & SafeTrade Badges Row
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = SavesBadgePink
-                        ) {
-                            Text(
-                                text = "${place.savesCount} SAVES",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
+                        if (place.isVerifiedSafeTrade) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFEFF6FF),
+                                border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF007AFF), modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("SafeTrade Checkpoint", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF007AFF), maxLines = 1, softWrap = false)
+                                }
+                            }
                         }
 
-                        Text(
-                            text = "${place.subtitle} \u00B7 ${place.priceTier}",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF475569)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF0FDF4),
+                            border = BorderStroke(1.dp, Color(0xFFBBF7D0))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF16A34A)))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(place.hoursText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF16A34A), maxLines = 1, softWrap = false)
+                            }
+                        }
+
+                        if (place.hasWifi) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Wifi, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Wi-Fi", fontSize = 10.5.sp, color = Color(0xFF475569), maxLines = 1, softWrap = false)
+                                }
+                            }
+                        }
+
+                        if (place.hasPowerOutlets) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Power, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Power", fontSize = 10.5.sp, color = Color(0xFF475569), maxLines = 1, softWrap = false)
+                                }
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // Ranking Tag & Operating Hours
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // Security & Supervision Notice
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(SavesBadgePink)
-                        )
-
-                        Text(
-                            text = place.rankingTag,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Security: ${place.securityLevel}",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF334155),
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "open ",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = EmeraldLiveGreen
-                        )
-                        Text(
-                            text = "${place.hoursText.removePrefix("open ")}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF475569)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = null,
-                            tint = Color(0xFF64748B),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 3. Photography Carousel with Starburst Badge
+                    // 3. Photography Carousel
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier
@@ -365,64 +445,50 @@ fun PlaceDetailSheet(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Photo 1
                             Image(
                                 painter = painterResource(R.drawable.place_photo_1),
-                                contentDescription = "Interior",
+                                contentDescription = "Campus Facility",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .width(150.dp)
-                                    .height(190.dp)
+                                    .width(220.dp)
+                                    .height(150.dp)
                                     .clip(RoundedCornerShape(14.dp))
                             )
 
-                            // Photo 2 with Starburst Badge
-                            Box(
+                            Image(
+                                painter = painterResource(R.drawable.place_photo_2),
+                                contentDescription = "Study Area",
+                                contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .width(190.dp)
-                                    .height(190.dp)
+                                    .width(180.dp)
+                                    .height(150.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                            ) {
-                                Image(
-                                    painter = painterResource(R.drawable.place_photo_2),
-                                    contentDescription = "Food and Coffee",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                            )
 
-                                // Starburst Badge Overlay
-                                StarburstBadge(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(4.dp)
-                                )
-                            }
-
-                            // Photo 3
                             Image(
                                 painter = painterResource(R.drawable.place_photo_3),
                                 contentDescription = "Atmosphere",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .width(150.dp)
-                                    .height(190.dp)
+                                    .height(150.dp)
                                     .clip(RoundedCornerShape(14.dp))
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Neighborhood and Editorial Description
+                    // Editorial & Facility Description
                     Text(
-                        text = "${place.neighborhood} \u00B7 ${place.address} \u00B7 ${place.description}",
-                        fontSize = 13.5.sp,
+                        text = "${place.address} — ${place.description}",
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Normal,
                         color = Color(0xFF334155),
-                        lineHeight = 20.sp
+                        lineHeight = 19.sp
                     )
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // 4. "SAVED BY" Social Proof Section
                     Surface(
@@ -439,10 +505,12 @@ fun PlaceDetailSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "SAVED BY",
-                                    fontSize = 12.5.sp,
+                                    text = "CAMPUS PEER COMMUNITY",
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0F172A)
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
 
                                 Row(
@@ -451,8 +519,8 @@ fun PlaceDetailSheet(
                                 ) {
                                     MetricItem(
                                         icon = Icons.Default.Bookmark,
-                                        count = "${place.stats.saves}",
-                                        tint = BrandOnboardingNavy
+                                        count = "${place.savesCount}",
+                                        tint = SavesBadgeBlue
                                     )
                                     MetricItem(
                                         icon = Icons.Default.Star,
@@ -462,22 +530,17 @@ fun PlaceDetailSheet(
                                     MetricItem(
                                         icon = Icons.Default.ThumbUp,
                                         count = "${place.stats.likes}",
-                                        tint = Color(0xFF3B82F6)
-                                    )
-                                    MetricItem(
-                                        icon = Icons.Default.ThumbDown,
-                                        count = "${place.stats.dislikes}",
-                                        tint = Color(0xFFEF4444)
+                                        tint = Color(0xFF16A34A)
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             // Horizontal List of Avatars
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 place.savedByUsers.forEach { user ->
                                     UserAvatarItem(user = user)
@@ -488,7 +551,7 @@ fun PlaceDetailSheet(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 5. Community Input Bar ("what do you think?")
+                    // 5. Community Input Bar ("Leave a tip or review")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -500,7 +563,6 @@ fun PlaceDetailSheet(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .border(1.dp, Color(0xFFCBD5E1), CircleShape)
                         )
 
                         Spacer(modifier = Modifier.width(10.dp))
@@ -509,18 +571,24 @@ fun PlaceDetailSheet(
                             value = commentText,
                             onValueChange = { commentText = it },
                             placeholder = {
-                                Text("what do you think?", fontSize = 13.5.sp, color = Color(0xFF94A3B8))
+                                Text(
+                                    text = "Leave study tip or notes on this spot...",
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
                             },
                             trailingIcon = {
                                 if (commentText.isNotBlank()) {
-                                    IconButton(onClick = {
-                                        onSubmitComment(commentText)
-                                        commentText = ""
-                                    }) {
+                                    IconButton(
+                                        onClick = {
+                                            onSubmitComment(commentText)
+                                            commentText = ""
+                                        }
+                                    ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Send,
                                             contentDescription = "Send",
-                                            tint = BrandOnboardingNavy,
+                                            tint = SavesBadgeBlue,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -531,7 +599,7 @@ fun PlaceDetailSheet(
                                 .height(50.dp),
                             shape = CircleShape,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BrandOnboardingNavy,
+                                focusedBorderColor = SavesBadgeBlue,
                                 unfocusedBorderColor = Color(0xFFCBD5E1),
                                 focusedContainerColor = Color(0xFFF8FAFC),
                                 unfocusedContainerColor = Color(0xFFF8FAFC)
@@ -543,7 +611,7 @@ fun PlaceDetailSheet(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 6. Action Dock: share, directions, site, ig
+                // 6. Action Dock: Host Meet Here, Directions, Share
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = Color.White,
@@ -556,29 +624,33 @@ fun PlaceDetailSheet(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Button(
+                            onClick = onHostMeetHere,
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = DarkSearchNavy,
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1.4f),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Host Meet Here", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                        }
+
                         ActionPillButton(
-                            label = "share",
-                            icon = Icons.Default.Share,
-                            onClick = onShare,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ActionPillButton(
-                            label = "directions",
+                            label = "Directions",
                             icon = Icons.Default.Explore,
                             onClick = onDirections,
-                            modifier = Modifier.weight(1.3f)
+                            modifier = Modifier.weight(1.1f)
                         )
+
                         ActionPillButton(
-                            label = "site",
-                            icon = Icons.Default.Language,
-                            onClick = onSite,
+                            label = "Share",
+                            icon = Icons.Default.Share,
+                            onClick = onShare,
                             modifier = Modifier.weight(0.9f)
-                        )
-                        ActionPillButton(
-                            label = "ig",
-                            icon = Icons.Default.CameraAlt,
-                            onClick = onSocial,
-                            modifier = Modifier.weight(0.8f)
                         )
                     }
                 }
@@ -588,64 +660,55 @@ fun PlaceDetailSheet(
 }
 
 /**
- * Geometric Pink Starburst Badge sticker.
+ * Single Avatar item in Saved By row.
  */
 @Composable
-private fun StarburstBadge(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.size(76.dp),
-        contentAlignment = Alignment.Center
+private fun UserAvatarItem(user: SavedByUser) {
+    val avatarRes = getAvatarDrawable(user.avatarResName)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(52.dp)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val numPoints = 16
-            val outerRadius = size.minDimension / 2f
-            val innerRadius = outerRadius * 0.82f
-            val centerX = size.width / 2f
-            val centerY = size.height / 2f
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Image(
+                painter = painterResource(avatarRes),
+                contentDescription = user.username,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .border(1.5.dp, Color.White, CircleShape)
+            )
 
-            val path = Path()
-            val angleStep = (Math.PI * 2) / (numPoints * 2)
-
-            for (i in 0 until (numPoints * 2)) {
-                val r = if (i % 2 == 0) outerRadius else innerRadius
-                val angle = i * angleStep
-                val x = centerX + (r * cos(angle)).toFloat()
-                val y = centerY + (r * sin(angle)).toFloat()
-                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            // Status Badge Overlay
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF007AFF))
+                    .border(1.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (user.isBookmarked) Icons.Default.Bookmark else Icons.Default.ThumbUp,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(9.dp)
+                )
             }
-            path.close()
-
-            // Fill
-            drawPath(path, color = StarburstPink)
-            // Stroke
-            drawPath(path, color = Color.Black, style = Stroke(width = 2.dp.toPx()))
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "POPULAR",
-                fontSize = 7.5.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.Black,
-                letterSpacing = 0.5.sp
-            )
-            Text(
-                text = "#4",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.Black,
-                lineHeight = 14.sp
-            )
-            Text(
-                text = "bakery",
-                fontSize = 7.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-        }
+        Spacer(modifier = Modifier.height(3.dp))
+
+        Text(
+            text = user.username,
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF334155),
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 
@@ -670,61 +733,11 @@ private fun MetricItem(
         )
         Text(
             text = count,
-            fontSize = 12.sp,
+            fontSize = 11.5.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF1E293B)
-        )
-    }
-}
-
-/**
- * Single Avatar item in Saved By row.
- */
-@Composable
-private fun UserAvatarItem(user: SavedByUser) {
-    val avatarRes = getAvatarDrawable(user.avatarResName)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(54.dp)
-    ) {
-        Box(contentAlignment = Alignment.BottomEnd) {
-            Image(
-                painter = painterResource(avatarRes),
-                contentDescription = user.username,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .border(1.5.dp, Color.White, CircleShape)
-            )
-
-            // Status Badge Overlay
-            Box(
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(BrandOnboardingNavy)
-                    .border(1.dp, Color.White, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (user.isBookmarked) Icons.Default.Bookmark else Icons.Default.ThumbUp,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(10.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = user.username,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF334155),
-            maxLines = 1
+            color = Color(0xFF1E293B),
+            maxLines = 1,
+            softWrap = false
         )
     }
 }
@@ -749,7 +762,7 @@ private fun ActionPillButton(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -757,14 +770,16 @@ private fun ActionPillButton(
                 imageVector = icon,
                 contentDescription = label,
                 tint = Color(0xFF0F172A),
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(15.dp)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = label,
-                fontSize = 12.5.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
+                color = Color(0xFF0F172A),
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

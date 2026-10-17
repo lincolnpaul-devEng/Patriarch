@@ -77,6 +77,9 @@ import com.campus.network.core.ui.theme.BrandBlueMid
 import com.campus.network.core.ui.theme.BrandBluePrimary
 import com.campus.network.core.ui.theme.BrandGreen
 import com.campus.network.core.ui.theme.TextWhite
+import com.campus.network.feature.messages.audio.VoiceFilterPreset
+import com.campus.network.feature.messages.components.InCallMoreOptionsSheet
+import com.campus.network.feature.messages.components.VoiceMorphSheet
 
 @Composable
 fun VideoCallScreen(
@@ -88,6 +91,8 @@ fun VideoCallScreen(
     // Default when connected: remote caller is fullscreen, local camera is in PiP (isLocalFullscreen = false).
     // While CALLING or RINGING: local camera preview fills the entire screen, and PiP is completely hidden.
     var isLocalFullscreen by remember { mutableStateOf(false) }
+    var isMoreOptionsOpen by remember { mutableStateOf(false) }
+    var isVoiceFilterOpen by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -245,6 +250,35 @@ fun VideoCallScreen(
                     )
                 )
             )
+
+            if (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFDD2476).copy(alpha = 0.35f),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFFF512F)),
+                    modifier = Modifier.clickable { isVoiceFilterOpen = true }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = Color(0xFFFF8DA1),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Voice: ${callState.activeVoiceFilter.title}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF8DA1)
+                        )
+                    }
+                }
+            }
         }
 
         // 5. Top Right: Vertical action buttons (Add Participant + Camera Switch)
@@ -308,11 +342,17 @@ fun VideoCallScreen(
             ) {
                 // More options (...)
                 IconButton(
-                    onClick = { /* More in-call options */ },
+                    onClick = { isMoreOptionsOpen = true },
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(Color(0x33FFFFFF))
+                        .background(
+                            if (isMoreOptionsOpen || isVoiceFilterOpen || (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL)) {
+                                Color(0xFFDD2476).copy(alpha = 0.4f)
+                            } else {
+                                Color(0x33FFFFFF)
+                            }
+                        )
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreHoriz,
@@ -386,6 +426,27 @@ fun VideoCallScreen(
                     )
                 }
             }
+        }
+
+        // In-Call More Options Sheet
+        if (isMoreOptionsOpen) {
+            InCallMoreOptionsSheet(
+                callState = callState,
+                onOpenVoiceFilter = {
+                    isMoreOptionsOpen = false
+                    isVoiceFilterOpen = true
+                },
+                onDismiss = { isMoreOptionsOpen = false }
+            )
+        }
+
+        // Dedicated Voice Morphing Sheet
+        if (isVoiceFilterOpen) {
+            VoiceMorphSheet(
+                callState = callState,
+                onEvent = onEvent,
+                onDismiss = { isVoiceFilterOpen = false }
+            )
         }
     }
 }

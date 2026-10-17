@@ -47,6 +47,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,12 +62,13 @@ import androidx.compose.ui.unit.sp
  */
 enum class ServerSheetMode {
     CREATE_SERVER,
+    CUSTOMIZE_SERVER,
     JOIN_SERVER
 }
 
 /**
- * Pixel-Perfect Modal Sheet hosting "Create Your Server" and "Join an existing server"
- * matching uploaded_media_0_1792149447421.png and uploaded_media_1_1792149447421.png.
+ * Pixel-Perfect Modal Sheet hosting "Create Your Server", "Customize Your Server",
+ * and "Join an existing server".
  *
  * ZERO EMOJI POLICY: Strictly retro pixel-art canvas illustrations and typography.
  */
@@ -73,9 +80,13 @@ fun CreateServerModalSheet(
     onNavigateToJoin: () -> Unit,
     onNavigateToCreate: () -> Unit,
     onCreateServer: (serverName: String, category: String) -> Unit,
-    onJoinInvite: (inviteCode: String) -> Unit
+    onJoinInvite: (inviteCode: String) -> Unit,
+    onCreateServerFull: ((serverName: String, category: String, description: String, avatarResName: String) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var currentMode by remember(mode) { mutableStateOf(mode) }
+    var selectedTemplateTitle by remember { mutableStateOf("Lincoln's") }
+    var selectedCategory by remember { mutableStateOf("Community") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -85,14 +96,31 @@ fun CreateServerModalSheet(
         dragHandle = null,
         modifier = Modifier.fillMaxSize()
     ) {
-        when (mode) {
+        when (currentMode) {
             ServerSheetMode.CREATE_SERVER -> {
                 CreateYourServerContent(
                     onDismiss = onDismiss,
                     onSelectTemplate = { templateTitle, category ->
-                        onCreateServer("$templateTitle Server", category)
+                        selectedTemplateTitle = templateTitle
+                        selectedCategory = category
+                        currentMode = ServerSheetMode.CUSTOMIZE_SERVER
                     },
                     onJoinServerClick = onNavigateToJoin
+                )
+            }
+            ServerSheetMode.CUSTOMIZE_SERVER -> {
+                CustomizeServerContent(
+                    initialName = if (selectedTemplateTitle.contains("Lincoln")) "Lincoln's server" else "$selectedTemplateTitle Server",
+                    initialCategory = selectedCategory,
+                    onBackClick = { currentMode = ServerSheetMode.CREATE_SERVER },
+                    onDismiss = onDismiss,
+                    onCreateServer = { name, category, description, avatarResName ->
+                        if (onCreateServerFull != null) {
+                            onCreateServerFull(name, category, description, avatarResName)
+                        } else {
+                            onCreateServer(name, category)
+                        }
+                    }
                 )
             }
             ServerSheetMode.JOIN_SERVER -> {
@@ -308,7 +336,392 @@ fun CreateYourServerContent(
 }
 
 /**
- * SCREEN 2: "Join an existing server" matching uploaded_media_1_1792149447421.png
+ * SCREEN 2: "Customize your server"
+ * Lets the user configure the server name, avatar preset, topic description, and category.
+ */
+@Composable
+fun CustomizeServerContent(
+    initialName: String,
+    initialCategory: String,
+    onBackClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onCreateServer: (name: String, category: String, description: String, avatarResName: String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var serverName by remember { mutableStateOf(initialName) }
+    var serverDescription by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(initialCategory) }
+    var selectedAvatar by remember { mutableStateOf("server_gradient") }
+
+    val presetAvatars = remember {
+        listOf(
+            "server_gradient",
+            "server_codesistency",
+            "server_owl",
+            "server_dragon",
+            "server_curly",
+            "server_ai_brain",
+            "server_eureka",
+            "server_nvidia",
+            "server_logo2",
+            "server_avatar2",
+            "server_w_red"
+        )
+    }
+
+    val categories = remember {
+        listOf("Community", "Gaming", "Education", "Study Jam", "Tech & AI", "Social")
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Top row: Back button & Close button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color(0xFF1E1F22),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = Color(0xFF1E1F22),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "Customize your server",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF1E1F22),
+            textAlign = TextAlign.Center,
+            letterSpacing = (-0.4).sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Give your new server a personality with a name and an icon. You can always change it later.",
+            fontSize = 14.5.sp,
+            color = Color(0xFF4E5058),
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp,
+            modifier = Modifier.padding(horizontal = 14.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Avatar selector squircle with camera badge
+        val avatarResId = resolveServerAvatarDrawable(selectedAvatar)
+        Box(
+            modifier = Modifier.size(80.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFFE3E5E8))
+                    .border(2.dp, Color(0xFF5865F2).copy(alpha = 0.5f), RoundedCornerShape(24.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = avatarResId),
+                    contentDescription = "Selected Server Avatar",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // Camera Badge in bottom right corner
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF5865F2))
+                    .border(2.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Change Icon",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "Choose an Icon Preset",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF5C6470)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Horizontal Preset Avatar Choices
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            presetAvatars.forEach { avatarName ->
+                val isSelected = selectedAvatar == avatarName
+                val resId = resolveServerAvatarDrawable(avatarName)
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isSelected) Color(0xFF5865F2) else Color(0xFFF2F3F5))
+                        .border(
+                            width = if (isSelected) 2.5.dp else 1.dp,
+                            color = if (isSelected) Color(0xFF5865F2) else Color(0xFFE3E5E8),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .clickable { selectedAvatar = avatarName }
+                        .padding(2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = resId),
+                        contentDescription = avatarName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Server Name Input
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "SERVER NAME",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4E5058),
+                letterSpacing = 0.5.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFF2F3F5)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicTextField(
+                        value = serverName,
+                        onValueChange = { serverName = it },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontSize = 15.5.sp,
+                            color = Color(0xFF1E1F22),
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (serverName.isNotEmpty()) {
+                        IconButton(
+                            onClick = { serverName = "" },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                tint = Color(0xFF5C6470),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Category Selector Chips
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "CATEGORY",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4E5058),
+                letterSpacing = 0.5.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                categories.forEach { cat ->
+                    val isCatSelected = selectedCategory.equals(cat, ignoreCase = true)
+                    Surface(
+                        shape = RoundedCornerShape(100.dp),
+                        color = if (isCatSelected) Color(0xFF5865F2) else Color(0xFFF2F3F5),
+                        modifier = Modifier.clickable { selectedCategory = cat }
+                    ) {
+                        Text(
+                            text = cat,
+                            fontSize = 13.sp,
+                            fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCatSelected) Color.White else Color(0xFF1E1F22),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Server Description (Optional)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "SERVER TOPIC & GUIDELINES (OPTIONAL)",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4E5058),
+                letterSpacing = 0.5.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFF2F3F5)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    if (serverDescription.isEmpty()) {
+                        Text(
+                            text = "What is this server about? Share your community vision...",
+                            fontSize = 14.sp,
+                            color = Color(0xFF949BA4)
+                        )
+                    }
+                    BasicTextField(
+                        value = serverDescription,
+                        onValueChange = { serverDescription = it },
+                        textStyle = TextStyle(
+                            fontSize = 14.sp,
+                            color = Color(0xFF1E1F22),
+                            fontWeight = FontWeight.Normal
+                        ),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "By creating a server, you agree to Campus Network's Community Guidelines and Server Conduct Policies.",
+            fontSize = 12.sp,
+            color = Color(0xFF5C6470),
+            textAlign = TextAlign.Center,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                val finalName = serverName.trim().ifEmpty { "New Campus Server" }
+                onCreateServer(finalName, selectedCategory, serverDescription.trim(), selectedAvatar)
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text(
+                text = "Create Server",
+                color = Color.White,
+                fontSize = 15.5.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+fun resolveServerAvatarDrawable(name: String): Int {
+    return when (name) {
+        "server_codesistency" -> com.campus.network.core.ui.R.drawable.server_codesistency
+        "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
+        "server_dragon" -> com.campus.network.core.ui.R.drawable.server_dragon
+        "server_curly" -> com.campus.network.core.ui.R.drawable.server_curly
+        "server_gradient" -> com.campus.network.core.ui.R.drawable.server_gradient
+        "server_ai_brain" -> com.campus.network.core.ui.R.drawable.server_ai_brain
+        "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
+        "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
+        "server_logo2" -> com.campus.network.core.ui.R.drawable.server_logo2
+        "server_avatar2" -> com.campus.network.core.ui.R.drawable.server_avatar2
+        "server_w_red" -> com.campus.network.core.ui.R.drawable.server_w_red
+        else -> com.campus.network.core.ui.R.drawable.server_gradient
+    }
+}
+
+/**
+ * SCREEN 3: "Join an existing server" matching uploaded_media_1_1792149447421.png
  */
 @Composable
 fun JoinExistingServerContent(
@@ -403,7 +816,7 @@ fun JoinExistingServerContent(
         ) {
             if (inviteLink.isEmpty()) {
                 Text(
-                    text = "https://discord.gg/hTKzmak",
+                    text = "https://patriarch.gg/hTKzmak",
                     color = Color(0xFF949BA4),
                     fontSize = 15.sp
                 )
@@ -426,7 +839,7 @@ fun JoinExistingServerContent(
 
         // Helper explanation text
         Text(
-            text = "Invites should look like https://discord.gg/hTKzmak, hTKzmak, or https://discord.gg/wumpus-friends",
+            text = "Invites should look like https://patriarch.gg/hTKzmak, hTKzmak, or https://patriarch.gg/wumpus-friends",
             fontSize = 13.5.sp,
             color = Color(0xFF4E5058),
             lineHeight = 18.5.sp
@@ -543,7 +956,7 @@ private fun TemplateDivider() {
 
 // =======================================================================
 // RETRO 8-BIT PIXEL ART ICONS (CANVAS)
-// Pixel-perfect reproductions of Discord's retro icon set
+// Pixel-perfect reproductions of patriarch's retro icon set
 // Strictly ZERO EMOJIS!
 // =======================================================================
 

@@ -4,7 +4,7 @@
             "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-night-v8/values-night-v8.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/5c473240c758d21685031883da2dc1e2/transformed/appcompat-1.6.1/res/values-night-v8/values-night-v8.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/3739f64886b28597f787ef587fa11841/transformed/appcompat-1.6.1/res/values-night-v8/values-night-v8.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",
@@ -21,7 +21,7 @@
                     }
                 },
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/0f8d57b5a2045137b140d944ca29a055/transformed/material-1.9.0/res/values-night-v8/values-night-v8.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/17f9045d1913d92b0d028ca3b3a5931d/transformed/material-1.9.0/res/values-night-v8/values-night-v8.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",

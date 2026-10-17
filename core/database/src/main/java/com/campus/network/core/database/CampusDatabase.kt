@@ -10,11 +10,29 @@ import com.campus.network.core.database.dao.ChatMessageDao
 import com.campus.network.core.database.dao.FlashMeetDao
 import com.campus.network.core.database.dao.MarketItemDao
 import com.campus.network.core.database.dao.MicroGigDao
+import com.campus.network.core.database.dao.LiveStreamDao
+import com.campus.network.core.database.dao.StreamerProfileDao
+import com.campus.network.core.database.dao.StreamCommentDao
+import com.campus.network.core.database.dao.ServerDao
+import com.campus.network.core.database.dao.ServerChannelDao
+import com.campus.network.core.database.dao.ServerRuleDao
+import com.campus.network.core.database.dao.ServerMemberDao
+import com.campus.network.core.database.dao.FriendDao
+import com.campus.network.core.database.dao.ServerInviteDao
 import com.campus.network.core.database.entity.AcademicChannelEntity
 import com.campus.network.core.database.entity.ChatMessageEntity
 import com.campus.network.core.database.entity.FlashMeetEntity
 import com.campus.network.core.database.entity.MarketItemEntity
 import com.campus.network.core.database.entity.MicroGigEntity
+import com.campus.network.core.database.entity.LiveStreamEntity
+import com.campus.network.core.database.entity.StreamerProfileEntity
+import com.campus.network.core.database.entity.StreamCommentEntity
+import com.campus.network.core.database.entity.ServerEntity
+import com.campus.network.core.database.entity.ServerChannelEntity
+import com.campus.network.core.database.entity.ServerRuleEntity
+import com.campus.network.core.database.entity.ServerMemberEntity
+import com.campus.network.core.database.entity.FriendEntity
+import com.campus.network.core.database.entity.ServerInviteEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,9 +43,18 @@ import kotlinx.coroutines.launch
         AcademicChannelEntity::class,
         ChatMessageEntity::class,
         MarketItemEntity::class,
-        MicroGigEntity::class
+        MicroGigEntity::class,
+        LiveStreamEntity::class,
+        StreamerProfileEntity::class,
+        StreamCommentEntity::class,
+        ServerEntity::class,
+        ServerChannelEntity::class,
+        ServerRuleEntity::class,
+        ServerMemberEntity::class,
+        FriendEntity::class,
+        ServerInviteEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class CampusDatabase : RoomDatabase() {
@@ -36,6 +63,15 @@ abstract class CampusDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun marketItemDao(): MarketItemDao
     abstract fun microGigDao(): MicroGigDao
+    abstract fun liveStreamDao(): LiveStreamDao
+    abstract fun streamerProfileDao(): StreamerProfileDao
+    abstract fun streamCommentDao(): StreamCommentDao
+    abstract fun serverDao(): ServerDao
+    abstract fun serverChannelDao(): ServerChannelDao
+    abstract fun serverRuleDao(): ServerRuleDao
+    abstract fun serverMemberDao(): ServerMemberDao
+    abstract fun friendDao(): FriendDao
+    abstract fun serverInviteDao(): ServerInviteDao
 
     companion object {
         @Volatile
@@ -304,6 +340,429 @@ abstract class CampusDatabase : RoomDatabase() {
                 )
             )
             database.microGigDao().insertGigs(sampleGigs)
+
+            // 6. Initial Campus Live Streams
+            val sampleStreams = listOf(
+                LiveStreamEntity(
+                    id = "founders",
+                    broadcasterId = "student-sara",
+                    broadcasterName = "Sara.HM",
+                    broadcasterHandle = "sara.hm",
+                    broadcasterAvatarRes = 0,
+                    title = "Celebrating Student Founders Demo Day",
+                    description = "Live pitch: Building peer solar charging stations across student hostels. Ask questions in comments!",
+                    category = "Spotlight",
+                    audience = "CAMPUS",
+                    isLive = true,
+                    viewerCount = 1250,
+                    peakViewers = 1420,
+                    likeCount = 342,
+                    startedAtEpochMs = now - (35 * 60 * 1000)
+                ),
+                LiveStreamEntity(
+                    id = "guild_debate",
+                    broadcasterId = "guild-uon",
+                    broadcasterName = "UoN.Guild",
+                    broadcasterHandle = "uon.guild",
+                    broadcasterAvatarRes = 0,
+                    title = "Guild Presidential Debate 2026",
+                    description = "Live from Taifa Hall Auditorium. Real-time candidate cross-examinations and student policy polling.",
+                    category = "Campus Debate",
+                    audience = "CAMPUS",
+                    isLive = true,
+                    viewerCount = 1840,
+                    peakViewers = 2100,
+                    likeCount = 580,
+                    startedAtEpochMs = now - (50 * 60 * 1000)
+                ),
+                LiveStreamEntity(
+                    id = "gdsc_hackathon",
+                    broadcasterId = "gdsc-strath",
+                    broadcasterName = "GDSC.Build",
+                    broadcasterHandle = "gdsc.build",
+                    broadcasterAvatarRes = 0,
+                    title = "GDSC AI Hackathon: Final Pitches",
+                    description = "Top 6 finalist student teams showcase live on-device Android AI models. Voting is now live!",
+                    category = "Tech Sprint",
+                    audience = "CAMPUS",
+                    isLive = true,
+                    viewerCount = 890,
+                    peakViewers = 950,
+                    likeCount = 210,
+                    startedAtEpochMs = now - (20 * 60 * 1000)
+                ),
+                LiveStreamEntity(
+                    id = "safetrade_quad",
+                    broadcasterId = "safetrade-hub",
+                    broadcasterName = "SafeTrade.Hub",
+                    broadcasterHandle = "safetrade.hub",
+                    broadcasterAvatarRes = 0,
+                    title = "SafeTrade Quad Rendezvous & Market",
+                    description = "Streaming live from the Student Guild Quad canopy. Hardware checkups, textbook drop-offs, and safe escrow payouts.",
+                    category = "Spotlight",
+                    audience = "CAMPUS",
+                    isLive = true,
+                    viewerCount = 620,
+                    peakViewers = 710,
+                    likeCount = 145,
+                    startedAtEpochMs = now - (10 * 60 * 1000)
+                )
+            )
+            database.liveStreamDao().insertStreams(sampleStreams)
+
+            // 7. Initial Campus Servers
+            val sampleServers = listOf(
+                ServerEntity(
+                    id = "srv_codesistency",
+                    name = "Codesistency",
+                    description = "Official campus open source engineering community & collaborative builders space.",
+                    category = "Engineering & Open Source",
+                    ownerId = "user_lincoln",
+                    avatarResName = "server_codesistency",
+                    bannerResName = "channel_banner_preview",
+                    isVerified = true,
+                    memberCount = 48,
+                    inviteCode = "CODESISTENCY-2026",
+                    createdAtEpochMs = now - (60L * 86400000L)
+                ),
+                ServerEntity(
+                    id = "srv_gdsc_strath",
+                    name = "GDSC Strathmore",
+                    description = "Google Developer Student Club. Building on-device AI, cloud architectures and Android apps.",
+                    category = "Developer Student Clubs",
+                    ownerId = "user_robloach",
+                    avatarResName = "server_avatar1",
+                    bannerResName = null,
+                    isVerified = true,
+                    memberCount = 120,
+                    inviteCode = "GDSC-STRATH-AI",
+                    createdAtEpochMs = now - (30L * 86400000L)
+                ),
+                ServerEntity(
+                    id = "srv_engineering_hub",
+                    name = "Engineering Hub",
+                    description = "Cross-faculty academic channel, lab coordination, and peer-to-peer tutoring.",
+                    category = "Academic & Faculty",
+                    ownerId = "user_lincoln",
+                    avatarResName = "server_avatar3",
+                    bannerResName = null,
+                    isVerified = false,
+                    memberCount = 85,
+                    inviteCode = "ENG-UON-2026",
+                    createdAtEpochMs = now - (15L * 86400000L)
+                )
+            )
+            database.serverDao().insertServers(sampleServers)
+
+            // 8. Initial Server Channels
+            val sampleServerChannels = listOf(
+                ServerChannelEntity(
+                    id = "ch_codesistency_rules",
+                    serverId = "srv_codesistency",
+                    name = "rules",
+                    categoryName = "WELCOME",
+                    channelType = "RULES",
+                    topic = "Community guidelines, code of conduct and server policies.",
+                    unreadCount = 0,
+                    isPinned = true,
+                    orderIndex = 1
+                ),
+                ServerChannelEntity(
+                    id = "ch_codesistency_announcements",
+                    serverId = "srv_codesistency",
+                    name = "announcements",
+                    categoryName = "WELCOME",
+                    channelType = "ANNOUNCEMENT",
+                    topic = "Official server updates, workshop schedules, and hackathon alerts.",
+                    unreadCount = 1,
+                    isPinned = true,
+                    orderIndex = 2
+                ),
+                ServerChannelEntity(
+                    id = "ch_mern_github",
+                    serverId = "srv_codesistency",
+                    name = "mern-stack-github",
+                    categoryName = "DEVELOPMENT",
+                    channelType = "TEXT",
+                    topic = "Full-stack Node.js, Express, React, and Git PR peer review sessions.",
+                    unreadCount = 0,
+                    isPinned = false,
+                    orderIndex = 3
+                ),
+                ServerChannelEntity(
+                    id = "ch_android_dev",
+                    serverId = "srv_codesistency",
+                    name = "android-dev-room",
+                    categoryName = "DEVELOPMENT",
+                    channelType = "TEXT",
+                    topic = "Modern Android development with Jetpack Compose, Kotlin Coroutines and KMP.",
+                    unreadCount = 3,
+                    isPinned = false,
+                    orderIndex = 4
+                ),
+                ServerChannelEntity(
+                    id = "ch_general",
+                    serverId = "srv_codesistency",
+                    name = "general-chat",
+                    categoryName = "COMMUNITY",
+                    channelType = "TEXT",
+                    topic = "Open lounge for campus builders, coffee breaks, and casual discussions.",
+                    unreadCount = 0,
+                    isPinned = false,
+                    orderIndex = 5
+                ),
+                ServerChannelEntity(
+                    id = "ch_gdsc_rules",
+                    serverId = "srv_gdsc_strath",
+                    name = "rules",
+                    categoryName = "INFO",
+                    channelType = "RULES",
+                    topic = "GDSC Strathmore community code of conduct and workshop safety.",
+                    unreadCount = 0,
+                    isPinned = true,
+                    orderIndex = 1
+                ),
+                ServerChannelEntity(
+                    id = "ch_gdsc_announcements",
+                    serverId = "srv_gdsc_strath",
+                    name = "announcements",
+                    categoryName = "INFO",
+                    channelType = "ANNOUNCEMENT",
+                    topic = "Google Cloud Study Jams & Flutter Festival announcements.",
+                    unreadCount = 2,
+                    isPinned = true,
+                    orderIndex = 2
+                ),
+                ServerChannelEntity(
+                    id = "ch_gdsc_ai_lab",
+                    serverId = "srv_gdsc_strath",
+                    name = "ai-ml-sprint",
+                    categoryName = "TECH LABS",
+                    channelType = "TEXT",
+                    topic = "On-device Gemini Nano inference, LiteRT models, and model quantization.",
+                    unreadCount = 0,
+                    isPinned = false,
+                    orderIndex = 3
+                )
+            )
+            database.serverChannelDao().insertChannels(sampleServerChannels)
+
+            // 9. Initial Server Rules
+            val sampleRules = listOf(
+                ServerRuleEntity(
+                    id = "rule_codesistency_1",
+                    serverId = "srv_codesistency",
+                    ruleIndex = 1,
+                    title = "Respect Everyone",
+                    description = "Treat all campus engineers and contributors with respect. Harassment, hateful conduct, or derogatory remarks will not be tolerated."
+                ),
+                ServerRuleEntity(
+                    id = "rule_codesistency_2",
+                    serverId = "srv_codesistency",
+                    ruleIndex = 2,
+                    title = "Keep Content Relevant",
+                    description = "Post topics in their designated channels. Code discussions belong in #mern-stack-github or #android-dev-room."
+                ),
+                ServerRuleEntity(
+                    id = "rule_codesistency_3",
+                    serverId = "srv_codesistency",
+                    ruleIndex = 3,
+                    title = "No Unsolicited Advertising / Spam",
+                    description = "Commercial promotions, paid assignments, or referral link dumps without moderator consent will lead to timeouts."
+                ),
+                ServerRuleEntity(
+                    id = "rule_codesistency_4",
+                    serverId = "srv_codesistency",
+                    ruleIndex = 4,
+                    title = "Honour Academic & Code Integrity",
+                    description = "Do not post exam questions or unauthorized assignment leaks. Focus on conceptual understanding and open collaboration."
+                ),
+                ServerRuleEntity(
+                    id = "rule_codesistency_5",
+                    serverId = "srv_codesistency",
+                    ruleIndex = 5,
+                    title = "Follow Moderation Guidance",
+                    description = "Community moderators are here to keep discussions productive. Direct issues to server admins or moderators via DM."
+                ),
+                ServerRuleEntity(
+                    id = "rule_gdsc_1",
+                    serverId = "srv_gdsc_strath",
+                    ruleIndex = 1,
+                    title = "Be Welcoming & Inclusive",
+                    description = "GDSC is an inclusive community welcoming developers of all skill levels from beginners to senior engineers."
+                ),
+                ServerRuleEntity(
+                    id = "rule_gdsc_2",
+                    serverId = "srv_gdsc_strath",
+                    ruleIndex = 2,
+                    title = "Hands-on Learning",
+                    description = "Encourage peer learning and practical implementations over passive consumption."
+                )
+            )
+            database.serverRuleDao().insertRules(sampleRules)
+
+            // 10. Initial Server Members
+            val sampleMembers = listOf(
+                ServerMemberEntity(
+                    id = "srv_codesistency:user_lincoln",
+                    userId = "user_lincoln",
+                    serverId = "srv_codesistency",
+                    displayName = "Lincoln Paul (You)",
+                    handle = "@lincoln_lead",
+                    role = "OWNER",
+                    roleTitle = "Campus Engineer",
+                    roleColorHex = 0xFF003B68,
+                    avatarUrl = null,
+                    avatarResName = "avatar_lincoln",
+                    isOnline = true,
+                    customStatus = "Cooking new campus features",
+                    joinedAtEpochMs = now - (60L * 86400000L),
+                    badge = "Owner"
+                ),
+                ServerMemberEntity(
+                    id = "srv_codesistency:user_robloach",
+                    userId = "user_robloach",
+                    serverId = "srv_codesistency",
+                    displayName = "RobLoach",
+                    handle = "@robloach",
+                    role = "MODERATOR",
+                    roleTitle = "Mod / Audio Lead",
+                    roleColorHex = 0xFF23A55A,
+                    avatarUrl = null,
+                    avatarResName = "server_avatar2",
+                    isOnline = true,
+                    customStatus = "Tuning spatial audio engines",
+                    joinedAtEpochMs = now - (50L * 86400000L),
+                    badge = "Mod"
+                ),
+                ServerMemberEntity(
+                    id = "srv_codesistency:user_ath",
+                    userId = "user_ath",
+                    serverId = "srv_codesistency",
+                    displayName = "Ath",
+                    handle = "@ath_sound",
+                    role = "MEMBER",
+                    roleTitle = "Soundtrack Contributor",
+                    roleColorHex = 0xFF84CC16,
+                    avatarUrl = null,
+                    avatarResName = "avatar_ath",
+                    isOnline = true,
+                    customStatus = "Sound engineering & beats",
+                    joinedAtEpochMs = now - (40L * 86400000L),
+                    badge = "TDS"
+                ),
+                ServerMemberEntity(
+                    id = "srv_codesistency:user_deleted",
+                    userId = "user_deleted",
+                    serverId = "srv_codesistency",
+                    displayName = "Deleted User",
+                    handle = "@deleted_user",
+                    role = "MEMBER",
+                    roleTitle = "Member",
+                    roleColorHex = 0xFF5C6470,
+                    avatarUrl = null,
+                    avatarResName = "avatar_deleted_user",
+                    isOnline = false,
+                    customStatus = null,
+                    joinedAtEpochMs = now - (30L * 86400000L),
+                    badge = null
+                ),
+                ServerMemberEntity(
+                    id = "srv_codesistency:user_reallybasic",
+                    userId = "user_reallybasic",
+                    serverId = "srv_codesistency",
+                    displayName = "ReallyBasicName the ...",
+                    handle = "@basic_name",
+                    role = "MEMBER",
+                    roleTitle = "Audio Engineer",
+                    roleColorHex = 0xFF0284C7,
+                    avatarUrl = null,
+                    avatarResName = "server_dragon",
+                    isOnline = false,
+                    customStatus = "Studying DSP algorithms",
+                    joinedAtEpochMs = now - (20L * 86400000L),
+                    badge = null
+                )
+            )
+            database.serverMemberDao().insertMembers(sampleMembers)
+
+            // 11. Initial Friends Graph (for user_lincoln)
+            val sampleFriends = listOf(
+                FriendEntity(
+                    id = "user_lincoln:user_robloach",
+                    userId = "user_lincoln",
+                    friendUserId = "user_robloach",
+                    friendDisplayName = "RobLoach",
+                    friendHandle = "@robloach",
+                    friendAvatarResName = "server_avatar2",
+                    status = "FRIENDS",
+                    lastInteractionEpochMs = now - 3600000L,
+                    dmChannelId = "dm_robloach"
+                ),
+                FriendEntity(
+                    id = "user_lincoln:user_ath",
+                    userId = "user_lincoln",
+                    friendUserId = "user_ath",
+                    friendDisplayName = "Ath",
+                    friendHandle = "@ath_sound",
+                    friendAvatarResName = "avatar_ath",
+                    status = "FRIENDS",
+                    lastInteractionEpochMs = now - 7200000L,
+                    dmChannelId = "dm_ath"
+                ),
+                FriendEntity(
+                    id = "user_lincoln:user_reallybasic",
+                    userId = "user_lincoln",
+                    friendUserId = "user_reallybasic",
+                    friendDisplayName = "ReallyBasicName the ...",
+                    friendHandle = "@basic_name",
+                    friendAvatarResName = "server_dragon",
+                    status = "PENDING_RECEIVED",
+                    lastInteractionEpochMs = now - 86400000L,
+                    dmChannelId = null
+                )
+            )
+            database.friendDao().insertFriends(sampleFriends)
+
+            // 12. Initial Server Invites
+            val sampleInvites = listOf(
+                ServerInviteEntity(
+                    code = "CODESISTENCY-2026",
+                    serverId = "srv_codesistency",
+                    serverName = "Codesistency",
+                    inviterId = "user_lincoln",
+                    inviterName = "Lincoln Paul",
+                    expiresAtEpochMs = Long.MAX_VALUE,
+                    maxUses = 0,
+                    usesCount = 48,
+                    isRevoked = false
+                ),
+                ServerInviteEntity(
+                    code = "GDSC-STRATH-AI",
+                    serverId = "srv_gdsc_strath",
+                    serverName = "GDSC Strathmore",
+                    inviterId = "user_robloach",
+                    inviterName = "RobLoach",
+                    expiresAtEpochMs = Long.MAX_VALUE,
+                    maxUses = 0,
+                    usesCount = 120,
+                    isRevoked = false
+                ),
+                ServerInviteEntity(
+                    code = "ENG-UON-2026",
+                    serverId = "srv_engineering_hub",
+                    serverName = "Engineering Hub",
+                    inviterId = "user_lincoln",
+                    inviterName = "Lincoln Paul",
+                    expiresAtEpochMs = Long.MAX_VALUE,
+                    maxUses = 0,
+                    usesCount = 85,
+                    isRevoked = false
+                )
+            )
+            val inviteDao = database.serverInviteDao()
+            sampleInvites.forEach { inviteDao.insertInvite(it) }
+
         }
     }
 }

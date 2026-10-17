@@ -1,13 +1,30 @@
 package com.campus.network.feature.hub
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Videocam
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +67,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.DirectionsWalk
@@ -136,6 +154,8 @@ private val DarkCardTextPrimary = Color(0xFF0F172A)
 fun HubScreen(
     viewModel: HubViewModel,
     onNavigateToChat: (String) -> Unit = {},
+    onNavigateToLiveFeed: (String) -> Unit = {},
+    onNavigateToGoLive: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -334,9 +354,11 @@ fun HubScreen(
             item {
                 Spacer(modifier = Modifier.height(18.dp))
                 FeaturedStoriesCarousel(
-                    onStoryClick = { title ->
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Selected: $title")
+                    onStoryClick = { storyId ->
+                        if (storyId == "create_stream") {
+                            onNavigateToGoLive()
+                        } else {
+                            onNavigateToLiveFeed(storyId)
                         }
                     }
                 )
@@ -1156,114 +1178,247 @@ private fun AcademicHonorEmblem(modifier: Modifier = Modifier) {
 }
 
 /**
- * Featured Stories Carousel:
- * Large visual portrait cards side-by-side with dark gradient text overlays.
+ * Data Model for Campus Live Radar & Featured Event Stories.
  */
-@Composable
-private fun FeaturedStoriesCarousel(onStoryClick: (String) -> Unit) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        // Story Card 1: Celebrating Student Founders
-        item {
-            StoryCard(
-                imageRes = R.drawable.card_student_founder,
-                title = "Celebrating student founders",
-                subtitle = "Earn 500 Patriarch Campus Merit Points for your project. Register your team today",
-                onClick = { onStoryClick("Celebrating student founders") }
-            )
-        }
+private data class CampusLiveUpdate(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val tag: String,
+    val isLive: Boolean = false,
+    val liveViewerCount: String? = null,
+    val broadcasterName: String,
+    val broadcasterHandle: String,
+    val broadcasterAvatarRes: Int,
+    val imageRes: Int? = null,
+    val isCreateStreamCard: Boolean = false
+)
 
-        // Story Card 2: Academic Research & Sprints
-        item {
-            StoryCard(
-                imageRes = R.drawable.card_campus_landmark,
-                title = "Academic Research & Sprints",
-                subtitle = "Earn verified honors and peer badges with campus labs worldwide. Registration open now.",
-                onClick = { onStoryClick("Academic Research & Sprints") }
-            )
-        }
-
-        // Story Card 3: Campus Innovation & Peer Gigs
-        item {
-            StoryCardVector(
-                title = "Campus Venture Deck",
-                subtitle = "Connect with student founders, equipment labs, and high-impact campus projects.",
-                onClick = { onStoryClick("Campus Venture Deck") }
-            )
-        }
-    }
-}
+private val sampleLiveUpdates = listOf(
+    // 1. Celebrating Student Founders (First Item)
+    CampusLiveUpdate(
+        id = "founders",
+        title = "Celebrating student founders",
+        subtitle = "Earn 500 Patriarch Campus Merit Points for your project. Demo day registration open across faculties.",
+        tag = "SPOTLIGHT",
+        isLive = true,
+        liveViewerCount = "1.2k",
+        broadcasterName = "Sara.HM",
+        broadcasterHandle = "sara.hm",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_eliza,
+        imageRes = R.drawable.card_student_founder
+    ),
+    // 2. Empty Card with Gradient Color Layout: "create a stream"
+    CampusLiveUpdate(
+        id = "create_stream",
+        title = "create a stream",
+        subtitle = "Broadcast live to campus peers in real-time",
+        tag = "LIVE STUDIO",
+        isLive = false,
+        broadcasterName = "You",
+        broadcasterHandle = "host",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_eliza,
+        imageRes = null,
+        isCreateStreamCard = true
+    ),
+    // 3. Guild Presidential Debate 2026 (Live Stream)
+    CampusLiveUpdate(
+        id = "guild_debate",
+        title = "Guild Presidential Debate 2026",
+        subtitle = "Streaming live from Taifa Hall Auditorium. Real-time student question queue and policy polling open now.",
+        tag = "LIVE STREAM",
+        isLive = true,
+        liveViewerCount = "1.8k",
+        broadcasterName = "UoN.Guild",
+        broadcasterHandle = "uon.guild",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_junebog,
+        imageRes = R.drawable.hero_campus_scenic
+    ),
+    // 3. GDSC AI Hackathon: Final Pitches (Tech Sprint)
+    CampusLiveUpdate(
+        id = "gdsc_hackathon",
+        title = "GDSC AI Hackathon: Final Pitches",
+        subtitle = "Top 6 finalist student teams showcase live on-device AI demos. Vote for the KES 150,000 SafePay grand prize.",
+        tag = "TECH SPRINT",
+        isLive = true,
+        liveViewerCount = "890",
+        broadcasterName = "GDSC.Build",
+        broadcasterHandle = "gdsc.build",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_ath,
+        imageRes = R.drawable.event_hero_trees
+    ),
+    // 4. SafeTrade Quad Rendezvous & Flea Market
+    CampusLiveUpdate(
+        id = "safetrade_quad",
+        title = "SafeTrade Quad Rendezvous & Flea Market",
+        subtitle = "Authorized safe trade canopy at Main Quad. Free hardware inspection, textbook swaps, and escrow payouts.",
+        tag = "CAMPUS EXCHANGE",
+        isLive = true,
+        liveViewerCount = "620",
+        broadcasterName = "SafeTrade.Hub",
+        broadcasterHandle = "safetrade.hub",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_clin,
+        imageRes = R.drawable.card_campus_landmark
+    ),
+    // 5. Faculty Honors & Research Lab Grants
+    CampusLiveUpdate(
+        id = "research_grants",
+        title = "Faculty Honors & Research Lab Grants",
+        subtitle = "Undergraduate lab grants of up to KES 200,000. Verified research badges sponsored by departmental deans.",
+        tag = "ACADEMIC",
+        isLive = false,
+        broadcasterName = "Research.Dean",
+        broadcasterHandle = "research.dean",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.student_rk,
+        imageRes = R.drawable.place_photo_1
+    ),
+    // 6. Midnight Library Shuttle & SafeWalk Pool
+    CampusLiveUpdate(
+        id = "safe_walk",
+        title = "Midnight Library Shuttle & SafeWalk Pool",
+        subtitle = "Free student security escorts and electric shuttle departing from Library Loop every 15 mins during study season.",
+        tag = "STUDENT GUILD",
+        isLive = false,
+        broadcasterName = "Security.Guild",
+        broadcasterHandle = "guild.security",
+        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_andrew,
+        imageRes = R.drawable.place_photo_2
+    )
+)
 
 /**
- * Story Card with Photographic Backdrop & Vignette Overlay.
+ * Featured Stories Carousel:
+ * Clean, editorial commercial carousel with horizontal auto-scroll,
+ * interactive play/pause, dynamic progress pills, and direct redirection to fullscreen Live Feed.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun StoryCard(
-    imageRes: Int,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .width(295.dp)
-            .height(360.dp),
-        shape = RoundedCornerShape(24.dp),
-        shadowElevation = 6.dp,
-        color = Color.Transparent
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable { onClick() }
-        ) {
-            // Photo Background
-            Image(
-                painter = painterResource(imageRes),
-                contentDescription = title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+private fun FeaturedStoriesCarousel(onStoryClick: (String) -> Unit) {
+    val pagerState = rememberPagerState(pageCount = { sampleLiveUpdates.size })
+    var isAutoScrollPaused by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-            // Gradient Dark Vignette for Text Legibility
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.78f),
-                                Color.Black.copy(alpha = 0.22f),
-                                Color.Black.copy(alpha = 0.88f)
-                            )
-                        )
+    // Auto-Scroll Loop: Smoothly advances every 4 seconds unless manually dragged or paused
+    LaunchedEffect(pagerState, isAutoScrollPaused) {
+        if (!isAutoScrollPaused) {
+            while (true) {
+                delay(4000L)
+                if (!pagerState.isScrollInProgress) {
+                    val nextPage = (pagerState.currentPage + 1) % sampleLiveUpdates.size
+                    pagerState.animateScrollToPage(
+                        page = nextPage,
+                        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
                     )
-            )
+                }
+            }
+        }
+    }
 
-            // Story Content at Top
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 22.dp, vertical = 22.dp)
-            ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Section Header Row: Professional Commercial Editorial Styling
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
-                    text = title,
-                    fontSize = 22.sp,
+                    text = "Campus Stories",
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    lineHeight = 28.sp
+                    color = Color(0xFF0F172A),
+                    letterSpacing = (-0.4).sp
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
-                    text = subtitle,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color.White.copy(alpha = 0.92f),
-                    lineHeight = 19.sp
+                    text = "Live broadcasts & student spotlights",
+                    fontSize = 12.5.sp,
+                    color = Color(0xFF64748B)
+                )
+            }
+
+            // Auto-scroll pause/play and page counter
+            Surface(
+                shape = CircleShape,
+                color = Color(0xFFF1F5F9),
+                modifier = Modifier.clickable { isAutoScrollPaused = !isAutoScrollPaused }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isAutoScrollPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                        contentDescription = if (isAutoScrollPaused) "Resume Auto-scroll" else "Pause Auto-scroll",
+                        tint = Color(0xFF475569),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${pagerState.currentPage + 1}/${sampleLiveUpdates.size}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF334155),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Horizontal Auto-Scrolling Pager
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            pageSpacing = 14.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) { pageIndex ->
+            val update = sampleLiveUpdates[pageIndex]
+            if (update.isCreateStreamCard) {
+                CreateStreamGradientCard(
+                    onClick = { onStoryClick(update.id) }
+                )
+            } else {
+                LiveUpdateStoryCard(
+                    update = update,
+                    onClick = { onStoryClick(update.id) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Sleek Animated Progress Indicators Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            sampleLiveUpdates.indices.forEach { index ->
+                val isSelected = pagerState.currentPage == index
+                val width by animateDpAsState(
+                    targetValue = if (isSelected) 26.dp else 7.dp,
+                    label = "indicatorWidth"
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 3.dp)
+                        .height(6.dp)
+                        .width(width)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            if (isSelected) BrandBluePrimary else Color(0xFFCBD5E1)
+                        )
+                        .clickable {
+                            scope.launch {
+                                pagerState.animateScrollToPage(index)
+                            }
+                        }
                 )
             }
         }
@@ -1271,68 +1426,460 @@ private fun StoryCard(
 }
 
 /**
- * Vector-Styled Story Card for Campus Features.
+ * Story Card with Photographic Backdrop & Editorial Vignette Overlay.
+ * Designed with clean glassmorphic tags and broadcaster metadata.
  */
 @Composable
-private fun StoryCardVector(
-    title: String,
-    subtitle: String,
+private fun LiveUpdateStoryCard(
+    update: CampusLiveUpdate,
     onClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
-            .width(295.dp)
-            .height(360.dp),
-        shape = RoundedCornerShape(24.dp),
-        shadowElevation = 6.dp,
-        color = Color(0xFF16222F)
+            .fillMaxWidth()
+            .height(350.dp),
+        shape = RoundedCornerShape(26.dp),
+        shadowElevation = 8.dp,
+        color = Color(0xFF0F172A)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFF16222F), Color(0xFF0F1722))
-                    )
-                )
                 .clickable { onClick() }
-                .padding(horizontal = 22.dp, vertical = 24.dp)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(BrandBluePrimary.copy(alpha = 0.25f)),
-                    contentAlignment = Alignment.Center
+            // 1. Photographic Image Backdrop (if available)
+            if (update.imageRes != null) {
+                Image(
+                    painter = painterResource(update.imageRes),
+                    contentDescription = update.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // 2. Multi-stop Vignette Gradient Overlay for Legibility
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.72f),
+                                0.35f to Color.Black.copy(alpha = 0.35f),
+                                0.65f to Color.Black.copy(alpha = 0.65f),
+                                1.0f to Color.Black.copy(alpha = 0.94f)
+                            )
+                        )
+                    )
+            )
+
+            // 3. Card Content Stack
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top Tag & Live Indicator Row (Clean Senior Level Glassmorphism)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = Color(0xFF6BB9F8),
-                        modifier = Modifier.size(24.dp)
+                    if (update.isLive) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Vibrant Gradient LIVE Pill (Matching reference image)
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFFFF512F), Color(0xFFDD2476))
+                                        )
+                                    )
+                                    .padding(horizontal = 11.dp, vertical = 5.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "LIVE",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                            // Viewer Count Pill
+                            if (update.liveViewerCount != null) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color.Black.copy(alpha = 0.55f),
+                                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Visibility,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = update.liveViewerCount,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Clean Translucent Editorial Tag
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.50f),
+                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
+                        ) {
+                            Text(
+                                text = update.tag,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false,
+                                letterSpacing = 0.3.sp,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Bottom Content: Broadcaster Info + Title + Subtitle + Clean Direct Action Hint
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Broadcaster Avatar & Username
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(update.broadcasterAvatarRes),
+                            contentDescription = update.broadcasterName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = update.broadcasterName,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "@${update.broadcasterHandle}",
+                            fontSize = 11.5.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    Text(
+                        text = update.title,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        lineHeight = 25.sp,
+                        maxLines = 2
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = update.subtitle,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color.White.copy(alpha = 0.90f),
+                        lineHeight = 18.sp,
+                        maxLines = 2
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Clean Senior-Level Action Prompt (No bulky blue pills)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.18f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "Watch live feed",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Swipe up in feed",
+                            fontSize = 11.5.sp,
+                            color = Color.White.copy(alpha = 0.65f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Senior-Level Empty Card with Radiant Gradient Color Layout.
+ * Features an uncluttered, modern glassmorphic layout with the text 'create a stream'.
+ */
+@Composable
+private fun CreateStreamGradientCard(
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(350.dp),
+        shape = RoundedCornerShape(26.dp),
+        shadowElevation = 10.dp,
+        color = Color(0xFF1E1B4B)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable { onClick() }
+        ) {
+            // 1. Vibrant Gradient Color Layout
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF4338CA), // Deep Indigo
+                                Color(0xFF6366F1), // Electric Indigo
+                                Color(0xFF9333EA), // Vivid Purple
+                                Color(0xFFDB2777), // Deep Rose / Pink
+                                Color(0xFFEA580C)  // Warm Sunset Accent
+                            ),
+                            start = Offset(0f, 0f),
+                            end = Offset(1000f, 1000f)
+                        )
+                    )
+            )
+
+            // 2. Soft Ambient Radial Glow Overlay for visual depth
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.25f),
+                                Color.Transparent
+                            ),
+                            center = Offset(300f, 250f),
+                            radius = 500f
+                        )
+                    )
+            )
+
+            // 3. Delicate Translucent Border Outline
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = 1.5.dp,
+                        brush = Brush.linearGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.55f),
+                                Color.White.copy(alpha = 0.15f)
+                            )
+                        ),
+                        shape = RoundedCornerShape(26.dp)
+                    )
+            )
+
+            // 4. Card Content: Clean, uncluttered layout with text 'create a stream'
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Top Badges
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Studio Pill
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.25f),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Videocam,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "STUDIO",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+
+                    // Live Ready Indicator
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.20f),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.40f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "GO LIVE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                letterSpacing = 0.4.sp
+                            )
+                        }
+                    }
+                }
+
+                // Center: Aperture Icon + 'create a stream'
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    // Circular Aperture Icon
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .border(1.5.dp, Color.White.copy(alpha = 0.60f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.22f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "create a stream",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "create a stream",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        letterSpacing = (-0.4).sp,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Broadcast live to campus peers in real-time",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color.White.copy(alpha = 0.88f),
+                        textAlign = TextAlign.Center
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = title,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
+                // Bottom Call To Action Button
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
                     color = Color.White,
-                    lineHeight = 28.sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = subtitle,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color.White.copy(alpha = 0.9f),
-                    lineHeight = 19.sp
-                )
+                    shadowElevation = 4.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clickable { onClick() }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Start broadcasting now",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E1B4B)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Color(0xFF1E1B4B),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -1472,7 +2019,10 @@ private fun CampusMarketSectionHeader(
             Button(
                 onClick = onPostNewClick,
                 modifier = Modifier.height(36.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandBluePrimary,
+                    contentColor = Color.White
+                ),
                 shape = RoundedCornerShape(18.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
             ) {
@@ -1483,7 +2033,7 @@ private fun CampusMarketSectionHeader(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "Post", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                Text(text = "Post", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
@@ -2798,10 +3348,13 @@ private fun PostItemDialog(
                                 onPost(title, price, category)
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = BrandBluePrimary,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Publish", fontWeight = FontWeight.Bold)
+                        Text("Publish", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }

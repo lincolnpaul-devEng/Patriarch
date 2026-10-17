@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PresentToAll
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.Icon
@@ -43,6 +44,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +65,9 @@ import com.campus.network.core.ui.theme.BrandBluePrimary
 import com.campus.network.core.ui.theme.BrandGreen
 import com.campus.network.core.ui.theme.TextMuted
 import com.campus.network.core.ui.theme.TextWhite
+import com.campus.network.feature.messages.audio.VoiceFilterPreset
+import com.campus.network.feature.messages.components.InCallMoreOptionsSheet
+import com.campus.network.feature.messages.components.VoiceMorphSheet
 
 @Composable
 fun AudioCallScreen(
@@ -68,6 +75,9 @@ fun AudioCallScreen(
     onEvent: (MessagesEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isMoreOptionsOpen by remember { mutableStateOf(false) }
+    var isVoiceFilterOpen by remember { mutableStateOf(false) }
+
     val infiniteTransition = rememberInfiniteTransition(label = "AcousticPulse")
 
     val pulseScale by infiniteTransition.animateFloat(
@@ -173,6 +183,35 @@ fun AudioCallScreen(
                             fontSize = 12.sp,
                             color = Color(0xB3FFFFFF)
                         )
+                    }
+
+                    if (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFFDD2476).copy(alpha = 0.25f),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFFF512F)),
+                            modifier = Modifier.clickable { isVoiceFilterOpen = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.RecordVoiceOver,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF8DA1),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Voice: ${callState.activeVoiceFilter.title}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFF8DA1)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -296,8 +335,8 @@ fun AudioCallScreen(
                         CallGridButton(
                             icon = Icons.Default.MoreHoriz,
                             label = "More",
-                            isActive = false,
-                            onClick = { /* Additional in-call options */ }
+                            isActive = isMoreOptionsOpen || isVoiceFilterOpen || (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL),
+                            onClick = { isMoreOptionsOpen = true }
                         )
 
                         // Central Red End Call Button
@@ -314,6 +353,27 @@ fun AudioCallScreen(
                     }
                 }
             }
+        }
+
+        // In-Call More Options Sheet
+        if (isMoreOptionsOpen) {
+            InCallMoreOptionsSheet(
+                callState = callState,
+                onOpenVoiceFilter = {
+                    isMoreOptionsOpen = false
+                    isVoiceFilterOpen = true
+                },
+                onDismiss = { isMoreOptionsOpen = false }
+            )
+        }
+
+        // Dedicated Voice Morphing Sheet
+        if (isVoiceFilterOpen) {
+            VoiceMorphSheet(
+                callState = callState,
+                onEvent = onEvent,
+                onDismiss = { isVoiceFilterOpen = false }
+            )
         }
     }
 }

@@ -8,8 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.data.CampusHubRepository
 import com.campus.network.core.data.FlashMeetRepository
@@ -20,6 +22,8 @@ import com.campus.network.feature.channels.ChannelsScreen
 import com.campus.network.feature.channels.ChannelsViewModel
 import com.campus.network.feature.hub.HubScreen
 import com.campus.network.feature.hub.HubViewModel
+import com.campus.network.feature.hub.feed.CampusLiveFeedScreen
+import com.campus.network.feature.hub.golive.GoLiveScreen
 import com.campus.network.feature.map.MapScreen
 import com.campus.network.feature.map.MapViewModel
 import com.campus.network.feature.messages.MessagesScreen
@@ -54,7 +58,8 @@ fun CampusNavHost(
 
     // ViewModels with UDF patterns
     val mapViewModel = remember { MapViewModel(flashMeetRepository, placesRepository) }
-    val resolvedChannelsViewModel = channelsViewModel ?: remember { ChannelsViewModel(academicChannelsRepository) }
+    val serverRepository = remember { com.campus.network.core.data.ServerRepository(database) }
+    val resolvedChannelsViewModel = channelsViewModel ?: remember { ChannelsViewModel(academicChannelsRepository, serverRepository) }
     val hubViewModel = remember { HubViewModel(campusHubRepository) }
     val profileViewModel = remember { ProfileViewModel(studentProfileRepository) }
 
@@ -113,9 +118,17 @@ fun CampusNavHost(
                 }
             )
         }
-        // Tab 1: Map (The Flash-Meet Interface)
+        // Tab 1: Map (The Flash-Meet & Campus Navigation Interface)
         composable(route = Screen.Map.route) {
-            MapScreen(viewModel = mapViewModel)
+            MapScreen(
+                viewModel = mapViewModel,
+                onNavigateToMessages = {
+                    navController.navigate(Screen.Messages.route)
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
+                }
+            )
         }
 
         // Tab 2: Channels (The Academic Workspace / Servers)
@@ -155,13 +168,39 @@ fun CampusNavHost(
                 viewModel = hubViewModel,
                 onNavigateToChat = {
                     navController.navigate(Screen.Messages.route)
-                }
+                },
+                onNavigateToLiveFeed = { storyId ->
+                    navController.navigate(Screen.LiveFeed.createRoute(storyId))
+                },
+                onNavigateToGoLive = { navController.navigate(Screen.GoLive.route) }
             )
         }
 
         // Tab 5: Profile (Gamified Persona)
         composable(route = Screen.Profile.route) {
             ProfileScreen(viewModel = profileViewModel)
+        }
+
+        // Go Live flow: permissions -> details -> countdown -> live -> summary
+        composable(route = Screen.GoLive.route) {
+            GoLiveScreen(onExit = { navController.popBackStack() })
+        }
+
+        // Dedicated Fullscreen Live Feed Screen (TikTok / Instagram Live Style)
+        composable(
+            route = Screen.LiveFeed.route,
+            arguments = listOf(
+                navArgument("storyId") {
+                    type = NavType.StringType
+                    defaultValue = "founders"
+                }
+            )
+        ) { backStackEntry ->
+            val storyId = backStackEntry.arguments?.getString("storyId") ?: "founders"
+            CampusLiveFeedScreen(
+                initialStoryId = storyId,
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

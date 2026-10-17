@@ -1,0 +1,4 @@
+/home/lincoln/Android/Sdk/cmake/3.22.1/bin/ninja \
+  -C \
+  /home/lincoln/patreon/feature/messages/.cxx/Debug/4e2b5gw3/x86 \
+  oboe_voicemorph

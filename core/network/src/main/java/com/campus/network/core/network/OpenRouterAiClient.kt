@@ -25,7 +25,7 @@ class OpenRouterAiClient(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
-        const val DEFAULT_OPENROUTER_KEY = "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"
+        val DEFAULT_OPENROUTER_KEY = BuildConfig.OPENROUTER_API_KEY
         private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
         private const val MODEL_NAME = "google/gemini-2.0-flash-exp:free"
 
@@ -129,6 +129,75 @@ class OpenRouterAiClient(
             }
             result
         }.getOrDefault(emptyList())
+    }
+
+    /** AI-written stream details so hosts can go live in one tap. */
+    data class AiStreamDraft(val title: String, val description: String, val hashtags: List<String>)
+
+    /**
+     * Drafts a catchy title, short description and hashtags for a campus live stream.
+     * [idea] is whatever the host typed (may be blank). Falls back to a local draft
+     * on timeout or network/parse errors so the Go Live flow never blocks.
+     */
+    suspend fun generateStreamDraft(idea: String, category: String): AiStreamDraft = withContext(ioDispatcher) {
+        val trimmed = idea.trim()
+        val ai = withTimeoutOrNull(5000L) {
+            runCatching { queryAiForStreamDraft(trimmed, category) }.getOrNull()
+        }
+        ai ?: fallbackStreamDraft(trimmed, category)
+    }
+
+    private suspend fun queryAiForStreamDraft(idea: String, category: String): AiStreamDraft? {
+        val topic = if (idea.isBlank()) "a $category live stream" else "\"$idea\" ($category)"
+        val prompt = "A university student is going live on a campus network app about $topic. " +
+                "Write: a catchy title (max 60 characters), a friendly description (max 140 characters, 1-2 sentences, inviting viewers to join and comment), " +
+                "and 3 hashtags without the # symbol. Respond ONLY with JSON: " +
+                "{\"title\":\"...\",\"description\":\"...\",\"hashtags\":[\"a\",\"b\",\"c\"]}"
+
+        val requestJson = JSONObject().apply {
+            put("model", MODEL_NAME)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", "You write concise live stream metadata. Output only valid JSON.")
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            })
+            put("max_tokens", 220)
+            put("temperature", 0.8)
+        }
+
+        val response: HttpResponse = client.post(OPENROUTER_URL) {
+            header("Authorization", "Bearer $apiKey")
+            header("HTTP-Referer", "https://unihub.campus")
+            header("X-Title", "Patriarch Campus Network")
+            contentType(ContentType.Application.Json)
+            setBody(requestJson.toString())
+        }
+
+        val content = JSONObject(response.bodyAsText())
+            .getJSONArray("choices").getJSONObject(0)
+            .getJSONObject("message").getString("content")
+            .trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val obj = JSONObject(content)
+        val title = obj.optString("title").trim()
+        if (title.isEmpty()) return null
+        val tags = obj.optJSONArray("hashtags")?.let { arr ->
+            (0 until arr.length()).map { arr.optString(it).trim().removePrefix("#") }.filter { it.isNotEmpty() }
+        }.orEmpty()
+        return AiStreamDraft(title, obj.optString("description").trim(), tags.take(3))
+    }
+
+    private fun fallbackStreamDraft(idea: String, category: String): AiStreamDraft {
+        val title = if (idea.isBlank()) "Live: $category on campus" else idea.replaceFirstChar { it.uppercase() }
+        return AiStreamDraft(
+            title = title.take(60),
+            description = "Join me live and drop your questions in the comments!",
+            hashtags = listOf(category.filter { it.isLetterOrDigit() }, "CampusLive", "StudentLife")
+        )
     }
 
     private fun generateFallbackSuggestions(query: String): List<String> {

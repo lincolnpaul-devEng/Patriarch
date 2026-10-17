@@ -19,8 +19,8 @@ import kotlinx.coroutines.withContext
  * Credentials injected securely from UniHub project configuration.
  */
 class SupabaseClientProvider(
-    private val supabaseUrl: String = "https://mjobjcvqlntavacntjry.supabase.co",
-    private val anonKey: String = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qb2JqY3ZxbG50YXZhY250anJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNjY0MzcsImV4cCI6MjA5MDg0MjQzN30.QBTgAnawKleyEXX9yxQLS9nNE7Y5v7DOKBMiUkVt8gE",
+    private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
+    private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val client = HttpClient(OkHttp)
@@ -63,6 +63,36 @@ class SupabaseClientProvider(
                 setBody(jsonPayload)
             }
             response.bodyAsText()
+        }
+    }
+
+    /**
+     * Calls the Supabase Edge Function to fetch a signed Stream JWT token.
+     */
+    suspend fun fetchStreamToken(
+        userId: String,
+        displayName: String? = null,
+        avatarUrl: String? = null
+    ): Result<String> = withContext(ioDispatcher) {
+        runCatching {
+            val payload = org.json.JSONObject().apply {
+                put("userId", userId)
+                if (!displayName.isNullOrBlank()) put("name", displayName)
+                if (!avatarUrl.isNullOrBlank()) put("image", avatarUrl)
+            }
+            val response: HttpResponse = client.post("$supabaseUrl/functions/v1/stream-token") {
+                header("apikey", anonKey)
+                header("Authorization", "Bearer $anonKey")
+                contentType(ContentType.Application.Json)
+                setBody(payload.toString())
+            }
+            val body = response.bodyAsText()
+            val json = org.json.JSONObject(body)
+            if (json.has("token")) {
+                json.getString("token")
+            } else {
+                throw IllegalStateException("Edge function error: ${json.optString("error", body)}")
+            }
         }
     }
 }

@@ -36,7 +36,7 @@ sealed interface TranscriptionState {
 /**
  * On-Device, Offline-First Audio Transcription Manager for Channel Chat.
  *
- * Implements WhatsApp/Discord-style privacy-focused speech recognition on Android using the native
+ * Implements WhatsApp/patriarch-style privacy-focused speech recognition on Android using the native
  * [SpeechRecognizer] API with explicit offline flags [RecognizerIntent.EXTRA_PREFER_OFFLINE].
  * Audio never leaves the local hardware.
  */

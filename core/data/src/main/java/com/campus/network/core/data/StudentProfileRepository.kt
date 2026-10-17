@@ -49,7 +49,7 @@ class StudentProfileRepository(
                 ),
                 VerifiedSkillBadge(
                     id = "badge-3",
-                    name = "Peer Escrow Arbitrator",
+                    name = "Campus SafeTrade Arbitrator",
                     facultyVerifier = "Student Guild Commerce Council",
                     verifiedDate = "Jul 2026",
                     endorsementCount = 12,
@@ -97,6 +97,23 @@ class StudentProfileRepository(
                     isCompleted = true,
                     category = QuestCategory.COMMUNITY_ENGAGEMENT
                 )
+            ),
+            alternateProfiles = listOf(
+                StudentProfile(
+                    studentId = "EXEC-2024-009",
+                    fullName = "Lincoln Kiprotich (Guild VP)",
+                    universityEmail = "guild.vp@strathmore.edu",
+                    universityName = "Strathmore University",
+                    degreeProgram = "Student Guild Executive Council",
+                    academicYear = "Executive Term 2026/2027",
+                    consistencyStreakDays = 45,
+                    behavioralTrustScore = 99,
+                    verifiedSkillBadges = emptyList(),
+                    privateQuestDeck = emptyList(),
+                    personaRole = "Club Executive / Campus Guild",
+                    statusNote = "Guild Office Hours: Mon-Thu 2-5 PM",
+                    statusNoteEmoji = "Guild"
+                )
             )
         )
     )
@@ -115,6 +132,120 @@ class StudentProfileRepository(
         _studentProfile.value = current.copy(
             privateQuestDeck = updatedQuests,
             behavioralTrustScore = (current.behavioralTrustScore + 1).coerceAtMost(100)
+        )
+    }
+
+    suspend fun updateProfile(
+        fullName: String,
+        universityName: String,
+        degreeProgram: String,
+        academicYear: String,
+        campusResidence: String,
+        phoneNumber: String,
+        bio: String,
+        interests: List<String>
+    ) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            fullName = fullName.trim(),
+            universityName = universityName.trim(),
+            degreeProgram = degreeProgram.trim(),
+            academicYear = academicYear.trim(),
+            campusResidence = campusResidence.trim(),
+            phoneNumber = phoneNumber.trim(),
+            bio = bio.trim(),
+            interests = interests
+        )
+    }
+
+    suspend fun setStatusNote(
+        note: String,
+        emoji: String,
+        expiry: String
+    ) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            statusNote = note.trim(),
+            statusNoteEmoji = emoji.ifBlank { "Focus" },
+            statusNoteExpiry = expiry
+        )
+    }
+
+    suspend fun clearStatusNote() = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            statusNote = null,
+            statusNoteEmoji = null,
+            statusNoteExpiry = null
+        )
+    }
+
+    suspend fun addProfile(newProfile: StudentProfile) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        val updatedAlternates = current.alternateProfiles + newProfile
+        _studentProfile.value = current.copy(alternateProfiles = updatedAlternates)
+    }
+
+    suspend fun switchProfile(targetStudentId: String) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        val target = current.alternateProfiles.find { it.studentId == targetStudentId }
+        if (target != null) {
+            val updatedAlternates = current.alternateProfiles.filterNot { it.studentId == targetStudentId } + current
+            _studentProfile.value = target.copy(alternateProfiles = updatedAlternates)
+        }
+    }
+
+    suspend fun updateNotificationSettings(
+        notificationsEnabled: Boolean,
+        escrowAlertsEnabled: Boolean,
+        questRemindersEnabled: Boolean
+    ) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            notificationsEnabled = notificationsEnabled,
+            escrowAlertsEnabled = escrowAlertsEnabled,
+            questRemindersEnabled = questRemindersEnabled
+        )
+    }
+
+    suspend fun updatePrivacySettings(
+        isTrustScorePublic: Boolean,
+        isOnlineStatusVisible: Boolean,
+        activityLedgerVisibility: String
+    ) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            isTrustScorePublic = isTrustScorePublic,
+            isOnlineStatusVisible = isOnlineStatusVisible,
+            activityLedgerVisibility = activityLedgerVisibility
+        )
+    }
+
+    suspend fun clearCache(): Long = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        val freedBytes = 38_500_000L // 38.5 MB cleared
+        val newStorage = (current.storageUsedBytes - freedBytes).coerceAtLeast(85_000_000L)
+        _studentProfile.value = current.copy(storageUsedBytes = newStorage)
+        freedBytes
+    }
+
+    suspend fun upgradeStorage(additionalBytes: Long = 1_073_741_824L) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(storageQuotaBytes = current.storageQuotaBytes + additionalBytes)
+    }
+
+    suspend fun deleteAccount(reason: String) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            fullName = "Deleted Student",
+            universityEmail = "deleted@campus.internal",
+            bio = "Account permanently deleted.",
+            statusNote = null,
+            behavioralTrustScore = 0,
+            consistencyStreakDays = 0,
+            storageUsedBytes = 0L,
+            privateQuestDeck = emptyList(),
+            verifiedSkillBadges = emptyList()
         )
     }
 }

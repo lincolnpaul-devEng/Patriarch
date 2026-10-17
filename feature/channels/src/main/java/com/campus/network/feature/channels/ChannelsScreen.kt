@@ -84,11 +84,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.campus.network.feature.channels.components.ChannelChatScreen
 import com.campus.network.feature.channels.components.ChannelProfileScreen
+import com.campus.network.feature.channels.components.CreateChannelModalSheet
 import com.campus.network.feature.channels.components.DiscoverServersPanel
 import com.campus.network.feature.channels.components.CourseMateAvatarLineup
 import com.campus.network.feature.channels.components.CourseMateDiscoverScreen
 import com.campus.network.feature.channels.components.IndividualStudentProfileScreen
+import com.campus.network.feature.channels.components.ServerInviteSheet
 import com.campus.network.feature.channels.components.ServerProfileDrawer
+import com.campus.network.feature.channels.components.ServerRulesSheet
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.InDemandCompany
@@ -115,7 +118,7 @@ private val SectionDividerBg = SurfaceSubtle
  * - CHANNELS_HUB: LinkedIn-inspired Academic Workspace with live course-mate avatar lineups
  * - DISCOVER_CAROUSEL: Full-screen Discover screen matching user reference image
  * - STUDENT_PROFILE: Individual student profile view with Helper rewards, study goals & actions
- * - CHANNEL_CHAT: Discord-style channel chat session with rich embeds, replies & media drawer
+ * - CHANNEL_CHAT: patriarch-style channel chat session with rich embeds, replies & media drawer
  */
 @Composable
 fun ChannelsScreen(
@@ -156,7 +159,7 @@ fun ChannelsScreen(
         ) { mode ->
             when (mode) {
                 ChannelViewMode.CHANNELS_HUB -> {
-                    DiscordServersHubContent(
+                    patriarchServersHubContent(
                         uiState = uiState,
                         viewModel = viewModel,
                         onNavigateToChannelChat = onNavigateToChannelChat,
@@ -237,7 +240,7 @@ fun ChannelsScreen(
 }
 
 /**
- * Pixel-Perfect Discord Servers Screen matching the reference mobile layout:
+ * Pixel-Perfect patriarch Servers Screen matching the reference mobile layout:
  * - 72dp Left Server Rail with honeycomb Home icon, server squircle icons, active pill indicators, and red badges
  * - Pure White Channels Panel with rounded top-start corner (20dp), verified header, search, and channel list
  * - Floating circular steel-blue drawer button (<<) at vertical center right
@@ -245,7 +248,7 @@ fun ChannelsScreen(
  * ZERO EMOJI POLICY strictly enforced (using Vector Icons for lightning bolt, badges, etc.)
  */
 @Composable
-private fun DiscordServersHubContent(
+private fun patriarchServersHubContent(
     uiState: ChannelsUiState,
     viewModel: ChannelsViewModel,
     onNavigateToChannelChat: (String) -> Unit,
@@ -295,6 +298,9 @@ private fun DiscordServersHubContent(
                         onCreateServerSubmit = { name, category ->
                             viewModel.onEvent(ChannelsEvent.CreateServer(name, category))
                         },
+                        onCreateServerFullSubmit = { name, category, description, avatarResName ->
+                            viewModel.onEvent(ChannelsEvent.CreateServer(name, category, description, avatarResName))
+                        },
                         onJoinInviteSubmit = { inviteCode ->
                             viewModel.onEvent(ChannelsEvent.JoinServerByInvite(inviteCode))
                         },
@@ -313,7 +319,7 @@ private fun DiscordServersHubContent(
                             viewModel.onEvent(ChannelsEvent.SearchChannels(query))
                         },
                         onInviteClick = {
-                            viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                            viewModel.onEvent(ChannelsEvent.OpenServerInviteSheet)
                         },
                         onServerProfileClick = {
                             viewModel.onEvent(ChannelsEvent.OpenServerProfileDrawer)
@@ -323,6 +329,9 @@ private fun DiscordServersHubContent(
                         },
                         onJoinServerClick = {
                             viewModel.onEvent(ChannelsEvent.JoinCurrentPreviewServer)
+                        },
+                        onAddChannelClick = { categoryName ->
+                            viewModel.onEvent(ChannelsEvent.OpenCreateChannelSheet(categoryName))
                         }
                     )
                 }
@@ -338,7 +347,13 @@ private fun DiscordServersHubContent(
                     viewModel.onEvent(ChannelsEvent.CloseServerProfileDrawer)
                 },
                 onInviteClick = {
-                    viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
+                    viewModel.onEvent(ChannelsEvent.OpenServerInviteSheet)
+                },
+                onCreateChannelClick = {
+                    viewModel.onEvent(ChannelsEvent.OpenCreateChannelSheet())
+                },
+                onRulesClick = {
+                    viewModel.onEvent(ChannelsEvent.OpenRulesSheet)
                 },
                 onMarkAsReadClick = {
                     viewModel.onEvent(ChannelsEvent.ClearFeedback("All channels marked as read"))
@@ -351,6 +366,79 @@ private fun DiscordServersHubContent(
                 },
                 onLeaveServerClick = {
                     viewModel.onEvent(ChannelsEvent.ClearFeedback("Leave server confirmation"))
+                }
+            )
+        }
+
+        // CREATE CHANNEL MODAL SHEET
+        if (uiState.isCreateChannelSheetOpen && currentServer != null) {
+            val existingCats = remember(currentServer.channels) {
+                currentServer.channels.map { it.categoryName }.distinct().ifEmpty {
+                    listOf("WELCOME", "TEXT CHANNELS", "DEVELOPMENT", "COMMUNITY", "STUDY JAMS")
+                }
+            }
+            CreateChannelModalSheet(
+                serverName = currentServer.name,
+                initialCategory = uiState.targetChannelCategory,
+                existingCategories = existingCats,
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseCreateChannelSheet)
+                },
+                onCreateChannel = { name, category, type, topic ->
+                    viewModel.onEvent(
+                        ChannelsEvent.CreateChannel(
+                            serverId = currentServer.id,
+                            name = name,
+                            categoryName = category,
+                            channelType = type,
+                            topic = topic
+                        )
+                    )
+                }
+            )
+        }
+
+        // SERVER RULES MANAGEMENT SHEET
+        if (uiState.isRulesSheetOpen && currentServer != null) {
+            ServerRulesSheet(
+                serverName = currentServer.name,
+                rules = uiState.currentServerRules,
+                canManageRules = true,
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseRulesSheet)
+                },
+                onAddRule = { title, desc ->
+                    viewModel.onEvent(
+                        ChannelsEvent.CreateServerRule(
+                            serverId = currentServer.id,
+                            title = title,
+                            description = desc
+                        )
+                    )
+                },
+                onDeleteRule = { ruleId ->
+                    viewModel.onEvent(
+                        ChannelsEvent.DeleteServerRule(
+                            serverId = currentServer.id,
+                            ruleId = ruleId
+                        )
+                    )
+                }
+            )
+        }
+
+        // SERVER INVITE SHEET
+        if (uiState.isServerInviteSheetOpen && currentServer != null) {
+            ServerInviteSheet(
+                serverName = currentServer.name,
+                inviteCode = uiState.currentServerInviteCode.ifEmpty { "${currentServer.name.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(8)}-2026" },
+                memberCountText = currentServer.memberCountText,
+                avatarResId = getServerDrawableRes(currentServer.iconResName),
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseServerInviteSheet)
+                },
+                onCopiedFeedback = {
+                    viewModel.onEvent(ChannelsEvent.ClearFeedback("Invite link copied to clipboard!"))
                 }
             )
         }
@@ -598,6 +686,7 @@ private fun ServerDetailsPanel(
     onServerProfileClick: () -> Unit,
     onBackFromPreview: () -> Unit = {},
     onJoinServerClick: () -> Unit = {},
+    onAddChannelClick: (categoryName: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -936,7 +1025,7 @@ private fun ServerDetailsPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -953,6 +1042,18 @@ private fun ServerDetailsPanel(
                             tint = Color(0xFF5C6470),
                             modifier = Modifier.size(16.dp)
                         )
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = { onAddChannelClick(categoryName) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Channel",
+                                tint = Color(0xFF5C6470),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
 

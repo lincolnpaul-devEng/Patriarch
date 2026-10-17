@@ -3,7 +3,10 @@ package com.campus.network.feature.channels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.campus.network.core.data.AcademicChannelsRepository
+import com.campus.network.core.data.ServerRepository
 import com.campus.network.core.model.AcademicChannel
+import com.campus.network.core.model.ServerChannelType
+import com.campus.network.core.model.ServerRule
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.CourseMate
@@ -109,7 +112,13 @@ data class ChannelsUiState(
     val feedbackMessage: String? = null,
     val activeChannelProfileTab: String = "Members",
     val isServerProfileDrawerOpen: Boolean = false,
-    val isAddServerSelected: Boolean = false
+    val isAddServerSelected: Boolean = false,
+    val isCreateChannelSheetOpen: Boolean = false,
+    val isRulesSheetOpen: Boolean = false,
+    val isServerInviteSheetOpen: Boolean = false,
+    val targetChannelCategory: String = "TEXT CHANNELS",
+    val currentServerRules: List<ServerRule> = emptyList(),
+    val currentServerInviteCode: String = ""
 )
 
 sealed interface ChannelsEvent {
@@ -118,7 +127,12 @@ sealed interface ChannelsEvent {
     data object ToggleRail : ChannelsEvent
     data class SearchChannels(val query: String) : ChannelsEvent
     data object AddServerClick : ChannelsEvent
-    data class CreateServer(val name: String, val category: String = "Community") : ChannelsEvent
+    data class CreateServer(
+        val name: String,
+        val category: String = "Community",
+        val description: String = "",
+        val avatarResName: String = "server_gradient"
+    ) : ChannelsEvent
     data class JoinServerByInvite(val inviteCode: String) : ChannelsEvent
     data class PreviewCommunityServer(val serverName: String) : ChannelsEvent
     data object ExitServerPreview : ChannelsEvent
@@ -150,10 +164,26 @@ sealed interface ChannelsEvent {
     data class ToggleLikeStudent(val studentId: String) : ChannelsEvent
     data class ClearFeedback(val message: String? = null) : ChannelsEvent
     data object ClearSelectedChannel : ChannelsEvent
+    data class OpenCreateChannelSheet(val categoryName: String = "TEXT CHANNELS") : ChannelsEvent
+    data object CloseCreateChannelSheet : ChannelsEvent
+    data class CreateChannel(
+        val serverId: String,
+        val name: String,
+        val categoryName: String = "TEXT CHANNELS",
+        val channelType: String = "text",
+        val topic: String = ""
+    ) : ChannelsEvent
+    data object OpenRulesSheet : ChannelsEvent
+    data object CloseRulesSheet : ChannelsEvent
+    data class CreateServerRule(val serverId: String, val title: String, val description: String) : ChannelsEvent
+    data class DeleteServerRule(val serverId: String, val ruleId: String) : ChannelsEvent
+    data object OpenServerInviteSheet : ChannelsEvent
+    data object CloseServerInviteSheet : ChannelsEvent
 }
 
 class ChannelsViewModel(
-    private val repository: AcademicChannelsRepository
+    private val repository: AcademicChannelsRepository,
+    private val serverRepository: ServerRepository? = null
 ) : ViewModel() {
 
     private val _viewMode = MutableStateFlow(ChannelViewMode.CHANNELS_HUB)
@@ -177,8 +207,14 @@ class ChannelsViewModel(
     private val _selectedStudentForProfile = MutableStateFlow<CourseMate?>(null)
     private val _likedStudentIds = MutableStateFlow<Set<String>>(emptySet())
     private val _feedbackMessage = MutableStateFlow<String?>(null)
+    private val _isCreateChannelSheetOpen = MutableStateFlow(false)
+    private val _isRulesSheetOpen = MutableStateFlow(false)
+    private val _isServerInviteSheetOpen = MutableStateFlow(false)
+    private val _targetChannelCategory = MutableStateFlow("TEXT CHANNELS")
+    private val _currentServerRules = MutableStateFlow<List<ServerRule>>(emptyList())
+    private val _currentServerInviteCode = MutableStateFlow("CODESISTENCY-2026")
 
-    // Master Servers & Channels Catalog (Matching Discord Layout & Campus Community)
+    // Master Servers & Channels Catalog (Matching patriarch Layout & Campus Community)
     private val codesistencyChannels = listOf(
         ServerChannelItem(id = "ch_onlyfans_c", name = "onlyfans-c", isUnread = false, badgeText = "@ NEW"),
         ServerChannelItem(id = "ch_redis_chat", name = "redis-chat-app", isUnread = false, hasBoltIcon = true),
@@ -816,6 +852,78 @@ class ChannelsViewModel(
                 )
             )
         )
+        loadDefaultRules()
+        if (serverRepository != null) {
+            viewModelScope.launch {
+                serverRepository.getServers().collect { dbServers ->
+                    if (dbServers.isNotEmpty()) {
+                        val mapped = dbServers.map { srv ->
+                            ServerItem(
+                                id = srv.id,
+                                name = srv.name,
+                                memberCountText = "${srv.memberCount} Members",
+                                categoryText = srv.category,
+                                isVerified = srv.isVerified,
+                                iconResName = srv.avatarResName,
+                                bannerResName = srv.bannerResName
+                            )
+                        }
+                        val existingIds = mapped.map { it.id }.toSet()
+                        val remaining = _serversList.value.filter { it.id !in existingIds }
+                        _serversList.value = mapped + remaining
+                    }
+                }
+            }
+            viewModelScope.launch {
+                _selectedServerId.collect { serverId ->
+                    serverRepository.getRulesForServer(serverId).collect { rules ->
+                        if (rules.isNotEmpty()) {
+                            _currentServerRules.value = rules
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadDefaultRules() {
+        _currentServerRules.value = listOf(
+            ServerRule(
+                id = "rule_default_1",
+                serverId = _selectedServerId.value,
+                ruleIndex = 1,
+                title = "Respect Everyone",
+                description = "Treat all campus engineers and contributors with respect. Harassment, hateful conduct, or derogatory remarks will not be tolerated."
+            ),
+            ServerRule(
+                id = "rule_default_2",
+                serverId = _selectedServerId.value,
+                ruleIndex = 2,
+                title = "Keep Content Relevant",
+                description = "Post topics in designated channels. Keep academic questions in study rooms and announcements in broadcast feeds."
+            ),
+            ServerRule(
+                id = "rule_default_3",
+                serverId = _selectedServerId.value,
+                ruleIndex = 3,
+                title = "No Unsolicited Advertising / Spam",
+                description = "Commercial solicitations, DM spam, or referral link dumps without moderator consent will lead to immediate timeouts."
+            ),
+            ServerRule(
+                id = "rule_default_4",
+                serverId = _selectedServerId.value,
+                ruleIndex = 4,
+                title = "Academic & Code Integrity",
+                description = "Do not share unauthorized exam solutions or malicious exploits. Focus on peer learning."
+            ),
+            ServerRule(
+                id = "rule_default_5",
+                serverId = _selectedServerId.value,
+                ruleIndex = 5,
+                title = "Follow Moderation Guidance",
+                description = "Direct issues to server admins or moderators via DM."
+            )
+        )
     }
 
     val uiState: StateFlow<ChannelsUiState> = combine(
@@ -853,8 +961,34 @@ class ChannelsViewModel(
         ) { cDisc, sProf, liked, fb ->
             PeerSlice(cDisc, sProf, liked, fb)
         },
-        _serversList
-    ) { slice1, slice2, academicSlice, peerSlice, currentServers ->
+        combine(
+            combine(
+                _isCreateChannelSheetOpen,
+                _isRulesSheetOpen,
+                _isServerInviteSheetOpen,
+                _targetChannelCategory
+            ) { chOpen, rulesOpen, inviteOpen, cat ->
+                ServerManagementFlags(chOpen, rulesOpen, inviteOpen, cat)
+            },
+            _currentServerRules,
+            _currentServerInviteCode,
+            _serversList
+        ) { flags, rules, inviteCode, currentServers ->
+            Pair(
+                ServerManagementSlice(
+                    flags.isCreateChannelSheetOpen,
+                    flags.isRulesSheetOpen,
+                    flags.isServerInviteSheetOpen,
+                    flags.targetChannelCategory,
+                    rules,
+                    inviteCode
+                ),
+                currentServers
+            )
+        }
+    ) { slice1, slice2, academicSlice, peerSlice, mgmtAndServers ->
+        val mgmtSlice = mgmtAndServers.first
+        val currentServers = mgmtAndServers.second
         val rawCourses = allEngineeringCourses
         val departments = listOf("All") + rawCourses.map { it.department }.distinct()
 
@@ -910,6 +1044,12 @@ class ChannelsViewModel(
             activeChannelProfileTab = slice2.channelProfileTab,
             isServerProfileDrawerOpen = slice1.isServerProfileDrawerOpen,
             isAddServerSelected = slice1.isAddServerSelected,
+            isCreateChannelSheetOpen = mgmtSlice.isCreateChannelSheetOpen,
+            isRulesSheetOpen = mgmtSlice.isRulesSheetOpen,
+            isServerInviteSheetOpen = mgmtSlice.isServerInviteSheetOpen,
+            targetChannelCategory = mgmtSlice.targetChannelCategory,
+            currentServerRules = mgmtSlice.currentServerRules,
+            currentServerInviteCode = mgmtSlice.currentServerInviteCode,
             selectedFaculty = academicSlice.faculty,
             selectedDepartment = academicSlice.department,
             departments = departments,
@@ -1020,29 +1160,149 @@ class ChannelsViewModel(
             is ChannelsEvent.CreateServer -> {
                 _isAddServerSelected.value = false
                 val newId = "srv_custom_${System.currentTimeMillis()}"
+                val cleanAvatar = if (event.avatarResName.isNotBlank()) event.avatarResName else "server_gradient"
                 val newServer = ServerItem(
                     id = newId,
                     name = event.name,
                     memberCountText = "1 Member",
                     categoryText = event.category,
                     isVerified = false,
-                    iconResName = "server_gradient",
+                    iconResName = cleanAvatar,
                     badgeCount = 0,
                     hasUnread = false,
                     channels = listOf(
-                        ServerChannelItem(id = "ch_${newId}_general", name = "general", isUnread = false),
-                        ServerChannelItem(id = "ch_${newId}_hangout", name = "hangout", isUnread = false),
-                        ServerChannelItem(id = "ch_${newId}_announcements", name = "announcements", isUnread = false)
+                        ServerChannelItem(id = "ch_${newId}_rules", name = "rules", channelType = "rules", categoryName = "WELCOME", isUnread = false),
+                        ServerChannelItem(id = "ch_${newId}_announcements", name = "announcements", channelType = "announcements", categoryName = "WELCOME", isUnread = false),
+                        ServerChannelItem(id = "ch_${newId}_general", name = "general", channelType = "text", categoryName = "TEXT CHANNELS", isUnread = false)
                     )
                 )
                 _serversList.value = _serversList.value + newServer
                 _selectedServerId.value = newId
                 _selectedChannelId.value = "ch_${newId}_general"
+                _currentServerInviteCode.value = "${event.name.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(8)}-${System.currentTimeMillis().toString().takeLast(4)}"
                 _feedbackMessage.value = "Created server: ${event.name}"
+
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        runCatching {
+                            repo.createServer(
+                                name = event.name,
+                                category = event.category,
+                                description = event.description,
+                                avatarResName = cleanAvatar
+                            )
+                        }
+                    }
+                }
+            }
+            is ChannelsEvent.OpenCreateChannelSheet -> {
+                _targetChannelCategory.value = event.categoryName
+                _isCreateChannelSheetOpen.value = true
+            }
+            is ChannelsEvent.CloseCreateChannelSheet -> {
+                _isCreateChannelSheetOpen.value = false
+            }
+            is ChannelsEvent.CreateChannel -> {
+                _isCreateChannelSheetOpen.value = false
+                val channelId = "ch_${event.serverId}_${event.name.replace(" ", "-")}"
+                val newChannelItem = ServerChannelItem(
+                    id = channelId,
+                    name = event.name,
+                    channelType = event.channelType,
+                    categoryName = event.categoryName,
+                    isUnread = false
+                )
+                _serversList.value = _serversList.value.map { server ->
+                    if (server.id == event.serverId) {
+                        server.copy(channels = server.channels + newChannelItem)
+                    } else server
+                }
+                _selectedChannelId.value = channelId
+                _feedbackMessage.value = "Created #${event.name}"
+
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        runCatching {
+                            val cType = when (event.channelType.lowercase()) {
+                                "announcements" -> ServerChannelType.ANNOUNCEMENT
+                                "rules" -> ServerChannelType.RULES
+                                "voice" -> ServerChannelType.VOICE
+                                else -> ServerChannelType.TEXT
+                            }
+                            repo.createChannel(
+                                serverId = event.serverId,
+                                name = event.name,
+                                categoryName = event.categoryName,
+                                channelType = cType,
+                                topic = event.topic
+                            )
+                        }
+                    }
+                }
+            }
+            is ChannelsEvent.OpenRulesSheet -> {
+                _isRulesSheetOpen.value = true
+            }
+            is ChannelsEvent.CloseRulesSheet -> {
+                _isRulesSheetOpen.value = false
+            }
+            is ChannelsEvent.CreateServerRule -> {
+                val nextIdx = (_currentServerRules.value.maxOfOrNull { it.ruleIndex } ?: 0) + 1
+                val newRule = ServerRule(
+                    id = "rule_${event.serverId}_$nextIdx",
+                    serverId = event.serverId,
+                    ruleIndex = nextIdx,
+                    title = event.title,
+                    description = event.description
+                )
+                _currentServerRules.value = _currentServerRules.value + newRule
+                _feedbackMessage.value = "Added rule: ${event.title}"
+
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        runCatching {
+                            repo.createRule(event.serverId, event.title, event.description)
+                        }
+                    }
+                }
+            }
+            is ChannelsEvent.DeleteServerRule -> {
+                _currentServerRules.value = _currentServerRules.value.filter { it.id != event.ruleId }
+                _feedbackMessage.value = "Rule removed"
+
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        runCatching {
+                            repo.deleteRule(event.ruleId)
+                        }
+                    }
+                }
+            }
+            is ChannelsEvent.OpenServerInviteSheet -> {
+                val currentServer = _serversList.value.find { it.id == _selectedServerId.value }
+                if (currentServer != null && _currentServerInviteCode.value.isEmpty()) {
+                    _currentServerInviteCode.value = "${currentServer.name.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(10)}-2026"
+                }
+                _isServerInviteSheetOpen.value = true
+            }
+            is ChannelsEvent.CloseServerInviteSheet -> {
+                _isServerInviteSheetOpen.value = false
             }
             is ChannelsEvent.JoinServerByInvite -> {
                 _isAddServerSelected.value = false
                 _feedbackMessage.value = "Joined server via invite link!"
+
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        val result = repo.joinServerByInvite(event.inviteCode)
+                        result.onSuccess { srv ->
+                            _selectedServerId.value = srv.id
+                            _feedbackMessage.value = "Joined ${srv.name}!"
+                        }.onFailure { err ->
+                            _feedbackMessage.value = err.message ?: "Failed to join server"
+                        }
+                    }
+                }
             }
             is ChannelsEvent.PreviewCommunityServer -> {
                 _isAddServerSelected.value = false
@@ -1276,4 +1536,20 @@ private data class PeerSlice(
     val selectedStudent: CourseMate?,
     val likedIds: Set<String>,
     val feedback: String?
+)
+
+private data class ServerManagementFlags(
+    val isCreateChannelSheetOpen: Boolean,
+    val isRulesSheetOpen: Boolean,
+    val isServerInviteSheetOpen: Boolean,
+    val targetChannelCategory: String
+)
+
+private data class ServerManagementSlice(
+    val isCreateChannelSheetOpen: Boolean,
+    val isRulesSheetOpen: Boolean,
+    val isServerInviteSheetOpen: Boolean,
+    val targetChannelCategory: String,
+    val currentServerRules: List<ServerRule>,
+    val currentServerInviteCode: String
 )

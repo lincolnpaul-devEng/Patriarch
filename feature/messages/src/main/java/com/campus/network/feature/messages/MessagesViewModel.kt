@@ -245,6 +245,8 @@ class MessagesViewModel(
     )
     val uiState: StateFlow<MessagesUiState> = _uiState.asStateFlow()
 
+    val voiceTransformerEngine = com.campus.network.feature.messages.audio.VoiceTransformerEngine(viewModelScope)
+
     fun onEvent(event: MessagesEvent) {
         when (event) {
             is MessagesEvent.SelectThread -> {
@@ -451,6 +453,48 @@ class MessagesViewModel(
                 }
             }
 
+            is MessagesEvent.SetVoiceFilter -> {
+                voiceTransformerEngine.setPreset(event.preset)
+                _uiState.update { state ->
+                    state.callState?.let { call ->
+                        state.copy(
+                            callState = call.copy(
+                                activeVoiceFilter = event.preset,
+                                customPitchShift = event.preset.pitchSemiTones,
+                                customFormantScale = event.preset.formantScale
+                            )
+                        )
+                    } ?: state
+                }
+            }
+
+            is MessagesEvent.UpdateCustomPitchAndFormant -> {
+                voiceTransformerEngine.setCustomParameters(event.pitchSemiTones, event.formantScale)
+                _uiState.update { state ->
+                    state.callState?.let { call ->
+                        state.copy(
+                            callState = call.copy(
+                                customPitchShift = event.pitchSemiTones,
+                                customFormantScale = event.formantScale
+                            )
+                        )
+                    } ?: state
+                }
+            }
+
+            is MessagesEvent.ToggleSelfMonitoring -> {
+                voiceTransformerEngine.toggleSelfMonitoring(event.context)
+                _uiState.update { state ->
+                    state.callState?.let { call ->
+                        state.copy(
+                            callState = call.copy(
+                                isSelfMonitoring = voiceTransformerEngine.isSelfMonitoring.value
+                            )
+                        )
+                    } ?: state
+                }
+            }
+
             is MessagesEvent.OpenNewChat -> {
                 _uiState.update {
                     it.copy(
@@ -583,6 +627,7 @@ class MessagesViewModel(
     }
 
     private fun stopCall() {
+        voiceTransformerEngine.stopLoopback()
         telecomCallManager?.endCall()
         callTimerJob?.cancel()
         callTimerJob = null
@@ -596,6 +641,7 @@ class MessagesViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        voiceTransformerEngine.release()
         telecomCallManager?.endCall()
         callTimerJob?.cancel()
     }

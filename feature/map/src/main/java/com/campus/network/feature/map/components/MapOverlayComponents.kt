@@ -24,12 +24,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
@@ -48,10 +55,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.campus.network.core.model.AudienceFilter
@@ -68,7 +77,7 @@ val EmeraldLiveGreen = BrandGreen
 val AmberPinDot = Color(0xFFF59E0B)
 
 /**
- * Top floating bar: Add Friend on the left, Send + Notification Bell on the right.
+ * Top floating bar: Add Friend on the left, Events center pill, Send + Notification Bell on the right.
  */
 @Composable
 fun MapTopControls(
@@ -124,10 +133,12 @@ fun MapTopControls(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Events",
+                    text = "Campus Events",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
+                    color = Color(0xFF0F172A),
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -146,7 +157,7 @@ fun MapTopControls(
                 IconButton(onClick = onMessagesClick, modifier = Modifier.size(38.dp)) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Messages",
+                        contentDescription = "Direct Messages",
                         tint = Color(0xFF0F172A),
                         modifier = Modifier.size(19.dp)
                     )
@@ -169,14 +180,14 @@ fun MapTopControls(
                         )
                     }
 
-                    // Active Red Dot Indicator
+                    // Active Green/Red Dot Indicator
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(top = 8.dp, end = 9.dp)
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFEF4444))
+                            .background(Color(0xFF22C55E))
                     )
                 }
             }
@@ -186,28 +197,88 @@ fun MapTopControls(
 
 /**
  * Filter strip resting above the category dock:
- * "everyone" dropdown, "open now" status pill, and GPS re-center FAB.
+ * "everyone" audience dropdown, campus region switcher (Nairobi, Mombasa, Kisumu), "open now" status pill, and GPS re-center FAB.
  */
 @Composable
 fun MapFilterRow(
     audienceFilter: AudienceFilter,
     isOpenNowOnly: Boolean,
+    selectedRegion: String = "All Hubs",
     onAudienceSelected: (AudienceFilter) -> Unit,
     onToggleOpenNow: () -> Unit,
+    onRegionSelected: (String) -> Unit = {},
     onRecenterClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isAudienceMenuOpen by remember { mutableStateOf(false) }
+    var isRegionMenuOpen by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // 1. Audience Filter Dropdown ("everyone")
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
+            // 1. Campus Region Switcher ("Nairobi", "Mombasa", "Kisumu")
+            Box {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White.copy(alpha = 0.95f),
+                    shadowElevation = 4.dp,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.clickable { isRegionMenuOpen = true }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = BrandBluePrimary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = selectedRegion,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = isRegionMenuOpen,
+                    onDismissRequest = { isRegionMenuOpen = false }
+                ) {
+                    listOf("All Hubs", "Nairobi", "Mombasa", "Kisumu").forEach { region ->
+                        DropdownMenuItem(
+                            text = { Text(region, fontWeight = FontWeight.Medium, fontSize = 13.sp) },
+                            onClick = {
+                                onRegionSelected(region)
+                                isRegionMenuOpen = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 2. Audience Filter Dropdown ("everyone")
             Box {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
@@ -217,21 +288,23 @@ fun MapFilterRow(
                     modifier = Modifier.clickable { isAudienceMenuOpen = true }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = audienceFilter.label,
-                            fontSize = 13.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A)
+                            color = Color(0xFF0F172A),
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Icon(
                             imageVector = Icons.Default.ArrowDropDown,
                             contentDescription = null,
                             tint = Color(0xFF64748B),
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -242,7 +315,7 @@ fun MapFilterRow(
                 ) {
                     AudienceFilter.values().forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.label, fontWeight = FontWeight.Medium) },
+                            text = { Text(option.label, fontWeight = FontWeight.Medium, fontSize = 13.sp) },
                             onClick = {
                                 onAudienceSelected(option)
                                 isAudienceMenuOpen = false
@@ -252,7 +325,7 @@ fun MapFilterRow(
                 }
             }
 
-            // 2. "open now" Toggle Pill
+            // 3. "Open Now" Toggle Pill
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = if (isOpenNowOnly) Color(0xFFF0FDF4) else Color.White.copy(alpha = 0.95f),
@@ -264,28 +337,31 @@ fun MapFilterRow(
                 modifier = Modifier.clickable { onToggleOpenNow() }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Clock illustration matching reference design
-                    Image(
-                        painter = painterResource(R.drawable.ic_clock_open_now),
-                        contentDescription = "Clock",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(17.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(if (isOpenNowOnly) EmeraldLiveGreen else Color(0xFF94A3B8))
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "open now",
-                        fontSize = 13.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isOpenNowOnly) EmeraldLiveGreen else Color(0xFF0F172A)
+                        color = if (isOpenNowOnly) EmeraldLiveGreen else Color(0xFF0F172A),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
         }
 
-        // 3. Re-Center GPS Navigation FAB
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 4. Re-Center Dynamic Device Location FAB
         FloatingActionButton(
             onClick = onRecenterClick,
             modifier = Modifier.size(42.dp),
@@ -295,8 +371,9 @@ fun MapFilterRow(
             elevation = FloatingActionButtonDefaults.elevation(4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.NearMe,
-                contentDescription = "Recenter Map",
+                imageVector = Icons.Default.MyLocation,
+                contentDescription = "My GPS Location",
+                tint = BrandOnboardingNavy,
                 modifier = Modifier.size(19.dp)
             )
         }
@@ -304,8 +381,8 @@ fun MapFilterRow(
 }
 
 /**
- * Floating frosted horizontal category dock:
- * top picks, eat, cafes, bars, events, go out, shops.
+ * Floating frosted horizontal category dock with academic icons:
+ * Top Picks, Study Zones, SafeTrade Spots, Academic Labs, Campus Guild, Events & Stages.
  */
 @Composable
 fun CategoryDock(
@@ -317,8 +394,8 @@ fun CategoryDock(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = Color.White.copy(alpha = 0.94f),
+        shape = RoundedCornerShape(26.dp),
+        color = Color.White.copy(alpha = 0.95f),
         shadowElevation = 8.dp,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f))
     ) {
@@ -332,7 +409,8 @@ fun CategoryDock(
         ) {
             PlaceCategory.values().forEach { category ->
                 val isSelected = category == selectedCategory
-                val iconDrawable = getCategoryDrawable(category)
+                val iconVector = getCategoryVector(category)
+                val iconTint = getCategoryColor(category)
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -344,33 +422,40 @@ fun CategoryDock(
                         ) {
                             onCategorySelected(category)
                         }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isSelected) BrandOnboardingNavy.copy(alpha = 0.12f)
-                                else Color.Transparent
+                                if (isSelected) iconTint.copy(alpha = 0.16f)
+                                else Color(0xFFF8FAFC)
+                            )
+                            .border(
+                                1.dp,
+                                if (isSelected) iconTint.copy(alpha = 0.4f) else Color(0xFFE2E8F0),
+                                CircleShape
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(iconDrawable),
+                        Icon(
+                            imageVector = iconVector,
                             contentDescription = category.label,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(34.dp)
+                            tint = if (isSelected) iconTint else Color(0xFF64748B),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
                         text = category.label,
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) BrandOnboardingNavy else Color(0xFF334155)
+                        color = if (isSelected) Color(0xFF0F172A) else Color(0xFF475569),
+                        maxLines = 1,
+                        softWrap = false
                     )
 
                     // Active dot indicator
@@ -380,7 +465,7 @@ fun CategoryDock(
                                 .padding(top = 2.dp)
                                 .size(4.dp)
                                 .clip(CircleShape)
-                                .background(BrandOnboardingNavy)
+                                .background(iconTint)
                         )
                     }
                 }
@@ -391,7 +476,7 @@ fun CategoryDock(
 
 /**
  * Custom Map Pin Marker Callout:
- * Shows circular white badge with icon + high-contrast text pill.
+ * Displays a clean, high-contrast academic badge + readable text pill without food assets.
  */
 @Composable
 fun PlaceMarkerCallout(
@@ -399,7 +484,22 @@ fun PlaceMarkerCallout(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val iconRes = getMarkerIconDrawable(place.iconResName)
+    val badgeColor = when {
+        place.isVerifiedSafeTrade -> Color(0xFF007AFF)
+        place.category == PlaceCategory.STUDY_ZONES -> Color(0xFF16A34A)
+        place.category == PlaceCategory.ACADEMIC_LABS -> Color(0xFF8B5CF6)
+        place.category == PlaceCategory.EVENTS -> Color(0xFFEC4899)
+        else -> BrandOnboardingNavy
+    }
+
+    val badgeIcon = when {
+        place.isVerifiedSafeTrade -> Icons.Default.Security
+        place.category == PlaceCategory.STUDY_ZONES -> Icons.AutoMirrored.Filled.MenuBook
+        place.category == PlaceCategory.ACADEMIC_LABS -> Icons.Default.Computer
+        place.category == PlaceCategory.GUILD_SERVICES -> Icons.Default.AccountBalance
+        place.category == PlaceCategory.EVENTS -> Icons.Default.Event
+        else -> Icons.Default.Star
+    }
 
     Row(
         modifier = modifier
@@ -417,24 +517,25 @@ fun PlaceMarkerCallout(
                 shape = CircleShape,
                 color = Color.White,
                 shadowElevation = 5.dp,
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Image(
-                        painter = painterResource(iconRes),
+                    Icon(
+                        imageVector = badgeIcon,
                         contentDescription = place.name,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(24.dp)
+                        tint = badgeColor,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            // Amber / Green Indicator Dot
+            // Status Indicator Dot (Green if open, Grey if closed)
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(9.dp)
                     .clip(CircleShape)
-                    .background(if (place.isOpenNow) AmberPinDot else Color(0xFF94A3B8))
+                    .background(if (place.isOpenNow) Color(0xFF22C55E) else Color(0xFF94A3B8))
+                    .border(1.dp, Color.White, CircleShape)
             )
         }
 
@@ -443,78 +544,67 @@ fun PlaceMarkerCallout(
         // High-Contrast Pill Banner with Title + Descriptor
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color.White.copy(alpha = 0.94f),
+            color = Color.White.copy(alpha = 0.96f),
             shadowElevation = 4.dp,
-            border = BorderStroke(0.8.dp, Color(0xFFE2E8F0))
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
             ) {
-                if (place.likedByFriend != null) {
+                if (place.isVerifiedSafeTrade) {
                     Text(
-                        text = "@${place.likedByFriend} liked",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandOnboardingNavy
+                        text = "SAFE-TRADE SPOT",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF007AFF),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
 
                 Text(
                     text = place.name,
-                    fontSize = 11.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0F172A),
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Text(
-                    text = place.subtitle,
-                    fontSize = 9.sp,
-                    fontStyle = FontStyle.Italic,
+                    text = "${place.campusRegion} · ${place.subtitle}",
+                    fontSize = 9.5.sp,
                     color = Color(0xFF64748B),
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
     }
 }
 
-/**
- * Returns corresponding category drawable.
- */
-private fun getCategoryDrawable(category: PlaceCategory): Int {
+private fun getCategoryVector(category: PlaceCategory): ImageVector {
     return when (category) {
-        PlaceCategory.TOP_PICKS -> R.drawable.cat_top_picks
-        PlaceCategory.EAT -> R.drawable.cat_eat
-        PlaceCategory.CAFES -> R.drawable.cat_cafes
-        PlaceCategory.BARS -> R.drawable.cat_bars
-        PlaceCategory.EVENTS -> R.drawable.cat_events
-        PlaceCategory.GO_OUT -> R.drawable.cat_go_out
-        PlaceCategory.SHOPS -> R.drawable.cat_shops
+        PlaceCategory.TOP_PICKS -> Icons.Default.Star
+        PlaceCategory.STUDY_ZONES -> Icons.AutoMirrored.Filled.MenuBook
+        PlaceCategory.RENDEZVOUS -> Icons.Default.Security
+        PlaceCategory.ACADEMIC_LABS -> Icons.Default.Computer
+        PlaceCategory.GUILD_SERVICES -> Icons.Default.AccountBalance
+        PlaceCategory.EVENTS -> Icons.Default.Event
     }
 }
 
-/**
- * Resolves marker icon drawable.
- */
-fun getMarkerIconDrawable(name: String): Int {
-    return when (name) {
-        "pin_cookie" -> R.drawable.pin_cookie
-        "pin_steak" -> R.drawable.pin_steak
-        "pin_bakery" -> R.drawable.pin_bakery
-        "pin_pasta" -> R.drawable.pin_pasta
-        "pin_dumpling" -> R.drawable.pin_dumpling
-        "pin_chilli" -> R.drawable.pin_chilli
-        "pin_plate" -> R.drawable.pin_plate
-        "pin_eliza" -> R.drawable.pin_eliza
-        "pin_event_stage" -> R.drawable.pin_event_stage
-        else -> R.drawable.pin_bakery
+private fun getCategoryColor(category: PlaceCategory): Color {
+    return when (category) {
+        PlaceCategory.TOP_PICKS -> Color(0xFFEAB308) // Amber
+        PlaceCategory.STUDY_ZONES -> Color(0xFF16A34A) // Emerald Green
+        PlaceCategory.RENDEZVOUS -> Color(0xFF007AFF) // Royal Blue SafeTrade
+        PlaceCategory.ACADEMIC_LABS -> Color(0xFF8B5CF6) // Violet
+        PlaceCategory.GUILD_SERVICES -> Color(0xFF0D9488) // Teal
+        PlaceCategory.EVENTS -> Color(0xFFEC4899) // Rose
     }
 }
 
-/**
- * Resolves avatar drawable.
- */
 fun getAvatarDrawable(name: String): Int {
     return when (name) {
         "avatar_eliza" -> R.drawable.avatar_eliza
@@ -526,9 +616,6 @@ fun getAvatarDrawable(name: String): Int {
     }
 }
 
-/**
- * Resolves photo drawable.
- */
 fun getPhotoDrawable(name: String): Int {
     return when (name) {
         "place_photo_1" -> R.drawable.place_photo_1

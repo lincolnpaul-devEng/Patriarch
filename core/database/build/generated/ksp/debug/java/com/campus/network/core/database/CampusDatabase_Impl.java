@@ -17,10 +17,28 @@ import com.campus.network.core.database.dao.ChatMessageDao;
 import com.campus.network.core.database.dao.ChatMessageDao_Impl;
 import com.campus.network.core.database.dao.FlashMeetDao;
 import com.campus.network.core.database.dao.FlashMeetDao_Impl;
+import com.campus.network.core.database.dao.FriendDao;
+import com.campus.network.core.database.dao.FriendDao_Impl;
+import com.campus.network.core.database.dao.LiveStreamDao;
+import com.campus.network.core.database.dao.LiveStreamDao_Impl;
 import com.campus.network.core.database.dao.MarketItemDao;
 import com.campus.network.core.database.dao.MarketItemDao_Impl;
 import com.campus.network.core.database.dao.MicroGigDao;
 import com.campus.network.core.database.dao.MicroGigDao_Impl;
+import com.campus.network.core.database.dao.ServerChannelDao;
+import com.campus.network.core.database.dao.ServerChannelDao_Impl;
+import com.campus.network.core.database.dao.ServerDao;
+import com.campus.network.core.database.dao.ServerDao_Impl;
+import com.campus.network.core.database.dao.ServerInviteDao;
+import com.campus.network.core.database.dao.ServerInviteDao_Impl;
+import com.campus.network.core.database.dao.ServerMemberDao;
+import com.campus.network.core.database.dao.ServerMemberDao_Impl;
+import com.campus.network.core.database.dao.ServerRuleDao;
+import com.campus.network.core.database.dao.ServerRuleDao_Impl;
+import com.campus.network.core.database.dao.StreamCommentDao;
+import com.campus.network.core.database.dao.StreamCommentDao_Impl;
+import com.campus.network.core.database.dao.StreamerProfileDao;
+import com.campus.network.core.database.dao.StreamerProfileDao_Impl;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
@@ -46,10 +64,28 @@ public final class CampusDatabase_Impl extends CampusDatabase {
 
   private volatile MicroGigDao _microGigDao;
 
+  private volatile LiveStreamDao _liveStreamDao;
+
+  private volatile StreamerProfileDao _streamerProfileDao;
+
+  private volatile StreamCommentDao _streamCommentDao;
+
+  private volatile ServerDao _serverDao;
+
+  private volatile ServerChannelDao _serverChannelDao;
+
+  private volatile ServerRuleDao _serverRuleDao;
+
+  private volatile ServerMemberDao _serverMemberDao;
+
+  private volatile FriendDao _friendDao;
+
+  private volatile ServerInviteDao _serverInviteDao;
+
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `flash_meets` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL, `creatorAvatar` TEXT, `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL, PRIMARY KEY(`id`))");
@@ -57,8 +93,17 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         db.execSQL("CREATE TABLE IF NOT EXISTS `chat_messages` (`id` TEXT NOT NULL, `channelId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `text` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `isOptimistic` INTEGER NOT NULL, `settlementPayloadJson` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `market_items` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `price` REAL NOT NULL, `currency` TEXT NOT NULL, `category` TEXT NOT NULL, `condition` TEXT NOT NULL, `sellerName` TEXT NOT NULL, `sellerRating` REAL NOT NULL, `isCampusVerifiedSeller` INTEGER NOT NULL, `campusHallLocation` TEXT NOT NULL, `imageUrl` TEXT, `timestampMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `micro_gigs` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL, `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL, `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL, `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `live_streams` (`id` TEXT NOT NULL, `broadcasterId` TEXT NOT NULL, `broadcasterName` TEXT NOT NULL, `broadcasterHandle` TEXT NOT NULL, `broadcasterAvatarRes` INTEGER NOT NULL, `broadcasterAvatarUrl` TEXT, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `audience` TEXT NOT NULL, `isLive` INTEGER NOT NULL, `streamPlaybackUrl` TEXT, `backdropImageRes` INTEGER NOT NULL, `backdropImageUrl` TEXT, `viewerCount` INTEGER NOT NULL, `peakViewers` INTEGER NOT NULL, `likeCount` INTEGER NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, `durationSeconds` INTEGER NOT NULL, `serverId` TEXT, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `streamer_profiles` (`studentId` TEXT NOT NULL, `location` TEXT NOT NULL, `joinedDate` TEXT NOT NULL, `hoursLive` INTEGER NOT NULL, `followersCount` TEXT NOT NULL, `bestDay` TEXT NOT NULL, `streamsPerWeek` INTEGER NOT NULL, `topTopicsCsv` TEXT NOT NULL, `weeklyActivityCsv` TEXT NOT NULL, PRIMARY KEY(`studentId`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `stream_comments` (`id` TEXT NOT NULL, `streamId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT, `senderAvatarRes` INTEGER NOT NULL, `commentText` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `servers` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `avatarResName` TEXT NOT NULL, `bannerResName` TEXT, `isVerified` INTEGER NOT NULL, `memberCount` INTEGER NOT NULL, `inviteCode` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `server_channels` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `channelType` TEXT NOT NULL, `topic` TEXT NOT NULL, `unreadCount` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, `orderIndex` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `server_rules` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `ruleIndex` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `server_members` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `serverId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `handle` TEXT NOT NULL, `role` TEXT NOT NULL, `roleTitle` TEXT NOT NULL, `roleColorHex` INTEGER NOT NULL, `avatarUrl` TEXT, `avatarResName` TEXT NOT NULL, `isOnline` INTEGER NOT NULL, `customStatus` TEXT, `joinedAtEpochMs` INTEGER NOT NULL, `badge` TEXT, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `friends` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `friendUserId` TEXT NOT NULL, `friendDisplayName` TEXT NOT NULL, `friendHandle` TEXT NOT NULL, `friendAvatarResName` TEXT NOT NULL, `status` TEXT NOT NULL, `lastInteractionEpochMs` INTEGER NOT NULL, `dmChannelId` TEXT, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `server_invites` (`code` TEXT NOT NULL, `serverId` TEXT NOT NULL, `serverName` TEXT NOT NULL, `inviterId` TEXT NOT NULL, `inviterName` TEXT NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `maxUses` INTEGER NOT NULL, `usesCount` INTEGER NOT NULL, `isRevoked` INTEGER NOT NULL, PRIMARY KEY(`code`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7a0f6290d50777cbc6efd685452bddca')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3c8524a7922aac353990e8ff8601c390')");
       }
 
       @Override
@@ -68,6 +113,15 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         db.execSQL("DROP TABLE IF EXISTS `chat_messages`");
         db.execSQL("DROP TABLE IF EXISTS `market_items`");
         db.execSQL("DROP TABLE IF EXISTS `micro_gigs`");
+        db.execSQL("DROP TABLE IF EXISTS `live_streams`");
+        db.execSQL("DROP TABLE IF EXISTS `streamer_profiles`");
+        db.execSQL("DROP TABLE IF EXISTS `stream_comments`");
+        db.execSQL("DROP TABLE IF EXISTS `servers`");
+        db.execSQL("DROP TABLE IF EXISTS `server_channels`");
+        db.execSQL("DROP TABLE IF EXISTS `server_rules`");
+        db.execSQL("DROP TABLE IF EXISTS `server_members`");
+        db.execSQL("DROP TABLE IF EXISTS `friends`");
+        db.execSQL("DROP TABLE IF EXISTS `server_invites`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -216,9 +270,194 @@ public final class CampusDatabase_Impl extends CampusDatabase {
                   + " Expected:\n" + _infoMicroGigs + "\n"
                   + " Found:\n" + _existingMicroGigs);
         }
+        final HashMap<String, TableInfo.Column> _columnsLiveStreams = new HashMap<String, TableInfo.Column>(21);
+        _columnsLiveStreams.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("broadcasterId", new TableInfo.Column("broadcasterId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("broadcasterName", new TableInfo.Column("broadcasterName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("broadcasterHandle", new TableInfo.Column("broadcasterHandle", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("broadcasterAvatarRes", new TableInfo.Column("broadcasterAvatarRes", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("broadcasterAvatarUrl", new TableInfo.Column("broadcasterAvatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("title", new TableInfo.Column("title", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("description", new TableInfo.Column("description", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("category", new TableInfo.Column("category", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("audience", new TableInfo.Column("audience", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("isLive", new TableInfo.Column("isLive", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("streamPlaybackUrl", new TableInfo.Column("streamPlaybackUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("backdropImageRes", new TableInfo.Column("backdropImageRes", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("backdropImageUrl", new TableInfo.Column("backdropImageUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("viewerCount", new TableInfo.Column("viewerCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("peakViewers", new TableInfo.Column("peakViewers", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("likeCount", new TableInfo.Column("likeCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("startedAtEpochMs", new TableInfo.Column("startedAtEpochMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("endedAtEpochMs", new TableInfo.Column("endedAtEpochMs", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("durationSeconds", new TableInfo.Column("durationSeconds", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsLiveStreams.put("serverId", new TableInfo.Column("serverId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysLiveStreams = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesLiveStreams = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoLiveStreams = new TableInfo("live_streams", _columnsLiveStreams, _foreignKeysLiveStreams, _indicesLiveStreams);
+        final TableInfo _existingLiveStreams = TableInfo.read(db, "live_streams");
+        if (!_infoLiveStreams.equals(_existingLiveStreams)) {
+          return new RoomOpenHelper.ValidationResult(false, "live_streams(com.campus.network.core.database.entity.LiveStreamEntity).\n"
+                  + " Expected:\n" + _infoLiveStreams + "\n"
+                  + " Found:\n" + _existingLiveStreams);
+        }
+        final HashMap<String, TableInfo.Column> _columnsStreamerProfiles = new HashMap<String, TableInfo.Column>(9);
+        _columnsStreamerProfiles.put("studentId", new TableInfo.Column("studentId", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("location", new TableInfo.Column("location", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("joinedDate", new TableInfo.Column("joinedDate", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("hoursLive", new TableInfo.Column("hoursLive", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("followersCount", new TableInfo.Column("followersCount", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("bestDay", new TableInfo.Column("bestDay", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("streamsPerWeek", new TableInfo.Column("streamsPerWeek", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("topTopicsCsv", new TableInfo.Column("topTopicsCsv", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamerProfiles.put("weeklyActivityCsv", new TableInfo.Column("weeklyActivityCsv", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysStreamerProfiles = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesStreamerProfiles = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoStreamerProfiles = new TableInfo("streamer_profiles", _columnsStreamerProfiles, _foreignKeysStreamerProfiles, _indicesStreamerProfiles);
+        final TableInfo _existingStreamerProfiles = TableInfo.read(db, "streamer_profiles");
+        if (!_infoStreamerProfiles.equals(_existingStreamerProfiles)) {
+          return new RoomOpenHelper.ValidationResult(false, "streamer_profiles(com.campus.network.core.database.entity.StreamerProfileEntity).\n"
+                  + " Expected:\n" + _infoStreamerProfiles + "\n"
+                  + " Found:\n" + _existingStreamerProfiles);
+        }
+        final HashMap<String, TableInfo.Column> _columnsStreamComments = new HashMap<String, TableInfo.Column>(8);
+        _columnsStreamComments.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("streamId", new TableInfo.Column("streamId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("senderId", new TableInfo.Column("senderId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("senderName", new TableInfo.Column("senderName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("senderAvatarUrl", new TableInfo.Column("senderAvatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("senderAvatarRes", new TableInfo.Column("senderAvatarRes", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("commentText", new TableInfo.Column("commentText", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsStreamComments.put("timestampEpochMs", new TableInfo.Column("timestampEpochMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysStreamComments = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesStreamComments = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoStreamComments = new TableInfo("stream_comments", _columnsStreamComments, _foreignKeysStreamComments, _indicesStreamComments);
+        final TableInfo _existingStreamComments = TableInfo.read(db, "stream_comments");
+        if (!_infoStreamComments.equals(_existingStreamComments)) {
+          return new RoomOpenHelper.ValidationResult(false, "stream_comments(com.campus.network.core.database.entity.StreamCommentEntity).\n"
+                  + " Expected:\n" + _infoStreamComments + "\n"
+                  + " Found:\n" + _existingStreamComments);
+        }
+        final HashMap<String, TableInfo.Column> _columnsServers = new HashMap<String, TableInfo.Column>(11);
+        _columnsServers.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("description", new TableInfo.Column("description", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("category", new TableInfo.Column("category", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("ownerId", new TableInfo.Column("ownerId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("avatarResName", new TableInfo.Column("avatarResName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("bannerResName", new TableInfo.Column("bannerResName", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("isVerified", new TableInfo.Column("isVerified", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("memberCount", new TableInfo.Column("memberCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("inviteCode", new TableInfo.Column("inviteCode", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServers.put("createdAtEpochMs", new TableInfo.Column("createdAtEpochMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysServers = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesServers = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoServers = new TableInfo("servers", _columnsServers, _foreignKeysServers, _indicesServers);
+        final TableInfo _existingServers = TableInfo.read(db, "servers");
+        if (!_infoServers.equals(_existingServers)) {
+          return new RoomOpenHelper.ValidationResult(false, "servers(com.campus.network.core.database.entity.ServerEntity).\n"
+                  + " Expected:\n" + _infoServers + "\n"
+                  + " Found:\n" + _existingServers);
+        }
+        final HashMap<String, TableInfo.Column> _columnsServerChannels = new HashMap<String, TableInfo.Column>(9);
+        _columnsServerChannels.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("serverId", new TableInfo.Column("serverId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("categoryName", new TableInfo.Column("categoryName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("channelType", new TableInfo.Column("channelType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("topic", new TableInfo.Column("topic", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("unreadCount", new TableInfo.Column("unreadCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("isPinned", new TableInfo.Column("isPinned", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerChannels.put("orderIndex", new TableInfo.Column("orderIndex", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysServerChannels = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesServerChannels = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoServerChannels = new TableInfo("server_channels", _columnsServerChannels, _foreignKeysServerChannels, _indicesServerChannels);
+        final TableInfo _existingServerChannels = TableInfo.read(db, "server_channels");
+        if (!_infoServerChannels.equals(_existingServerChannels)) {
+          return new RoomOpenHelper.ValidationResult(false, "server_channels(com.campus.network.core.database.entity.ServerChannelEntity).\n"
+                  + " Expected:\n" + _infoServerChannels + "\n"
+                  + " Found:\n" + _existingServerChannels);
+        }
+        final HashMap<String, TableInfo.Column> _columnsServerRules = new HashMap<String, TableInfo.Column>(5);
+        _columnsServerRules.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerRules.put("serverId", new TableInfo.Column("serverId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerRules.put("ruleIndex", new TableInfo.Column("ruleIndex", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerRules.put("title", new TableInfo.Column("title", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerRules.put("description", new TableInfo.Column("description", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysServerRules = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesServerRules = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoServerRules = new TableInfo("server_rules", _columnsServerRules, _foreignKeysServerRules, _indicesServerRules);
+        final TableInfo _existingServerRules = TableInfo.read(db, "server_rules");
+        if (!_infoServerRules.equals(_existingServerRules)) {
+          return new RoomOpenHelper.ValidationResult(false, "server_rules(com.campus.network.core.database.entity.ServerRuleEntity).\n"
+                  + " Expected:\n" + _infoServerRules + "\n"
+                  + " Found:\n" + _existingServerRules);
+        }
+        final HashMap<String, TableInfo.Column> _columnsServerMembers = new HashMap<String, TableInfo.Column>(14);
+        _columnsServerMembers.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("userId", new TableInfo.Column("userId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("serverId", new TableInfo.Column("serverId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("displayName", new TableInfo.Column("displayName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("handle", new TableInfo.Column("handle", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("role", new TableInfo.Column("role", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("roleTitle", new TableInfo.Column("roleTitle", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("roleColorHex", new TableInfo.Column("roleColorHex", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("avatarUrl", new TableInfo.Column("avatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("avatarResName", new TableInfo.Column("avatarResName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("isOnline", new TableInfo.Column("isOnline", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("customStatus", new TableInfo.Column("customStatus", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("joinedAtEpochMs", new TableInfo.Column("joinedAtEpochMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerMembers.put("badge", new TableInfo.Column("badge", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysServerMembers = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesServerMembers = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoServerMembers = new TableInfo("server_members", _columnsServerMembers, _foreignKeysServerMembers, _indicesServerMembers);
+        final TableInfo _existingServerMembers = TableInfo.read(db, "server_members");
+        if (!_infoServerMembers.equals(_existingServerMembers)) {
+          return new RoomOpenHelper.ValidationResult(false, "server_members(com.campus.network.core.database.entity.ServerMemberEntity).\n"
+                  + " Expected:\n" + _infoServerMembers + "\n"
+                  + " Found:\n" + _existingServerMembers);
+        }
+        final HashMap<String, TableInfo.Column> _columnsFriends = new HashMap<String, TableInfo.Column>(9);
+        _columnsFriends.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("userId", new TableInfo.Column("userId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("friendUserId", new TableInfo.Column("friendUserId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("friendDisplayName", new TableInfo.Column("friendDisplayName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("friendHandle", new TableInfo.Column("friendHandle", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("friendAvatarResName", new TableInfo.Column("friendAvatarResName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("status", new TableInfo.Column("status", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("lastInteractionEpochMs", new TableInfo.Column("lastInteractionEpochMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFriends.put("dmChannelId", new TableInfo.Column("dmChannelId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysFriends = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesFriends = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoFriends = new TableInfo("friends", _columnsFriends, _foreignKeysFriends, _indicesFriends);
+        final TableInfo _existingFriends = TableInfo.read(db, "friends");
+        if (!_infoFriends.equals(_existingFriends)) {
+          return new RoomOpenHelper.ValidationResult(false, "friends(com.campus.network.core.database.entity.FriendEntity).\n"
+                  + " Expected:\n" + _infoFriends + "\n"
+                  + " Found:\n" + _existingFriends);
+        }
+        final HashMap<String, TableInfo.Column> _columnsServerInvites = new HashMap<String, TableInfo.Column>(9);
+        _columnsServerInvites.put("code", new TableInfo.Column("code", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("serverId", new TableInfo.Column("serverId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("serverName", new TableInfo.Column("serverName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("inviterId", new TableInfo.Column("inviterId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("inviterName", new TableInfo.Column("inviterName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("expiresAtEpochMs", new TableInfo.Column("expiresAtEpochMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("maxUses", new TableInfo.Column("maxUses", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("usesCount", new TableInfo.Column("usesCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsServerInvites.put("isRevoked", new TableInfo.Column("isRevoked", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysServerInvites = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesServerInvites = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoServerInvites = new TableInfo("server_invites", _columnsServerInvites, _foreignKeysServerInvites, _indicesServerInvites);
+        final TableInfo _existingServerInvites = TableInfo.read(db, "server_invites");
+        if (!_infoServerInvites.equals(_existingServerInvites)) {
+          return new RoomOpenHelper.ValidationResult(false, "server_invites(com.campus.network.core.database.entity.ServerInviteEntity).\n"
+                  + " Expected:\n" + _infoServerInvites + "\n"
+                  + " Found:\n" + _existingServerInvites);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "7a0f6290d50777cbc6efd685452bddca", "9bc0b9a810e824e62319b5a7bb908add");
+    }, "3c8524a7922aac353990e8ff8601c390", "5fd06438e77f36d4b1c1ded6ae0eb8c6");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -229,7 +468,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "flash_meets","academic_channels","chat_messages","market_items","micro_gigs");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "flash_meets","academic_channels","chat_messages","market_items","micro_gigs","live_streams","streamer_profiles","stream_comments","servers","server_channels","server_rules","server_members","friends","server_invites");
   }
 
   @Override
@@ -243,6 +482,15 @@ public final class CampusDatabase_Impl extends CampusDatabase {
       _db.execSQL("DELETE FROM `chat_messages`");
       _db.execSQL("DELETE FROM `market_items`");
       _db.execSQL("DELETE FROM `micro_gigs`");
+      _db.execSQL("DELETE FROM `live_streams`");
+      _db.execSQL("DELETE FROM `streamer_profiles`");
+      _db.execSQL("DELETE FROM `stream_comments`");
+      _db.execSQL("DELETE FROM `servers`");
+      _db.execSQL("DELETE FROM `server_channels`");
+      _db.execSQL("DELETE FROM `server_rules`");
+      _db.execSQL("DELETE FROM `server_members`");
+      _db.execSQL("DELETE FROM `friends`");
+      _db.execSQL("DELETE FROM `server_invites`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();
@@ -262,6 +510,15 @@ public final class CampusDatabase_Impl extends CampusDatabase {
     _typeConvertersMap.put(ChatMessageDao.class, ChatMessageDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(MarketItemDao.class, MarketItemDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(MicroGigDao.class, MicroGigDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(LiveStreamDao.class, LiveStreamDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(StreamerProfileDao.class, StreamerProfileDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(StreamCommentDao.class, StreamCommentDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(ServerDao.class, ServerDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(ServerChannelDao.class, ServerChannelDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(ServerRuleDao.class, ServerRuleDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(ServerMemberDao.class, ServerMemberDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(FriendDao.class, FriendDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(ServerInviteDao.class, ServerInviteDao_Impl.getRequiredConverters());
     return _typeConvertersMap;
   }
 
@@ -346,6 +603,132 @@ public final class CampusDatabase_Impl extends CampusDatabase {
           _microGigDao = new MicroGigDao_Impl(this);
         }
         return _microGigDao;
+      }
+    }
+  }
+
+  @Override
+  public LiveStreamDao liveStreamDao() {
+    if (_liveStreamDao != null) {
+      return _liveStreamDao;
+    } else {
+      synchronized(this) {
+        if(_liveStreamDao == null) {
+          _liveStreamDao = new LiveStreamDao_Impl(this);
+        }
+        return _liveStreamDao;
+      }
+    }
+  }
+
+  @Override
+  public StreamerProfileDao streamerProfileDao() {
+    if (_streamerProfileDao != null) {
+      return _streamerProfileDao;
+    } else {
+      synchronized(this) {
+        if(_streamerProfileDao == null) {
+          _streamerProfileDao = new StreamerProfileDao_Impl(this);
+        }
+        return _streamerProfileDao;
+      }
+    }
+  }
+
+  @Override
+  public StreamCommentDao streamCommentDao() {
+    if (_streamCommentDao != null) {
+      return _streamCommentDao;
+    } else {
+      synchronized(this) {
+        if(_streamCommentDao == null) {
+          _streamCommentDao = new StreamCommentDao_Impl(this);
+        }
+        return _streamCommentDao;
+      }
+    }
+  }
+
+  @Override
+  public ServerDao serverDao() {
+    if (_serverDao != null) {
+      return _serverDao;
+    } else {
+      synchronized(this) {
+        if(_serverDao == null) {
+          _serverDao = new ServerDao_Impl(this);
+        }
+        return _serverDao;
+      }
+    }
+  }
+
+  @Override
+  public ServerChannelDao serverChannelDao() {
+    if (_serverChannelDao != null) {
+      return _serverChannelDao;
+    } else {
+      synchronized(this) {
+        if(_serverChannelDao == null) {
+          _serverChannelDao = new ServerChannelDao_Impl(this);
+        }
+        return _serverChannelDao;
+      }
+    }
+  }
+
+  @Override
+  public ServerRuleDao serverRuleDao() {
+    if (_serverRuleDao != null) {
+      return _serverRuleDao;
+    } else {
+      synchronized(this) {
+        if(_serverRuleDao == null) {
+          _serverRuleDao = new ServerRuleDao_Impl(this);
+        }
+        return _serverRuleDao;
+      }
+    }
+  }
+
+  @Override
+  public ServerMemberDao serverMemberDao() {
+    if (_serverMemberDao != null) {
+      return _serverMemberDao;
+    } else {
+      synchronized(this) {
+        if(_serverMemberDao == null) {
+          _serverMemberDao = new ServerMemberDao_Impl(this);
+        }
+        return _serverMemberDao;
+      }
+    }
+  }
+
+  @Override
+  public FriendDao friendDao() {
+    if (_friendDao != null) {
+      return _friendDao;
+    } else {
+      synchronized(this) {
+        if(_friendDao == null) {
+          _friendDao = new FriendDao_Impl(this);
+        }
+        return _friendDao;
+      }
+    }
+  }
+
+  @Override
+  public ServerInviteDao serverInviteDao() {
+    if (_serverInviteDao != null) {
+      return _serverInviteDao;
+    } else {
+      synchronized(this) {
+        if(_serverInviteDao == null) {
+          _serverInviteDao = new ServerInviteDao_Impl(this);
+        }
+        return _serverInviteDao;
       }
     }
   }

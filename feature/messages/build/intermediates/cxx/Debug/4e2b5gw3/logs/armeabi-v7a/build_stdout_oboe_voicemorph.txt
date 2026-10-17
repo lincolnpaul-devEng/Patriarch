@@ -1,0 +1,2 @@
+ninja: Entering directory `/home/lincoln/patreon/feature/messages/.cxx/Debug/4e2b5gw3/armeabi-v7a'
+ninja: no work to do.

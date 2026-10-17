@@ -180,13 +180,16 @@ fun TransactionSettlementCard(
                         }
                         Button(
                             onClick = { onConfirmSettlement(payload.transactionId) },
-                            colors = ButtonDefaults.buttonColors(containerColor = CampusPrimary),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CampusPrimary,
+                                contentColor = Color.White
+                            ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(28.dp)
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Release", fontSize = 10.sp)
+                            Text("Release", fontSize = 10.sp, color = Color.White)
                         }
                     }
                 }

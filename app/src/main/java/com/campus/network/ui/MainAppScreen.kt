@@ -56,12 +56,15 @@ fun MainAppScreen(
     val academicChannelsRepository = remember(database) {
         AcademicChannelsRepository(database)
     }
-    val channelsViewModel = remember(academicChannelsRepository) {
-        ChannelsViewModel(academicChannelsRepository)
+    val serverRepository = remember(database) {
+        com.campus.network.core.data.ServerRepository(database)
+    }
+    val channelsViewModel = remember(academicChannelsRepository, serverRepository) {
+        ChannelsViewModel(academicChannelsRepository, serverRepository)
     }
     val channelsUiState by channelsViewModel.uiState.collectAsStateWithLifecycle()
 
-    // Following standard messaging app practice (WhatsApp, iMessage, Telegram, Discord):
+    // Following standard messaging app practice (WhatsApp, iMessage, Telegram, patriarch):
     // The bottom tab navigation bar is hidden on messages screens and channel chats so the
     // conversation gets full screen immersion with the floating action dock elevating with IME.
     val bottomTabRoutes = remember {

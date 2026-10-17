@@ -86,6 +86,8 @@ fun ServerProfileDrawer(
     onBrowseChannelsClick: () -> Unit,
     onEditProfileClick: () -> Unit,
     onLeaveServerClick: () -> Unit,
+    onCreateChannelClick: () -> Unit = {},
+    onRulesClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (!isOpen) return
@@ -375,6 +377,40 @@ fun ServerProfileDrawer(
                         ) {
                             Text(
                                 text = "Browse Channels",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1E1F22)
+                            )
+                        }
+
+                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onCreateChannelClick)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Create Channel",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF5865F2)
+                            )
+                        }
+
+                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onRulesClick)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Server Rules & Conduct",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF1E1F22)

@@ -68,7 +68,7 @@ import com.campus.network.core.ui.theme.BrandBluePrimary
 
 /**
  * Main Message Threads Screen with Dark Cosmic/Radial Gradient Aesthetic.
- * Fully follows WhatsApp, Discord, and Instagram patterns:
+ * Fully follows WhatsApp, patriarch, and Instagram patterns:
  * - Direct full-screen navigation for Add Note, New Chat, Broadcast, and Voice Studio (no dialogs).
  * - Central avatar tap navigates directly to Profile screen to edit avatar and bio.
  * - Floating dock triggers dedicated screens.
@@ -351,7 +351,7 @@ fun MessageThreadsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // + New Action: opens WhatsApp/Discord-style Contact Picker screen
+                    // + New Action: opens WhatsApp/patriarch-style Contact Picker screen
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier

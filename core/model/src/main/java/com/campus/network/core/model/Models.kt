@@ -27,9 +27,10 @@ data class FlashMeet(
 
 enum class MeetCategory {
     STUDY_JAM,
-    FOOD_RUN,
+    SAFETRADE_EXCHANGE,
     PROJECT_HACK,
     SPORTS_PICKUP,
+    CAMPUS_WALK,
     COMMUTE_POOL
 }
 
@@ -133,7 +134,25 @@ data class StudentProfile(
     val consistencyStreakDays: Int,
     val behavioralTrustScore: Int, // 0 - 100
     val verifiedSkillBadges: List<VerifiedSkillBadge>,
-    val privateQuestDeck: List<ConsistencyQuest>
+    val privateQuestDeck: List<ConsistencyQuest>,
+    val statusNote: String? = null,
+    val statusNoteEmoji: String? = null,
+    val statusNoteExpiry: String? = null,
+    val bio: String = "Undergraduate researcher in distributed campus systems & mobile architectures.",
+    val avatarUrl: String? = null,
+    val campusResidence: String = "Strathmore Quad B, Hall 4",
+    val phoneNumber: String = "+254 712 345 678",
+    val interests: List<String> = listOf("Mobile Engineering", "Distributed Systems", "AI / LLM Agents", "Fintech Escrow"),
+    val storageUsedBytes: Long = 348_000_000L, // 348 MB used out of 1 GB
+    val storageQuotaBytes: Long = 1_073_741_824L, // 1 GB dedicated storage
+    val notificationsEnabled: Boolean = true,
+    val escrowAlertsEnabled: Boolean = true,
+    val questRemindersEnabled: Boolean = true,
+    val isTrustScorePublic: Boolean = true,
+    val isOnlineStatusVisible: Boolean = true,
+    val activityLedgerVisibility: String = "Public to Campus",
+    val personaRole: String = "Undergraduate Student",
+    val alternateProfiles: List<StudentProfile> = emptyList()
 )
 
 data class VerifiedSkillBadge(
@@ -172,3 +191,42 @@ enum class QuestCategory {
     COMMUNITY_ENGAGEMENT,
     FOCUS_STREAK
 }
+
+/**
+ * Domain Models for Campus Live Streaming and Profiles.
+ */
+data class LiveStream(
+    val id: String,
+    val broadcasterId: String,
+    val broadcasterName: String,
+    val broadcasterHandle: String,
+    val broadcasterAvatarRes: Int = 0,
+    val broadcasterAvatarUrl: String? = null,
+    val title: String,
+    val description: String,
+    val category: String,
+    val audience: String = "CAMPUS",
+    val isLive: Boolean = true,
+    val streamPlaybackUrl: String? = null,
+    val backdropImageRes: Int = 0,
+    val backdropImageUrl: String? = null,
+    val viewerCount: Int = 0,
+    val peakViewers: Int = 0,
+    val likeCount: Int = 0,
+    val startedAtEpochMs: Long = System.currentTimeMillis(),
+    val endedAtEpochMs: Long? = null,
+    val durationSeconds: Int = 0,
+    val serverId: String? = null
+)
+
+data class StreamComment(
+    val id: String,
+    val streamId: String,
+    val senderId: String,
+    val senderName: String,
+    val senderAvatarUrl: String? = null,
+    val senderAvatarRes: Int = 0,
+    val commentText: String,
+    val timestampEpochMs: Long = System.currentTimeMillis()
+)
+
