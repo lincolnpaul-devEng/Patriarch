@@ -9,6 +9,10 @@ import com.campus.network.core.model.CampusPlace
 import com.campus.network.core.model.FlashMeet
 import com.campus.network.core.model.MeetCategory
 import com.campus.network.core.model.PlaceCategory
+import com.campus.network.core.data.StudentProfileRepository
+import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.firstName
+import com.campus.network.core.model.initials
 import com.campus.network.feature.map.events.CampusEvent
 import com.campus.network.feature.map.events.MapNavigationMode
 import com.campus.network.feature.map.events.sampleCampusEvents
@@ -43,8 +47,21 @@ data class MapUiState(
     val navigationMode: MapNavigationMode = MapNavigationMode.MAP,
     val events: List<CampusEvent> = sampleCampusEvents,
     val selectedEvent: CampusEvent? = null,
-    val focusedEventLocation: LatLng? = null
-)
+    val focusedEventLocation: LatLng? = null,
+    val studentProfile: StudentProfile? = null
+) {
+    val studentName: String
+        get() = studentProfile?.fullName ?: "Lincoln Kiprotich"
+
+    val studentFirstName: String
+        get() = studentProfile?.firstName ?: "Lincoln"
+
+    val studentInitials: String
+        get() = studentProfile?.initials ?: "LK"
+
+    val studentAvatarUrl: String?
+        get() = studentProfile?.avatarUrl
+}
 
 sealed interface MapEvent {
     data class SelectPlace(val place: CampusPlace?) : MapEvent
@@ -70,6 +87,12 @@ sealed interface MapEvent {
         val latitude: Double? = null,
         val longitude: Double? = null
     ) : MapEvent
+    data class CreateCampusEvent(
+        val event: CampusEvent,
+        val alsoPublishAsFlashMeet: Boolean = false,
+        val flashMeetCategory: MeetCategory = MeetCategory.PROJECT_HACK,
+        val durationMinutes: Int = 60
+    ) : MapEvent
     data class ToggleCreateDialog(val show: Boolean) : MapEvent
 
     // Events screen UI flow events
@@ -79,11 +102,13 @@ sealed interface MapEvent {
     data object ShowMap : MapEvent
     data class ToggleRegisterEvent(val eventId: String) : MapEvent
     data class FocusEventLocationOnMap(val event: CampusEvent) : MapEvent
+    data class FocusCoordinatesOnMap(val latitude: Double, val longitude: Double) : MapEvent
 }
 
 class MapViewModel(
     private val flashMeetRepository: FlashMeetRepository,
-    private val placesRepository: PlacesRepository = PlacesRepository()
+    private val placesRepository: PlacesRepository = PlacesRepository(),
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
 ) : ViewModel() {
 
     private val _selectedPlace = MutableStateFlow<CampusPlace?>(null)
@@ -103,6 +128,15 @@ class MapViewModel(
     private val _events = MutableStateFlow(sampleCampusEvents)
     private val _selectedEvent = MutableStateFlow<CampusEvent?>(null)
     private val _focusedEventLocation = MutableStateFlow<LatLng?>(null)
+    private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
+
+    init {
+        viewModelScope.launch {
+            studentProfileRepository.getProfile().collect { profile ->
+                _currentProfile.value = profile
+            }
+        }
+    }
 
     val uiState: StateFlow<MapUiState> = combine(
         placesRepository.places,
@@ -123,7 +157,8 @@ class MapViewModel(
         _navigationMode,
         _events,
         _selectedEvent,
-        _focusedEventLocation
+        _focusedEventLocation,
+        _currentProfile
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val allPlaces = args[0] as List<CampusPlace>
@@ -150,6 +185,7 @@ class MapViewModel(
         val eventList = args[16] as List<CampusEvent>
         val currentEvent = args[17] as CampusEvent?
         val focusedLocation = args[18] as LatLng?
+        val currentProfile = args[19] as StudentProfile?
 
         val filtered = allPlaces.filter { place ->
             val matchesCategory = category == PlaceCategory.TOP_PICKS || place.category == category
@@ -190,7 +226,8 @@ class MapViewModel(
             navigationMode = navMode,
             events = eventList,
             selectedEvent = currentEvent,
-            focusedEventLocation = focusedLocation
+            focusedEventLocation = focusedLocation,
+            studentProfile = currentProfile
         )
     }.stateIn(
         scope = viewModelScope,
@@ -270,11 +307,37 @@ class MapViewModel(
                         latitude = targetLat,
                         longitude = targetLng,
                         locationName = event.locationName,
-                        creatorName = "You (Verified Student)",
+                        creatorName = _currentProfile.value?.fullName ?: "You (Verified Student)",
                         durationMinutes = event.durationMinutes
                     )
                     _isCreateDialogVisible.value = false
                     _feedbackMessage.value = "Campus Flash Meet published live!"
+                }
+            }
+            is MapEvent.CreateCampusEvent -> {
+                viewModelScope.launch {
+                    val updatedEvents = listOf(event.event) + _events.value
+                    _events.value = updatedEvents
+
+                    if (event.alsoPublishAsFlashMeet) {
+                        flashMeetRepository.createFlashMeet(
+                            title = event.event.title,
+                            description = event.event.description,
+                            category = event.flashMeetCategory,
+                            latitude = event.event.latitude,
+                            longitude = event.event.longitude,
+                            locationName = event.event.locationName,
+                            creatorName = event.event.hostName,
+                            durationMinutes = event.durationMinutes
+                        )
+                    }
+
+                    _isCreateDialogVisible.value = false
+                    _feedbackMessage.value = if (event.alsoPublishAsFlashMeet) {
+                        "Flash Meet & Campus Event published live!"
+                    } else {
+                        "Campus Event published to Events Hub!"
+                    }
                 }
             }
 
@@ -315,6 +378,10 @@ class MapViewModel(
             }
             is MapEvent.FocusEventLocationOnMap -> {
                 _focusedEventLocation.value = LatLng(event.event.latitude, event.event.longitude)
+                _navigationMode.value = MapNavigationMode.MAP
+            }
+            is MapEvent.FocusCoordinatesOnMap -> {
+                _focusedEventLocation.value = LatLng(event.latitude, event.longitude)
                 _navigationMode.value = MapNavigationMode.MAP
             }
         }

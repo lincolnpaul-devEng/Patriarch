@@ -38,7 +38,7 @@ public final class MarketItemDao_Impl implements MarketItemDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `market_items` (`id`,`title`,`price`,`currency`,`category`,`condition`,`sellerName`,`sellerRating`,`isCampusVerifiedSeller`,`campusHallLocation`,`imageUrl`,`timestampMs`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `market_items` (`id`,`title`,`price`,`currency`,`category`,`condition`,`sellerName`,`sellerRating`,`isCampusVerifiedSeller`,`campusHallLocation`,`imageUrl`,`timestampMs`,`description`,`pickupSpotName`,`pickupSecurityLevel`,`pickupLatitude`,`pickupLongitude`,`pickupTiming`,`payoutMethod`,`requiresQrReleaseCode`,`qrReleaseCode`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -61,6 +61,16 @@ public final class MarketItemDao_Impl implements MarketItemDao {
           statement.bindString(11, entity.getImageUrl());
         }
         statement.bindLong(12, entity.getTimestampMs());
+        statement.bindString(13, entity.getDescription());
+        statement.bindString(14, entity.getPickupSpotName());
+        statement.bindString(15, entity.getPickupSecurityLevel());
+        statement.bindDouble(16, entity.getPickupLatitude());
+        statement.bindDouble(17, entity.getPickupLongitude());
+        statement.bindString(18, entity.getPickupTiming());
+        statement.bindString(19, entity.getPayoutMethod());
+        final int _tmp_1 = entity.getRequiresQrReleaseCode() ? 1 : 0;
+        statement.bindLong(20, _tmp_1);
+        statement.bindString(21, entity.getQrReleaseCode());
       }
     };
   }
@@ -106,6 +116,15 @@ public final class MarketItemDao_Impl implements MarketItemDao {
           final int _cursorIndexOfCampusHallLocation = CursorUtil.getColumnIndexOrThrow(_cursor, "campusHallLocation");
           final int _cursorIndexOfImageUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "imageUrl");
           final int _cursorIndexOfTimestampMs = CursorUtil.getColumnIndexOrThrow(_cursor, "timestampMs");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfPickupSpotName = CursorUtil.getColumnIndexOrThrow(_cursor, "pickupSpotName");
+          final int _cursorIndexOfPickupSecurityLevel = CursorUtil.getColumnIndexOrThrow(_cursor, "pickupSecurityLevel");
+          final int _cursorIndexOfPickupLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "pickupLatitude");
+          final int _cursorIndexOfPickupLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "pickupLongitude");
+          final int _cursorIndexOfPickupTiming = CursorUtil.getColumnIndexOrThrow(_cursor, "pickupTiming");
+          final int _cursorIndexOfPayoutMethod = CursorUtil.getColumnIndexOrThrow(_cursor, "payoutMethod");
+          final int _cursorIndexOfRequiresQrReleaseCode = CursorUtil.getColumnIndexOrThrow(_cursor, "requiresQrReleaseCode");
+          final int _cursorIndexOfQrReleaseCode = CursorUtil.getColumnIndexOrThrow(_cursor, "qrReleaseCode");
           final List<MarketItemEntity> _result = new ArrayList<MarketItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MarketItemEntity _item;
@@ -139,7 +158,27 @@ public final class MarketItemDao_Impl implements MarketItemDao {
             }
             final long _tmpTimestampMs;
             _tmpTimestampMs = _cursor.getLong(_cursorIndexOfTimestampMs);
-            _item = new MarketItemEntity(_tmpId,_tmpTitle,_tmpPrice,_tmpCurrency,_tmpCategory,_tmpCondition,_tmpSellerName,_tmpSellerRating,_tmpIsCampusVerifiedSeller,_tmpCampusHallLocation,_tmpImageUrl,_tmpTimestampMs);
+            final String _tmpDescription;
+            _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            final String _tmpPickupSpotName;
+            _tmpPickupSpotName = _cursor.getString(_cursorIndexOfPickupSpotName);
+            final String _tmpPickupSecurityLevel;
+            _tmpPickupSecurityLevel = _cursor.getString(_cursorIndexOfPickupSecurityLevel);
+            final double _tmpPickupLatitude;
+            _tmpPickupLatitude = _cursor.getDouble(_cursorIndexOfPickupLatitude);
+            final double _tmpPickupLongitude;
+            _tmpPickupLongitude = _cursor.getDouble(_cursorIndexOfPickupLongitude);
+            final String _tmpPickupTiming;
+            _tmpPickupTiming = _cursor.getString(_cursorIndexOfPickupTiming);
+            final String _tmpPayoutMethod;
+            _tmpPayoutMethod = _cursor.getString(_cursorIndexOfPayoutMethod);
+            final boolean _tmpRequiresQrReleaseCode;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfRequiresQrReleaseCode);
+            _tmpRequiresQrReleaseCode = _tmp_1 != 0;
+            final String _tmpQrReleaseCode;
+            _tmpQrReleaseCode = _cursor.getString(_cursorIndexOfQrReleaseCode);
+            _item = new MarketItemEntity(_tmpId,_tmpTitle,_tmpPrice,_tmpCurrency,_tmpCategory,_tmpCondition,_tmpSellerName,_tmpSellerRating,_tmpIsCampusVerifiedSeller,_tmpCampusHallLocation,_tmpImageUrl,_tmpTimestampMs,_tmpDescription,_tmpPickupSpotName,_tmpPickupSecurityLevel,_tmpPickupLatitude,_tmpPickupLongitude,_tmpPickupTiming,_tmpPayoutMethod,_tmpRequiresQrReleaseCode,_tmpQrReleaseCode);
             _result.add(_item);
           }
           return _result;

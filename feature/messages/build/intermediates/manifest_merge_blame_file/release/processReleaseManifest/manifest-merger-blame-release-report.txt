@@ -1,0 +1,56 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.campus.network.feature.messages" >
+4
+5    <uses-sdk android:minSdkVersion="26" />
+6
+7    <uses-permission android:name="android.permission.CAMERA" />
+7-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:3:5-65
+7-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:3:22-62
+8    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+8-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:4:5-71
+8-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:4:22-68
+9    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+9-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:5:5-80
+9-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:5:22-77
+10    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+10-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:6:5-75
+10-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:6:22-72
+11
+12    <uses-feature
+12-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:7:5-85
+13        android:name="android.hardware.camera"
+13-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:7:19-57
+14        android:required="false" />
+14-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:7:58-82
+15    <uses-feature
+15-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:8:5-95
+16        android:name="android.hardware.camera.autofocus"
+16-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:8:19-67
+17        android:required="false" />
+17-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:8:68-92
+18
+19    <queries>
+19-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:10:5-19:15
+20        <intent>
+20-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:11:9-13:18
+21            <action android:name="android.speech.RecognitionService" />
+21-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:12:13-72
+21-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:12:21-69
+22        </intent>
+23        <intent>
+23-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:14:9-16:18
+24            <action android:name="android.intent.action.RECOGNIZE_SPEECH" />
+24-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:15:13-77
+24-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:15:21-74
+25        </intent>
+26
+27        <package android:name="com.google.android.googlequicksearchbox" />
+27-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:17:9-75
+27-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:17:18-72
+28        <package android:name="com.google.android.tts" />
+28-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:18:9-58
+28-->/home/lincoln/patreon/feature/messages/src/main/AndroidManifest.xml:18:18-55
+29    </queries>
+30
+31</manifest>

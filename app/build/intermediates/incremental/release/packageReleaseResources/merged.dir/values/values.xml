@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#212226</color>
+    <string name="gcm_defaultSenderId" translatable="false">273384584177</string>
+    <string name="google_api_key" translatable="false">AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78</string>
+    <string name="google_app_id" translatable="false">1:273384584177:android:bab0f98fc4c756cae38a50</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78</string>
+    <string name="google_storage_bucket" translatable="false">modified-silo-476908-b3.firebasestorage.app</string>
+    <string name="project_id" translatable="false">modified-silo-476908-b3</string>
+</resources>

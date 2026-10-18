@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.data.ServerRepository
+import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.AcademicChannel
+import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.firstName
 import com.campus.network.core.model.ServerChannelType
 import com.campus.network.core.model.ServerRule
 import com.campus.network.feature.channels.model.CareerCourse
@@ -89,11 +92,13 @@ data class ChannelsUiState(
     val selectedServer: ServerItem? = null,
     val selectedChannelId: String = "ch_mern_github",
     val isRailCollapsed: Boolean = false,
-    val activeUserName: String = "Lincoln Paul",
+    val activeUserName: String = "Lincoln Kiprotich",
+    val activeUserAvatar: String? = "avatar_lincoln",
     val activeUserStatus: String = "Online",
     val activeUserUnreadCount: Int = 2,
     val activeChatServer: ServerItem? = null,
     val activeChatChannel: ServerChannelItem? = null,
+    val studentProfile: StudentProfile? = null,
     val chatMessages: List<ChannelMessage> = emptyList(),
     val isMediaDrawerOpen: Boolean = false,
     val activeMediaTab: String = "Photos",
@@ -196,6 +201,7 @@ sealed interface ChannelsEvent {
     data class SendFriendRequest(val memberId: String) : ChannelsEvent
     data class CancelFriendRequest(val memberId: String) : ChannelsEvent
     data class AcceptFriendRequest(val memberId: String) : ChannelsEvent
+    data class DeclineFriendRequest(val memberId: String) : ChannelsEvent
     data object OpenEditServerProfile : ChannelsEvent
     data object CloseEditServerProfile : ChannelsEvent
     data class SavePerServerProfile(
@@ -210,8 +216,19 @@ sealed interface ChannelsEvent {
 
 class ChannelsViewModel(
     private val repository: AcademicChannelsRepository,
-    private val serverRepository: ServerRepository? = null
+    private val serverRepository: ServerRepository? = null,
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
 ) : ViewModel() {
+
+    private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
+
+    init {
+        viewModelScope.launch {
+            studentProfileRepository.getProfile().collect { profile ->
+                _currentProfile.value = profile
+            }
+        }
+    }
 
     private val _viewMode = MutableStateFlow(ChannelViewMode.CHANNELS_HUB)
     private val _selectedServerId = MutableStateFlow("srv_codesistency")
@@ -859,7 +876,7 @@ class ChannelsViewModel(
             "ch_redis_chat" to listOf(
                 ChannelMessage(
                     id = "msg_rc_1",
-                    authorName = "Lincoln Paul",
+                    authorName = "Lincoln Kiprotich",
                     authorColorHex = 0xFF003B68,
                     authorAvatarRes = "avatar_lincoln",
                     timestamp = "Today at 10:15 AM",
@@ -877,7 +894,7 @@ class ChannelsViewModel(
             "ch_mern_github" to listOf(
                 ChannelMessage(
                     id = "msg_mg_1",
-                    authorName = "Lincoln Paul",
+                    authorName = "Lincoln Kiprotich",
                     authorColorHex = 0xFF003B68,
                     authorAvatarRes = "avatar_lincoln",
                     timestamp = "Today at 11:00 AM",
@@ -998,10 +1015,11 @@ class ChannelsViewModel(
     }
 
     private fun seedDefaultServerMembers() {
+        val defaultName = _currentProfile.value?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
         val initialProfiles = mapOf(
             "srv_codesistency" to PerServerProfile(
                 serverId = "srv_codesistency",
-                nickname = "Lincoln Paul",
+                nickname = defaultName,
                 tag = "DEV",
                 tagColorHex = 0xFF5865F2,
                 role = "Server Owner"
@@ -1020,10 +1038,10 @@ class ChannelsViewModel(
             ServerMemberItem(
                 id = "mem_lincoln",
                 serverId = "srv_codesistency",
-                name = "Lincoln Paul",
-                handle = "@lincolnpaul",
+                name = defaultName,
+                handle = "@lincolnk",
                 avatarResName = "avatar_lincoln",
-                serverNickname = "Lincoln Paul",
+                serverNickname = defaultName,
                 serverTag = "DEV",
                 serverTagColorHex = 0xFF5865F2,
                 role = ServerMemberRole("Server Owner", ServerRoleType.OWNER, 0xFFEAB308, isOwner = true),
@@ -1149,12 +1167,12 @@ class ChannelsViewModel(
     val uiState: StateFlow<ChannelsUiState> = combine(
         combine(
             combine(_viewMode, _selectedServerId, _selectedChannelId) { vm, sId, cId -> Triple(vm, sId, cId) },
-            _isRailCollapsed,
-            _serverSearchQuery,
+            combine(_isRailCollapsed, _serverSearchQuery) { rc, sq -> Pair(rc, sq) },
             _isServerProfileDrawerOpen,
-            _isAddServerSelected
-        ) { t, railCollapsed, sQuery, isProfileDrawerOpen, isAddServerSelected ->
-            ServerStateSlice1(t.first, t.second, t.third, railCollapsed, sQuery, isProfileDrawerOpen, isAddServerSelected)
+            _isAddServerSelected,
+            _currentProfile
+        ) { t, railAndQuery, isProfileDrawerOpen, isAddServerSelected, profile ->
+            ServerStateSlice1(t.first, t.second, t.third, railAndQuery.first, railAndQuery.second, isProfileDrawerOpen, isAddServerSelected, profile)
         },
         combine(
             _activeChatChannel,
@@ -1261,6 +1279,10 @@ class ChannelsViewModel(
         val activeChannel = slice2.activeChatChannel ?: currentServer.channels.find { it.id == slice1.selectedChannelId }
         val currentMessages = activeChannel?.let { slice2.channelMessages[it.id] } ?: emptyList()
 
+        val profile = slice1.studentProfile
+        val resolvedName = profile?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
+        val resolvedAvatar = profile?.avatarUrl ?: "avatar_lincoln"
+
         ChannelsUiState(
             viewMode = slice1.viewMode,
             servers = currentServers,
@@ -1268,7 +1290,9 @@ class ChannelsViewModel(
             selectedServer = enrichedServer,
             selectedChannelId = slice1.selectedChannelId,
             isRailCollapsed = slice1.isRailCollapsed,
-            activeUserName = "Lincoln Paul",
+            activeUserName = resolvedName,
+            activeUserAvatar = resolvedAvatar,
+            studentProfile = profile,
             activeUserStatus = "Online",
             activeUserUnreadCount = 2,
             activeChatServer = currentServer,
@@ -1366,11 +1390,13 @@ class ChannelsViewModel(
                     ?: _serversList.value.find { it.id == _selectedServerId.value }?.channels?.find { it.id == _selectedChannelId.value }
                     ?: return
                 val currentList = _channelMessages.value[activeChan.id] ?: emptyList()
+                val author = _currentProfile.value?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
+                val avatar = _currentProfile.value?.avatarUrl ?: "avatar_lincoln"
                 val newMessage = ChannelMessage(
                     id = "msg_${System.currentTimeMillis()}",
-                    authorName = "Lincoln Paul",
+                    authorName = author,
                     authorColorHex = 0xFF003B68,
-                    authorAvatarRes = "avatar_lincoln",
+                    authorAvatarRes = avatar,
                     timestamp = "Today at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()),
                     text = event.text,
                     gifUrl = event.gifUrl,
@@ -1423,13 +1449,15 @@ class ChannelsViewModel(
                 _selectedServerId.value = newId
                 _selectedChannelId.value = "ch_${newId}_general"
                 _feedbackMessage.value = "Created server: ${event.name}"
+                val author = _currentProfile.value?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
+                val authorAvatar = _currentProfile.value?.avatarUrl ?: "avatar_lincoln"
                 val newMember = ServerMemberItem(
                     id = "mem_lincoln_$newId",
                     serverId = newId,
-                    name = "Lincoln Paul",
-                    handle = "@lincolnpaul",
-                    avatarResName = "avatar_lincoln",
-                    serverNickname = "Lincoln Paul",
+                    name = author,
+                    handle = "@${author.lowercase().replace(" ", "")}",
+                    avatarResName = authorAvatar,
+                    serverNickname = author,
                     serverTag = "OWNER",
                     serverTagColorHex = 0xFFEAB308,
                     role = ServerMemberRole("Server Owner", ServerRoleType.OWNER, 0xFFEAB308, isOwner = true),
@@ -1439,7 +1467,7 @@ class ChannelsViewModel(
                     friendStatus = FriendRequestStatus.FRIENDS
                 )
                 _serverMembers.value = _serverMembers.value + (newId to listOf(newMember))
-                _perServerProfiles.value = _perServerProfiles.value + (newId to PerServerProfile(newId, "Lincoln Paul", "OWNER", 0xFFEAB308, "Server Owner"))
+                _perServerProfiles.value = _perServerProfiles.value + (newId to PerServerProfile(newId, author, "OWNER", 0xFFEAB308, "Server Owner"))
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
@@ -1823,6 +1851,21 @@ class ChannelsViewModel(
                 _feedbackMessage.value = "You are now friends with $targetName!"
             }
 
+            is ChannelsEvent.DeclineFriendRequest -> {
+                val memberId = event.memberId
+                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                    members.map { mem ->
+                        if (mem.id == memberId) {
+                            mem.copy(friendStatus = FriendRequestStatus.NONE)
+                        } else mem
+                    }
+                }
+                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
+                }
+                _feedbackMessage.value = "Friend request declined."
+            }
+
             is ChannelsEvent.OpenEditServerProfile -> {
                 _isEditServerProfileOpen.value = true
             }
@@ -1843,7 +1886,9 @@ class ChannelsViewModel(
                 _serverMembers.value = _serverMembers.value.mapValues { (sId, members) ->
                     if (sId == event.serverId) {
                         members.map { mem ->
-                            if (mem.name.contains("Lincoln", ignoreCase = true)) {
+                            val selfName = _currentProfile.value?.fullName ?: "Lincoln"
+                            val selfFirst = _currentProfile.value?.firstName ?: "Lincoln"
+                            if (mem.name.contains(selfFirst, ignoreCase = true) || mem.name.contains(selfName, ignoreCase = true)) {
                                 mem.copy(
                                     serverNickname = event.nickname,
                                     serverTag = event.tag,
@@ -1876,7 +1921,8 @@ private data class ServerStateSlice1(
     val isRailCollapsed: Boolean,
     val serverSearchQuery: String,
     val isServerProfileDrawerOpen: Boolean = false,
-    val isAddServerSelected: Boolean = false
+    val isAddServerSelected: Boolean = false,
+    val studentProfile: StudentProfile? = null
 )
 
 private data class ServerStateSlice2(

@@ -9,6 +9,7 @@ if (secretsPropertiesFile.exists()) {
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -28,17 +29,24 @@ android {
         }
 
         buildConfigField("String", "STREAM_API_KEY", "\"${secretsProperties.getProperty("STREAM_API_KEY", "")}\"")
-        buildConfigField("String", "STREAM_SECRET_KEY", "\"${secretsProperties.getProperty("STREAM_SECRET_KEY", "")}\"")
+        // STREAM_SECRET_KEY intentionally NOT shipped: server secrets must never be in a client APK.
+        buildConfigField("String", "EXPECTED_SIGNATURE_SHA256", "\"${secretsProperties.getProperty("RELEASE_SIGNATURE_SHA256", "")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"${secretsProperties.getProperty("SUPABASE_URL", "")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${secretsProperties.getProperty("SUPABASE_ANON_KEY", "")}\"")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"${secretsProperties.getProperty("OPENROUTER_API_KEY", "")}\"")
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${secretsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")}\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID_ANDROID", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_ANDROID", "")}\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID_WEB", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_WEB", "")}\"")
 
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            isJniDebuggable = false
+            ndk { debugSymbolLevel = "NONE" }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -103,6 +111,9 @@ dependencies {
     implementation(libs.androidx.emoji2.bundled)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.play.services.auth)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.firebase.messaging)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

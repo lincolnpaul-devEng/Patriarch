@@ -33,6 +33,7 @@ sealed interface ProfileEvent {
         val bio: String,
         val interests: List<String>
     ) : ProfileEvent
+    data class UpdateAvatar(val avatarUrl: String) : ProfileEvent
     data class AddProfile(val profile: StudentProfile) : ProfileEvent
     data class SwitchProfile(val studentId: String) : ProfileEvent
     data class UpdateNotifications(
@@ -92,6 +93,10 @@ class ProfileViewModel(
                         interests = event.interests
                     )
                     _userMessage.emit("Profile details saved successfully")
+                }
+                is ProfileEvent.UpdateAvatar -> {
+                    repository.updateAvatar(event.avatarUrl)
+                    _userMessage.emit("Profile avatar updated successfully")
                 }
                 is ProfileEvent.AddProfile -> {
                     repository.addProfile(event.profile)

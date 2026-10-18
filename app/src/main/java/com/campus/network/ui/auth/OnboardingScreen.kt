@@ -63,6 +63,14 @@ fun OnboardingScreen(
     onNextClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.setPushEnabled(context, granted)
+        onNextClick()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -139,9 +147,25 @@ fun OnboardingScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // "Next" Primary Button
+                    // "Next" Primary Button — requests Android 13+ POST_NOTIFICATIONS runtime permission
                     Button(
-                        onClick = onNextClick,
+                        onClick = {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                val hasPerm = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context,
+                                    android.Manifest.permission.POST_NOTIFICATIONS
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (!hasPerm) {
+                                    permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.setPushEnabled(context, true)
+                                    onNextClick()
+                                }
+                            } else {
+                                com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.setPushEnabled(context, true)
+                                onNextClick()
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),

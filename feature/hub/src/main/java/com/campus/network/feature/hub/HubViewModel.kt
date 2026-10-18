@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import com.campus.network.core.data.StudentProfileRepository
+import com.campus.network.core.model.StudentProfile
+
 enum class HubViewMode {
     MARKETPLACE_GRID,
     MICRO_GIG_BOARD
@@ -28,7 +31,8 @@ data class HubUiState(
     val filterCategory: String? = null,
     val searchQuery: String = "",
     val aiSuggestions: List<String> = emptyList(),
-    val isAiLoading: Boolean = false
+    val isAiLoading: Boolean = false,
+    val studentProfile: StudentProfile? = null
 )
 
 sealed interface HubEvent {
@@ -43,7 +47,18 @@ sealed interface HubEvent {
         val price: Double,
         val category: String,
         val condition: String,
-        val location: String
+        val location: String,
+        val description: String = "",
+        val pickupSpotName: String = "Quad Library Ground Floor Lockers",
+        val pickupSecurityLevel: String = "CCTV Monitored Safe Zone",
+        val pickupLatitude: Double = -1.3090,
+        val pickupLongitude: Double = 36.8120,
+        val pickupTiming: String = "Immediate (within 1 hr)",
+        val payoutMethod: String = "Campus SafePay Escrow",
+        val requiresQrReleaseCode: Boolean = true,
+        val qrReleaseCode: String = "CP-849201",
+        val imageUrl: String? = null,
+        val imageUrls: List<String> = emptyList()
     ) : HubEvent
     data class PostGig(
         val title: String,
@@ -56,7 +71,8 @@ sealed interface HubEvent {
 }
 
 class HubViewModel(
-    private val repository: CampusHubRepository
+    private val repository: CampusHubRepository,
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
 ) : ViewModel() {
 
     private val _viewMode = MutableStateFlow(HubViewMode.MARKETPLACE_GRID)
@@ -81,8 +97,9 @@ class HubViewModel(
             baseFlow,
             _searchQuery,
             _aiSuggestions,
-            _isAiLoading
-        ) { base, query, suggestions, aiLoading ->
+            _isAiLoading,
+            studentProfileRepository.getProfile()
+        ) { base, query, suggestions, aiLoading, profile ->
             val categoryFilteredItems = if (base.category == null || base.category == "All") {
                 base.items
             } else {
@@ -109,15 +126,64 @@ class HubViewModel(
                 }
             }
 
+            val prefs = profile.onboardingPreferences
+            val favCats = prefs.favoriteCategories.map { it.lowercase() }
+            val priorities = prefs.priorities
+            val preferredCurrency = prefs.currencyCode.ifBlank { "KES" }
+
+            val personalizedItems = searchFilteredItems
+                .map { item ->
+                    if (preferredCurrency != "KES" && item.currency == "KES") {
+                        item.copy(currency = preferredCurrency)
+                    } else {
+                        item
+                    }
+                }
+                .sortedWith(
+                    compareByDescending<MarketItem> { item ->
+                        val catLower = item.category.lowercase()
+                        val titleLower = item.title.lowercase()
+                        favCats.any { fav -> catLower.contains(fav) || fav.contains(catLower) || titleLower.contains(fav) }
+                    }.thenByDescending { item ->
+                        if ("verified_student_seller" in priorities) item.isCampusVerifiedSeller else false
+                    }.thenBy { item ->
+                        if ("reasonable_price" in priorities) item.price else 0.0
+                    }
+                )
+
+            val personalizedGigs = searchFilteredGigs
+                .map { gig ->
+                    if (preferredCurrency != "KES" && gig.currency == "KES") {
+                        gig.copy(currency = preferredCurrency)
+                    } else {
+                        gig
+                    }
+                }
+                .sortedByDescending { gig ->
+                    val tagLower = gig.tag.lowercase()
+                    favCats.any { fav -> tagLower.contains(fav) || fav.contains(tagLower) }
+                }
+
+            val autoViewMode = if (
+                base.mode == HubViewMode.MARKETPLACE_GRID &&
+                "micro_gigs" in prefs.intents &&
+                "buy_sell_marketplace" !in prefs.intents
+            ) {
+                HubViewMode.MICRO_GIG_BOARD
+            } else {
+                base.mode
+            }
+
             HubUiState(
-                activeViewMode = base.mode,
-                marketplaceItems = searchFilteredItems,
-                microGigs = searchFilteredGigs,
+                activeViewMode = autoViewMode,
+                marketplaceItems = personalizedItems,
+                microGigs = personalizedGigs,
                 isPostDialogOpen = base.isPostOpen,
                 filterCategory = base.category,
                 searchQuery = query,
                 aiSuggestions = suggestions,
-                isAiLoading = aiLoading
+                aiLoading,
+                studentProfile = profile
             )
         }
     }.stateIn(
@@ -145,25 +211,40 @@ class HubViewModel(
             }
             is HubEvent.PostItem -> {
                 viewModelScope.launch {
+                    val profile = uiState.value.studentProfile
+                    val authorName = profile?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
                     repository.postMarketItem(
                         title = event.title,
                         price = event.price,
                         category = event.category,
                         condition = event.condition,
-                        sellerName = "Lincoln (Verified Student)",
-                        location = event.location
+                        sellerName = "$authorName (Verified Student)",
+                        location = event.location,
+                        description = event.description,
+                        pickupSpotName = event.pickupSpotName,
+                        pickupSecurityLevel = event.pickupSecurityLevel,
+                        pickupLatitude = event.pickupLatitude,
+                        pickupLongitude = event.pickupLongitude,
+                        pickupTiming = event.pickupTiming,
+                        payoutMethod = event.payoutMethod,
+                        requiresQrReleaseCode = event.requiresQrReleaseCode,
+                        qrReleaseCode = event.qrReleaseCode,
+                        imageUrl = event.imageUrl,
+                        imageUrls = event.imageUrls
                     )
                     _isPostDialogOpen.value = false
                 }
             }
             is HubEvent.PostGig -> {
                 viewModelScope.launch {
+                    val profile = uiState.value.studentProfile
+                    val authorName = profile?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
                     repository.postMicroGig(
                         title = event.title,
                         description = event.description,
                         payoutAmount = event.payout,
                         estimatedDuration = event.duration,
-                        posterName = "Lincoln (Verified Student)",
+                        posterName = "$authorName (Verified Student)",
                         tag = event.tag,
                         urgency = event.urgency
                     )

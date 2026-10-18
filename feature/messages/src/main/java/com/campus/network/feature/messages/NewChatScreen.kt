@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -82,7 +83,7 @@ fun NewChatScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF030712))
+            .background(Color.White)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
@@ -104,14 +105,14 @@ fun NewChatScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color(0x26FFFFFF))
+                            .background(Color(0xFFF2F3F5))
                             .clickable(onClick = onBack),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                             contentDescription = "Back",
-                            tint = Color.White,
+                            tint = Color(0xFF1E1F22),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -122,13 +123,13 @@ fun NewChatScreen(
                         Text(
                             text = if (isMultiSelectMode) "New Group" else "Select Contact",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E1F22)
                         )
                         Text(
                             text = if (isMultiSelectMode) "${selectedPeerIds.size} selected" else "${threads.size} contacts on campus",
                             fontSize = 12.sp,
-                            color = Color(0xFF94A3B8)
+                            color = Color(0xFF5C6470)
                         )
                     }
                 }
@@ -136,8 +137,8 @@ fun NewChatScreen(
                 // Multi-select toggle pill
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = if (isMultiSelectMode) BrandBlueAction else Color(0xFF1E293B),
-                    border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+                    color = if (isMultiSelectMode) Color(0xFF5865F2) else Color(0xFFF2F3F5),
+                    border = BorderStroke(1.dp, if (isMultiSelectMode) Color(0xFF5865F2) else Color(0xFFE3E5E8)),
                     modifier = Modifier.clickable {
                         isMultiSelectMode = !isMultiSelectMode
                         if (!isMultiSelectMode) selectedPeerIds.clear()
@@ -146,21 +147,23 @@ fun NewChatScreen(
                     Text(
                         text = if (isMultiSelectMode) "Single" else "Select Multiple",
                         fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isMultiSelectMode) Color.White else Color(0xFF1E1F22),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
             }
 
+            HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+
             // 2. Search Bar
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF131C28),
-                border = BorderStroke(1.dp, Color(0x26FFFFFF)),
+                color = Color(0xFFF2F3F5),
+                border = BorderStroke(1.dp, Color(0xFFE3E5E8)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
                     .height(44.dp)
             ) {
                 Row(
@@ -172,7 +175,7 @@ fun NewChatScreen(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = Color(0xFF94A3B8),
+                        tint = Color(0xFF5C6470),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
@@ -181,7 +184,7 @@ fun NewChatScreen(
                             Text(
                                 text = "Search by name or @handle...",
                                 fontSize = 13.5.sp,
-                                color = Color(0xFF64748B)
+                                color = Color(0xFF80848E)
                             )
                         }
                         BasicTextField(
@@ -190,7 +193,7 @@ fun NewChatScreen(
                             singleLine = true,
                             textStyle = TextStyle(
                                 fontSize = 13.5.sp,
-                                color = Color.White
+                                color = Color(0xFF1E1F22)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -200,20 +203,20 @@ fun NewChatScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 3. Quick Action Tiles (WhatsApp style)
+            // 3. Quick Action Tiles
             if (!isMultiSelectMode) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { isMultiSelectMode = true }
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(BrandBlueAction),
+                            .background(Color(0xFF5865F2)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -228,7 +231,7 @@ fun NewChatScreen(
                         text = "New Group Chat",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = Color(0xFF1E1F22)
                     )
                 }
 
@@ -236,20 +239,20 @@ fun NewChatScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onBack() }
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E293B)),
+                            .background(Color(0xFFF2F3F5)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.School,
                             contentDescription = "Academic Channel",
-                            tint = Color(0xFF38BDF8),
+                            tint = Color(0xFF5865F2),
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -258,7 +261,7 @@ fun NewChatScreen(
                         text = "New Study Channel",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = Color(0xFF1E1F22)
                     )
                 }
 
@@ -268,7 +271,7 @@ fun NewChatScreen(
                     text = "CAMPUS CONTACTS",
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF64748B),
+                    color = Color(0xFF80848E),
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 )
             }
@@ -299,8 +302,8 @@ fun NewChatScreen(
                         Box(
                             modifier = Modifier
                                 .size(46.dp)
-                                .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(BrandBluePrimary, BrandBlueMid))),
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Brush.linearGradient(listOf(Color(0xFF5865F2), Color(0xFF3B82F6)))),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -318,8 +321,8 @@ fun NewChatScreen(
                                 Text(
                                     text = contact.peerName,
                                     fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E1F22),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -328,15 +331,15 @@ fun NewChatScreen(
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = "Verified",
-                                        tint = BrandBlueAction,
+                                        tint = Color(0xFF5865F2),
                                         modifier = Modifier.size(13.dp)
                                     )
                                 }
                             }
                             Text(
                                 text = contact.peerHandle,
-                                fontSize = 12.sp,
-                                color = Color(0xFF94A3B8)
+                                fontSize = 12.5.sp,
+                                color = Color(0xFF5C6470)
                             )
                         }
 
@@ -345,8 +348,8 @@ fun NewChatScreen(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
-                                    .background(if (isSelected) BrandBlueAction else Color(0x26FFFFFF))
-                                    .border(1.dp, if (isSelected) BrandBlueAction else Color(0x66FFFFFF), CircleShape),
+                                    .background(if (isSelected) Color(0xFF5865F2) else Color(0xFFF2F3F5))
+                                    .border(1.dp, if (isSelected) Color(0xFF5865F2) else Color(0xFFCBD5E1), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (isSelected) {
@@ -360,6 +363,8 @@ fun NewChatScreen(
                             }
                         }
                     }
+
+                    HorizontalDivider(thickness = 0.6.dp, color = Color(0xFFF2F3F5), modifier = Modifier.padding(start = 80.dp))
                 }
             }
         }
@@ -375,7 +380,7 @@ fun NewChatScreen(
         ) {
             FloatingActionButton(
                 onClick = { onStartGroupChat(selectedPeerIds.toList()) },
-                containerColor = BrandBlueAction,
+                containerColor = Color(0xFF5865F2),
                 contentColor = Color.White,
                 shape = CircleShape
             ) {

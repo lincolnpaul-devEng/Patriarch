@@ -62,6 +62,8 @@ fun EditServerProfileSheet(
     serverId: String,
     serverName: String,
     initialProfile: PerServerProfile?,
+    defaultNickname: String = "Lincoln Kiprotich",
+    avatarUrl: String? = null,
     onDismiss: () -> Unit,
     onSaveProfile: (nickname: String, tag: String, tagColorHex: Long) -> Unit,
     modifier: Modifier = Modifier
@@ -70,8 +72,8 @@ fun EditServerProfileSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var nickname by remember(initialProfile) {
-        mutableStateOf(initialProfile?.nickname ?: "Lincoln Paul")
+    var nickname by remember(initialProfile, defaultNickname) {
+        mutableStateOf(initialProfile?.nickname ?: defaultNickname)
     }
     var tag by remember(initialProfile) {
         mutableStateOf(initialProfile?.tag ?: "DEV")
@@ -172,11 +174,10 @@ fun EditServerProfileSheet(
                             .background(Color(0xFF003B68)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "LP",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                        com.campus.network.core.ui.components.CampusStudentAvatar(
+                            avatarUrl = avatarUrl,
+                            fullName = nickname.ifBlank { defaultNickname },
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
 
@@ -186,7 +187,7 @@ fun EditServerProfileSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = nickname.ifBlank { "Lincoln Paul" },
+                                text = nickname.ifBlank { defaultNickname },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF1E1F22)
@@ -387,7 +388,7 @@ fun EditServerProfileSheet(
             // SAVE BUTTON
             Button(
                 onClick = {
-                    val finalNickname = nickname.trim().ifBlank { "Lincoln Paul" }
+                    val finalNickname = nickname.trim().ifBlank { defaultNickname }
                     val finalTag = tag.trim().uppercase().ifBlank { "DEV" }
                     onSaveProfile(finalNickname, finalTag, tagColorHex)
                     onDismiss()

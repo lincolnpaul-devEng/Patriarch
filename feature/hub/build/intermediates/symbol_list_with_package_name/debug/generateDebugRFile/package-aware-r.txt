@@ -22,3 +22,4 @@ drawable ic_logo_transparent
 drawable place_photo_1
 drawable place_photo_2
 drawable place_photo_3
+raw no_internet

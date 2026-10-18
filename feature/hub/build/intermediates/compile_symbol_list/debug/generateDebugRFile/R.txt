@@ -21,3 +21,4 @@ int drawable ic_logo_transparent 0x0
 int drawable place_photo_1 0x0
 int drawable place_photo_2 0x0
 int drawable place_photo_3 0x0
+int raw no_internet 0x0

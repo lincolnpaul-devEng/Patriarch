@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:273384584177:android:cb9c4fcbe7417528e38a50",
+        "mobilesdk_app_id": "1:273384584177:android:bab0f98fc4c756cae38a50",
         "android_client_info": {
-          "package_name": "com.unihub.app"
+          "package_name": "com.campus.network"
         }
       },
       "oauth_client": [],

@@ -26,6 +26,7 @@
     <!-- Notifications & User Engagement -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- Background Reliability & Active Call Continuity -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -52,7 +53,11 @@
 
     <application
         android:name=".CampusApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher"
         android:label="Patriarch"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -67,6 +72,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustNothing"
             android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
@@ -74,6 +80,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- BroadcastReceiver for WhatsApp-Style Inline RemoteInput Replies & Notification Actions -->
+        <receiver
+            android:name=".notifications.CampusNotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.campus.network.action.INLINE_REPLY" />
+                <action android:name="com.campus.network.action.MARK_AS_READ" />
+                <action android:name="com.campus.network.action.DECLINE_CALL" />
+                <action android:name="com.campus.network.action.CHECK_IN_MEET" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Firebase Cloud Messaging Service -->
+        <service
+            android:name=".notifications.CampusFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

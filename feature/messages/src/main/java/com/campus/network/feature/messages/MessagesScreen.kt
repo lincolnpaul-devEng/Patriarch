@@ -21,7 +21,9 @@ fun MessagesScreen(
     viewModel: MessagesViewModel,
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onNavigateToServer: ((String) -> Unit)? = null,
+    onAddServer: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -81,7 +83,9 @@ fun MessagesScreen(
                         uiState = uiState,
                         onEvent = viewModel::onEvent,
                         onNavigateBack = onNavigateBack,
-                        onNavigateToProfile = onNavigateToProfile
+                        onNavigateToProfile = onNavigateToProfile,
+                        onNavigateToServer = onNavigateToServer,
+                        onAddServer = onAddServer
                     )
                 }
 
@@ -103,7 +107,9 @@ fun MessagesScreen(
                             uiState = uiState,
                             onEvent = viewModel::onEvent,
                             onNavigateBack = onNavigateBack,
-                            onNavigateToProfile = onNavigateToProfile
+                            onNavigateToProfile = onNavigateToProfile,
+                            onNavigateToServer = onNavigateToServer,
+                            onAddServer = onAddServer
                         )
                     }
                 }
@@ -141,6 +147,8 @@ fun MessagesScreen(
                 MessagesScreenMode.ADD_NOTE -> {
                     AddNoteScreen(
                         currentNote = uiState.currentUserNote,
+                        fullName = uiState.studentProfile?.fullName ?: "Lincoln Kiprotich",
+                        avatarUrl = uiState.studentProfile?.avatarUrl,
                         onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) },
                         onShareNote = { note ->
                             viewModel.onEvent(MessagesEvent.SaveUserNote(note))

@@ -1,6 +1,9 @@
 package com.campus.network.feature.messages
 
 import com.campus.network.core.model.PeerTransactionPayload
+import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.firstName
+import com.campus.network.core.model.initials
 
 enum class MessagesScreenMode {
     THREADS,
@@ -29,7 +32,8 @@ data class ConversationThread(
     val unreadCount: Int = 0,
     val isOnline: Boolean = false,
     val isVerified: Boolean = false,
-    val category: ThreadCategory = ThreadCategory.DIRECT
+    val category: ThreadCategory = ThreadCategory.DIRECT,
+    val serverBadgeText: String? = null
 )
 
 data class DirectMessageItem(
@@ -93,8 +97,18 @@ data class MessagesUiState(
     val callState: CallUiState? = null,
     val currentUserNote: String = "Add note",
     val isVoiceFlowActive: Boolean = false,
-    val activateVoiceInChat: Boolean = false
-)
+    val activateVoiceInChat: Boolean = false,
+    val studentProfile: StudentProfile? = null
+) {
+    val studentName: String
+        get() = studentProfile?.fullName ?: "Lincoln Kiprotich"
+
+    val studentFirstName: String
+        get() = studentProfile?.firstName ?: "Lincoln"
+
+    val studentInitials: String
+        get() = studentProfile?.initials ?: "LK"
+}
 
 sealed interface MessagesEvent {
     data class SelectThread(val threadId: String, val activateVoice: Boolean = false) : MessagesEvent
@@ -102,7 +116,9 @@ sealed interface MessagesEvent {
         val peerId: String,
         val peerName: String,
         val peerHandle: String? = null,
-        val avatarInitials: String? = null
+        val avatarInitials: String? = null,
+        val serverName: String? = null,
+        val serverTag: String? = null
     ) : MessagesEvent
     object ConsumeVoiceActivation : MessagesEvent
     object BackToThreads : MessagesEvent

@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-v17/values-v17.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-96:/values-v17/values-v17.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/3739f64886b28597f787ef587fa11841/transformed/appcompat-1.6.1/res/values-v17/values-v17.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/59e96032c7049e67081cf3d6f864e2f0/transformed/appcompat-1.6.1/res/values-v17/values-v17.xml",
                     "from": {
                         "startLines": "2,5,9,12,15,18,22,25,29,33,37,40,43,46,50,53,57",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",

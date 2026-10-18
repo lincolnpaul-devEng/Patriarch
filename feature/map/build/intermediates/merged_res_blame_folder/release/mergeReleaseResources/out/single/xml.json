@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "com.campus.network.feature.map-release-75:/xml/log_file_paths.xml",
+        "source": "com.campus.network.feature.map-stream-log-android-1.1.4-33:/xml/log_file_paths.xml"
+    }
+]

@@ -831,6 +831,28 @@ attr logo
 attr logoAdjustViewBounds
 attr logoDescription
 attr logoScaleType
+attr lottieAnimationViewStyle
+attr lottie_asyncUpdates
+attr lottie_autoPlay
+attr lottie_cacheComposition
+attr lottie_clipTextToBoundingBox
+attr lottie_clipToCompositionBounds
+attr lottie_colorFilter
+attr lottie_defaultFontFileExtension
+attr lottie_enableMergePathsForKitKatAndAbove
+attr lottie_fallbackRes
+attr lottie_fileName
+attr lottie_ignoreDisabledSystemAnimations
+attr lottie_imageAssetsFolder
+attr lottie_loop
+attr lottie_progress
+attr lottie_rawRes
+attr lottie_renderMode
+attr lottie_repeatCount
+attr lottie_repeatMode
+attr lottie_speed
+attr lottie_url
+attr lottie_useCompositionFrameRate
 attr mapId
 attr mapType
 attr marginHorizontal
@@ -3209,6 +3231,11 @@ drawable m3_tabs_background
 drawable m3_tabs_line_indicator
 drawable m3_tabs_rounded_line_indicator
 drawable m3_tabs_transparent_background
+drawable mascot_personalized_news
+drawable mascot_pointing_header
+drawable mascot_push_notifications
+drawable mascot_recommendation_bubbles
+drawable mascot_welcome_notepad
 drawable material_cursor_drawable
 drawable material_ic_calendar_black_24dp
 drawable material_ic_clear_black_24dp
@@ -3496,6 +3523,7 @@ id auto
 id autoComplete
 id autoCompleteToEnd
 id autoCompleteToStart
+id automatic
 id barrier
 id baseline
 id beginOnFirstDraw
@@ -3572,6 +3600,7 @@ id disableHome
 id disableIntraAutoTransition
 id disablePostScroll
 id disableScroll
+id disabled
 id disjoint
 id dismissButton
 id dragAnticlockwise
@@ -3601,6 +3630,7 @@ id emoji_picker_popup_bidirectional_icon
 id emoji_picker_popup_emoji_view
 id emoji_picker_popup_emoji_view_wrapper
 id emoji_picker_popup_image_view
+id enabled
 id end
 id endToStart
 id enterAlways
@@ -3636,6 +3666,7 @@ id graph_wrap
 id group_divider
 id grouping
 id groups
+id hardware
 id header_title
 id hide_ime_id
 id hide_in_inspector_tag
@@ -3677,6 +3708,7 @@ id linear
 id listMode
 id listView
 id list_item
+id lottie_layer_name
 id m3_side_sheet
 id maps_compose_nodraw_container_view
 id marquee
@@ -3787,6 +3819,8 @@ id radio
 id ratio
 id rectangles
 id report_drawn
+id restart
+id reverse
 id reverseSawtooth
 id right
 id rightToLeft
@@ -3847,6 +3881,7 @@ id snackbar_action
 id snackbar_text
 id snap
 id snapMargins
+id software
 id south
 id spacer
 id special_effects_controller_view_tag
@@ -4170,6 +4205,8 @@ raw emoji_category_people
 raw emoji_category_people_gender_inclusive
 raw emoji_category_symbols
 raw emoji_category_travel_places
+raw firebase_common_keep
+raw no_internet
 string abc_action_bar_home_description
 string abc_action_bar_up_description
 string abc_action_menu_overflow_description
@@ -4266,6 +4303,12 @@ string error_icon_content_description
 string exposed_dropdown_menu_content_description
 string fab_transformation_scrim_behavior
 string fab_transformation_sheet_behavior
+string fcm_fallback_notification_channel_label
+string gcm_defaultSenderId
+string google_api_key
+string google_app_id
+string google_crash_reporting_api_key
+string google_storage_bucket
 string hide_bottom_view_on_scroll_behavior
 string icon_content_description
 string in_progress
@@ -4435,6 +4478,7 @@ string path_password_eye
 string path_password_eye_mask_strike_through
 string path_password_eye_mask_visible
 string path_password_strike_through
+string project_id
 string range_end
 string range_start
 string search_menu_title
@@ -5799,6 +5843,7 @@ styleable LinearLayoutCompat_Layout android_layout_gravity android_layout_width 
 styleable LinearProgressIndicator indeterminateAnimationType indicatorDirectionLinear
 styleable ListPopupWindow android_dropDownHorizontalOffset android_dropDownVerticalOffset
 styleable LoadingImageView circleCrop imageAspectRatio imageAspectRatioAdjust
+styleable LottieAnimationView lottie_asyncUpdates lottie_autoPlay lottie_cacheComposition lottie_clipTextToBoundingBox lottie_clipToCompositionBounds lottie_colorFilter lottie_defaultFontFileExtension lottie_enableMergePathsForKitKatAndAbove lottie_fallbackRes lottie_fileName lottie_ignoreDisabledSystemAnimations lottie_imageAssetsFolder lottie_loop lottie_progress lottie_rawRes lottie_renderMode lottie_repeatCount lottie_repeatMode lottie_speed lottie_url lottie_useCompositionFrameRate
 styleable MapAttrs ambientEnabled backgroundColor cameraBearing cameraMaxZoomPreference cameraMinZoomPreference cameraTargetLat cameraTargetLng cameraTilt cameraZoom latLngBoundsNorthEastLatitude latLngBoundsNorthEastLongitude latLngBoundsSouthWestLatitude latLngBoundsSouthWestLongitude liteMode mapId mapType uiCompass uiMapToolbar uiRotateGestures uiScrollGestures uiScrollGesturesDuringRotateOrZoom uiTiltGestures uiZoomControls uiZoomGestures useViewLifecycle zOrderOnTop
 styleable MaterialAlertDialog backgroundInsetBottom backgroundInsetEnd backgroundInsetStart backgroundInsetTop
 styleable MaterialAlertDialogTheme materialAlertDialogBodyTextStyle materialAlertDialogButtonSpacerVisibility materialAlertDialogTheme materialAlertDialogTitleIconStyle materialAlertDialogTitlePanelStyle materialAlertDialogTitleTextStyle
@@ -5886,5 +5931,7 @@ styleable ViewPager2 android_orientation
 styleable ViewStubCompat android_id android_layout android_inflatedId
 styleable ViewTransition android_id SharedValue SharedValueId clearsTag duration ifTagNotSet ifTagSet motionInterpolator motionTarget onStateTransition pathMotionArc setsTag transitionDisable upDuration viewTransitionMode
 styleable include constraintSet
+xml data_extraction_rules
 xml log_file_paths
+xml network_security_config
 xml stream_filepaths

@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-xlarge-v4/values-xlarge-v4.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-96:/values-xlarge-v4/values-xlarge-v4.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/3739f64886b28597f787ef587fa11841/transformed/appcompat-1.6.1/res/values-xlarge-v4/values-xlarge-v4.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/59e96032c7049e67081cf3d6f864e2f0/transformed/appcompat-1.6.1/res/values-xlarge-v4/values-xlarge-v4.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7",
                         "startColumns": "4,4,4,4,4,4",

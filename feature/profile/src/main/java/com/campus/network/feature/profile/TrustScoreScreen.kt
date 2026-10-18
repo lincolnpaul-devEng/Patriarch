@@ -160,7 +160,7 @@ fun TrustScoreScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Top 4% of Strathmore University Students. Unrestricted access to peer trade settlements, instant escrow releases, and campus leadership channels.",
+                            text = "Top 4% of Strathmore University Students. Full access to student market trades, instant payments, and campus leadership channels.",
                             fontSize = 12.5.sp,
                             color = Color(0xFF94A3B8),
                             lineHeight = 17.sp,

@@ -61,7 +61,7 @@ class ServerRepository(
         category: String,
         description: String = "",
         ownerId: String = "user_lincoln",
-        ownerDisplayName: String = "Lincoln Paul",
+        ownerDisplayName: String = "Lincoln Kiprotich",
         ownerHandle: String = "@lincoln_lead",
         avatarResName: String = "server_codesistency",
         bannerResName: String? = null,
@@ -346,7 +346,7 @@ class ServerRepository(
     suspend fun createInvite(
         serverId: String,
         inviterId: String = "user_lincoln",
-        inviterName: String = "Lincoln Paul",
+        inviterName: String = "Lincoln Kiprotich",
         maxUses: Int = 0
     ): ServerInvite = withContext(ioDispatcher) {
         val server = serverDao.getServerByIdSync(serverId) ?: throw IllegalArgumentException("Server not found")
@@ -372,7 +372,7 @@ class ServerRepository(
     suspend fun joinServerByInvite(
         inviteCode: String,
         userId: String = "user_lincoln",
-        displayName: String = "Lincoln Paul",
+        displayName: String = "Lincoln Kiprotich",
         handle: String = "@lincoln_lead",
         avatarResName: String = "avatar_lincoln"
     ): Result<Server> = withContext(ioDispatcher) {

@@ -77,7 +77,16 @@ data class MarketItemEntity(
     val isCampusVerifiedSeller: Boolean,
     val campusHallLocation: String,
     val imageUrl: String?,
-    val timestampMs: Long
+    val timestampMs: Long,
+    val description: String = "",
+    val pickupSpotName: String = "Quad Library Ground Floor Lockers",
+    val pickupSecurityLevel: String = "CCTV Monitored Safe Zone",
+    val pickupLatitude: Double = -1.3090,
+    val pickupLongitude: Double = 36.8120,
+    val pickupTiming: String = "Immediate (within 1 hr)",
+    val payoutMethod: String = "Campus SafePay Escrow",
+    val requiresQrReleaseCode: Boolean = true,
+    val qrReleaseCode: String = "CP-849201"
 )
 
 @Entity(tableName = "micro_gigs")
@@ -93,7 +102,8 @@ data class MicroGigEntity(
     val tag: String,
     val urgencyName: String,
     val spotsAvailable: Int,
-    val timestampMs: Long
+    val timestampMs: Long,
+    val bannerUrl: String? = null
 )
 @Entity(tableName = "live_streams")
 data class LiveStreamEntity(

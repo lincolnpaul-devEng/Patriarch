@@ -27,6 +27,8 @@ android {
         buildConfigField("String", "CLOUDINARY_API_KEY", "\"${secretsProperties.getProperty("CLOUDINARY_API_KEY", "")}\"")
         buildConfigField("String", "CLOUDINARY_API_SECRET", "\"${secretsProperties.getProperty("CLOUDINARY_API_SECRET", "")}\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${secretsProperties.getProperty("CLOUDINARY_UPLOAD_PRESET", "")}\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID_ANDROID", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_ANDROID", "")}\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID_WEB", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_WEB", "")}\"")
     }
 
     compileOptions {

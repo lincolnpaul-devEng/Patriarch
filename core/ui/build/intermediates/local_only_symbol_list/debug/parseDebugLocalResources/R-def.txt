@@ -77,4 +77,5 @@ drawable student_clin
 drawable student_eliza
 drawable student_june
 drawable student_rk
+raw no_internet
 style Theme.Patriarch

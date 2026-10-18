@@ -1,27 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-en/values-en.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-96:/values-en/values-en.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/de28b7fe24b440bcbefb67fd39ef6df2/transformed/stream-chat-android-client-6.0.8/res/values-en/values-en.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,171,264,359,443,533,619,729,800,865,937,1013,1106",
-                        "endColumns": "115,92,94,83,89,85,109,70,64,71,75,92,106",
-                        "endOffsets": "166,259,354,438,528,614,724,795,860,932,1008,1101,1208"
-                    },
-                    "to": {
-                        "startLines": "22,23,24,25,26,27,28,29,30,31,32,33,126",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "957,1073,1166,1261,1345,1435,1521,1631,1702,1767,1839,1915,9804",
-                        "endColumns": "115,92,94,83,89,85,109,70,64,71,75,92,106",
-                        "endOffsets": "1068,1161,1256,1340,1430,1516,1626,1697,1762,1834,1910,2003,9906"
-                    }
-                },
-                {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/0fd85ceb111d6f94369b5916eced5edf/transformed/stream-chat-android-compose-6.0.8/res/values-en/values-en.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/e6386a64e1aa91f8c077d4f0a6af319f/transformed/stream-chat-android-compose-6.0.8/res/values-en/values-en.xml",
                     "from": {
                         "startLines": "2,6,10,14,18,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -40,7 +23,24 @@
                     }
                 },
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/fc2d0fd99e12a033f6dcda548129a979/transformed/stream-chat-android-ui-common-6.0.8/res/values-en/values-en.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/1270265545dad6799531cfd42be2237e/transformed/stream-chat-android-client-6.0.8/res/values-en/values-en.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13,14",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,171,264,359,443,533,619,729,800,865,937,1013,1106",
+                        "endColumns": "115,92,94,83,89,85,109,70,64,71,75,92,106",
+                        "endOffsets": "166,259,354,438,528,614,724,795,860,932,1008,1101,1208"
+                    },
+                    "to": {
+                        "startLines": "22,23,24,25,26,27,28,29,30,31,32,33,126",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "957,1073,1166,1261,1345,1435,1521,1631,1702,1767,1839,1915,9804",
+                        "endColumns": "115,92,94,83,89,85,109,70,64,71,75,92,106",
+                        "endOffsets": "1068,1161,1256,1340,1430,1516,1626,1697,1762,1834,1910,2003,9906"
+                    }
+                },
+                {
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/070ad8934415d032580c84e912981a39/transformed/stream-chat-android-ui-common-6.0.8/res/values-en/values-en.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,13",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4",

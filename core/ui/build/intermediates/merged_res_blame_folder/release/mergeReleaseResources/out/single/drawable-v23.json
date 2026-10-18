@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "com.campus.network.core.ui-release-53:/drawable-v23/abc_control_background_material.xml",
+        "source": "com.campus.network.core.ui-appcompat-1.6.1-16:/drawable-v23/abc_control_background_material.xml"
+    }
+]

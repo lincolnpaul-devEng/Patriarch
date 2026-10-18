@@ -1,0 +1,262 @@
+[
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_pptx.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_pptx.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_up.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_up.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_doc.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_doc.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/ic_call_answer_video.png",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-ldpi-v4/ic_call_answer_video.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_empty_channels.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_empty_channels.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_unpin_message.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_unpin_message.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/ic_call_answer_video_low.png",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-ldpi-v4/ic_call_answer_video_low.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_up_selected.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_up_selected.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/ic_call_answer.png",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-ldpi-v4/ic_call_answer.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_love_selected.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_love_selected.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_flag.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_flag.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_lol_selected.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_lol_selected.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_rtf.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_rtf.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_7z.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_7z.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_html.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_html.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_tar.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_tar.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_rar.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_rar.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_clock.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_clock.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_xls.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_xls.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_txt.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_txt.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_more.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_more.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_close.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_close.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_video_generic.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_video_generic.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_clear.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_clear.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_more_files.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_more_files.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_love.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_love.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_menu_vertical.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_menu_vertical.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_zip.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_zip.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_message_pinned.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_message_pinned.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_md.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_md.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_audio_generic.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_audio_generic.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_down.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_down.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_download.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_download.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_pdf.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_pdf.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_down_selected.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_thumbs_down_selected.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_message_seen.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_message_seen.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_csv.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_csv.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_search.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_search.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/ic_call_decline_low.png",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-ldpi-v4/ic_call_decline_low.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_tar_gz.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_tar_gz.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_mention.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_mention.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/ic_call_decline.png",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-ldpi-v4/ic_call_decline.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_lol.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_lol.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_new_chat.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_new_chat.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_ppt.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_ppt.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_mov.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_mov.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_mp4.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_mp4.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/ic_call_answer_low.png",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-ldpi-v4/ic_call_answer_low.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_muted.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_muted.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_mp3.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_mp3.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_empty_search_results.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_empty_search_results.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_circle_left.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_circle_left.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_docx.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_docx.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_generic.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_generic.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_m4a.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_m4a.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_delete.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_delete.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_checkmark.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_checkmark.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_attachments.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_attachments.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_xlsx.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_xlsx.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_wut.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_wut.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_message_sent.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_message_sent.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_audio.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_audio.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_download.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_download.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_reaction_wut_selected.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_reaction_wut_selected.png"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-ldpi-v4/stream_compose_ic_file_odt.png",
+        "source": "com.campus.network.feature.messages-stream-chat-android-compose-6.0.8-74:/drawable-ldpi-v4/stream_compose_ic_file_odt.png"
+    }
+]

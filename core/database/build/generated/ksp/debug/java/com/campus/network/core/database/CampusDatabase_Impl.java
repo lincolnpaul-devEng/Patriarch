@@ -85,14 +85,14 @@ public final class CampusDatabase_Impl extends CampusDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(8) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `flash_meets` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL, `creatorAvatar` TEXT, `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `academic_channels` (`id` TEXT NOT NULL, `courseCode` TEXT NOT NULL, `courseTitle` TEXT NOT NULL, `faculty` TEXT NOT NULL, `department` TEXT NOT NULL, `unreadCount` INTEGER NOT NULL, `lastMessageSnippet` TEXT NOT NULL, `lastMessageTime` TEXT NOT NULL, `activeStudentsCount` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `chat_messages` (`id` TEXT NOT NULL, `channelId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `text` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `isOptimistic` INTEGER NOT NULL, `settlementPayloadJson` TEXT, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `market_items` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `price` REAL NOT NULL, `currency` TEXT NOT NULL, `category` TEXT NOT NULL, `condition` TEXT NOT NULL, `sellerName` TEXT NOT NULL, `sellerRating` REAL NOT NULL, `isCampusVerifiedSeller` INTEGER NOT NULL, `campusHallLocation` TEXT NOT NULL, `imageUrl` TEXT, `timestampMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `micro_gigs` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL, `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL, `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL, `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `market_items` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `price` REAL NOT NULL, `currency` TEXT NOT NULL, `category` TEXT NOT NULL, `condition` TEXT NOT NULL, `sellerName` TEXT NOT NULL, `sellerRating` REAL NOT NULL, `isCampusVerifiedSeller` INTEGER NOT NULL, `campusHallLocation` TEXT NOT NULL, `imageUrl` TEXT, `timestampMs` INTEGER NOT NULL, `description` TEXT NOT NULL, `pickupSpotName` TEXT NOT NULL, `pickupSecurityLevel` TEXT NOT NULL, `pickupLatitude` REAL NOT NULL, `pickupLongitude` REAL NOT NULL, `pickupTiming` TEXT NOT NULL, `payoutMethod` TEXT NOT NULL, `requiresQrReleaseCode` INTEGER NOT NULL, `qrReleaseCode` TEXT NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `micro_gigs` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL, `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL, `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL, `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL, `bannerUrl` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `live_streams` (`id` TEXT NOT NULL, `broadcasterId` TEXT NOT NULL, `broadcasterName` TEXT NOT NULL, `broadcasterHandle` TEXT NOT NULL, `broadcasterAvatarRes` INTEGER NOT NULL, `broadcasterAvatarUrl` TEXT, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `audience` TEXT NOT NULL, `isLive` INTEGER NOT NULL, `streamPlaybackUrl` TEXT, `backdropImageRes` INTEGER NOT NULL, `backdropImageUrl` TEXT, `viewerCount` INTEGER NOT NULL, `peakViewers` INTEGER NOT NULL, `likeCount` INTEGER NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, `durationSeconds` INTEGER NOT NULL, `serverId` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `streamer_profiles` (`studentId` TEXT NOT NULL, `location` TEXT NOT NULL, `joinedDate` TEXT NOT NULL, `hoursLive` INTEGER NOT NULL, `followersCount` TEXT NOT NULL, `bestDay` TEXT NOT NULL, `streamsPerWeek` INTEGER NOT NULL, `topTopicsCsv` TEXT NOT NULL, `weeklyActivityCsv` TEXT NOT NULL, PRIMARY KEY(`studentId`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `stream_comments` (`id` TEXT NOT NULL, `streamId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT, `senderAvatarRes` INTEGER NOT NULL, `commentText` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
@@ -103,7 +103,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         db.execSQL("CREATE TABLE IF NOT EXISTS `friends` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `friendUserId` TEXT NOT NULL, `friendDisplayName` TEXT NOT NULL, `friendHandle` TEXT NOT NULL, `friendAvatarResName` TEXT NOT NULL, `status` TEXT NOT NULL, `lastInteractionEpochMs` INTEGER NOT NULL, `dmChannelId` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `server_invites` (`code` TEXT NOT NULL, `serverId` TEXT NOT NULL, `serverName` TEXT NOT NULL, `inviterId` TEXT NOT NULL, `inviterName` TEXT NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `maxUses` INTEGER NOT NULL, `usesCount` INTEGER NOT NULL, `isRevoked` INTEGER NOT NULL, PRIMARY KEY(`code`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3c8524a7922aac353990e8ff8601c390')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '139ba08dfc8aea12c62092662f88fe8a')");
       }
 
       @Override
@@ -226,7 +226,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
                   + " Expected:\n" + _infoChatMessages + "\n"
                   + " Found:\n" + _existingChatMessages);
         }
-        final HashMap<String, TableInfo.Column> _columnsMarketItems = new HashMap<String, TableInfo.Column>(12);
+        final HashMap<String, TableInfo.Column> _columnsMarketItems = new HashMap<String, TableInfo.Column>(21);
         _columnsMarketItems.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMarketItems.put("title", new TableInfo.Column("title", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMarketItems.put("price", new TableInfo.Column("price", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -239,6 +239,15 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         _columnsMarketItems.put("campusHallLocation", new TableInfo.Column("campusHallLocation", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMarketItems.put("imageUrl", new TableInfo.Column("imageUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMarketItems.put("timestampMs", new TableInfo.Column("timestampMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("description", new TableInfo.Column("description", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("pickupSpotName", new TableInfo.Column("pickupSpotName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("pickupSecurityLevel", new TableInfo.Column("pickupSecurityLevel", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("pickupLatitude", new TableInfo.Column("pickupLatitude", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("pickupLongitude", new TableInfo.Column("pickupLongitude", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("pickupTiming", new TableInfo.Column("pickupTiming", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("payoutMethod", new TableInfo.Column("payoutMethod", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("requiresQrReleaseCode", new TableInfo.Column("requiresQrReleaseCode", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMarketItems.put("qrReleaseCode", new TableInfo.Column("qrReleaseCode", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysMarketItems = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesMarketItems = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoMarketItems = new TableInfo("market_items", _columnsMarketItems, _foreignKeysMarketItems, _indicesMarketItems);
@@ -248,7 +257,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
                   + " Expected:\n" + _infoMarketItems + "\n"
                   + " Found:\n" + _existingMarketItems);
         }
-        final HashMap<String, TableInfo.Column> _columnsMicroGigs = new HashMap<String, TableInfo.Column>(12);
+        final HashMap<String, TableInfo.Column> _columnsMicroGigs = new HashMap<String, TableInfo.Column>(13);
         _columnsMicroGigs.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMicroGigs.put("title", new TableInfo.Column("title", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMicroGigs.put("description", new TableInfo.Column("description", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -261,6 +270,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         _columnsMicroGigs.put("urgencyName", new TableInfo.Column("urgencyName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMicroGigs.put("spotsAvailable", new TableInfo.Column("spotsAvailable", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMicroGigs.put("timestampMs", new TableInfo.Column("timestampMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMicroGigs.put("bannerUrl", new TableInfo.Column("bannerUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysMicroGigs = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesMicroGigs = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoMicroGigs = new TableInfo("micro_gigs", _columnsMicroGigs, _foreignKeysMicroGigs, _indicesMicroGigs);
@@ -457,7 +467,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "3c8524a7922aac353990e8ff8601c390", "5fd06438e77f36d4b1c1ded6ae0eb8c6");
+    }, "139ba08dfc8aea12c62092662f88fe8a", "8fda3614023702258b0a788604693b3f");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

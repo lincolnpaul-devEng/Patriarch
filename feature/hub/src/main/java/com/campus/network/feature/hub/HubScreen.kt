@@ -57,6 +57,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
@@ -136,11 +137,24 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import com.campus.network.core.ui.components.CampusInlineNetworkAlertCard
+import com.campus.network.core.ui.components.CampusNoInternetEmptyState
+import com.campus.network.core.ui.components.MarketProductHeroCardSkeleton
+import com.campus.network.core.ui.components.MarketProductListItemSkeleton
+import com.campus.network.core.ui.components.ShimmerAsyncImage
+import com.campus.network.core.ui.components.StreamCogLoaderOverlay
+import com.campus.network.core.ui.components.rememberCampusNetworkState
+import com.campus.network.feature.hub.components.BasketEscrowCheckoutSheet
+import com.campus.network.feature.hub.components.MarketProductDetailsFullScreen
+import com.campus.network.feature.hub.components.PostProductDrawerSheet
+import com.campus.network.feature.hub.components.ProductBasketConfig
+import com.campus.network.feature.hub.components.ProductOptionsBasketDrawerSheet
+import com.campus.network.feature.hub.components.SafeTradeEscrowBuyerSheet
+import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
 
 // Exact visual styling from the reference screen
@@ -154,8 +168,12 @@ private val DarkCardTextPrimary = Color(0xFF0F172A)
 fun HubScreen(
     viewModel: HubViewModel,
     onNavigateToChat: (String) -> Unit = {},
+    onMessageSeller: ((sellerName: String, initialOrderMessage: String?) -> Unit)? = null,
     onNavigateToLiveFeed: (String) -> Unit = {},
     onNavigateToGoLive: () -> Unit = {},
+    onNavigateToMap: ((Double, Double, String) -> Unit)? = null,
+    onNavigateToNotifications: () -> Unit = {},
+    onToggleBottomBar: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -172,6 +190,32 @@ fun HubScreen(
     var savedListingIds by remember { mutableStateOf(setOf<String>()) }
     var isPostDialogOpen by remember { mutableStateOf(false) }
     var isFilterDrawerOpen by remember { mutableStateOf(false) }
+    var selectedItemForDetails by remember { mutableStateOf<MarketItem?>(null) }
+    var isOptionsSheetOpen by remember { mutableStateOf(false) }
+    var isCheckoutSheetOpen by remember { mutableStateOf(false) }
+    var basketConfigsByItemId by remember { mutableStateOf<Map<String, ProductBasketConfig>>(emptyMap()) }
+    var selectedItemForEscrowVerification by remember { mutableStateOf<MarketItem?>(null) }
+
+    BackHandler(enabled = selectedItemForDetails != null) {
+        selectedItemForDetails = null
+    }
+
+    androidx.compose.runtime.LaunchedEffect(
+        isPostDialogOpen,
+        selectedItemForDetails,
+        isOptionsSheetOpen,
+        isCheckoutSheetOpen,
+        selectedItemForEscrowVerification,
+        isFilterDrawerOpen
+    ) {
+        val anySheetOpen = isPostDialogOpen ||
+            selectedItemForDetails != null ||
+            isOptionsSheetOpen ||
+            isCheckoutSheetOpen ||
+            selectedItemForEscrowVerification != null ||
+            isFilterDrawerOpen
+        onToggleBottomBar?.invoke(!anySheetOpen)
+    }
 
     // Advanced Drawer Filter States (Mirroring Image 1)
     var selectedWalkTimeFilter by remember { mutableStateOf("Any") }
@@ -230,6 +274,25 @@ fun HubScreen(
         displayItems = displayItems.filter { !it.campusHallLocation.contains("Off-Campus", ignoreCase = true) }
     }
 
+    val networkState = rememberCampusNetworkState()
+    var isProductsLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(
+        selectedCategory,
+        selectedPriceFilter,
+        selectedRatingFilter,
+        selectedWalkTimeFilter,
+        isPromotionsFilterActive,
+        isQuickWalkActive,
+        isFreePickupActive,
+        networkState.isSlowNetwork
+    ) {
+        isProductsLoading = true
+        val skeletonDuration = if (networkState.isSlowNetwork) 1350L else 700L
+        delay(skeletonDuration)
+        isProductsLoading = false
+    }
+
     val rawCount = displayItems.size + displayGigs.size
     val totalListingCount = if (rawCount < 10 && selectedPriceFilter == "Any" && selectedRatingFilter == "Any" && selectedCategory == "All") 68 else rawCount
 
@@ -261,9 +324,7 @@ fun HubScreen(
                         onNavigateToChat("general")
                     },
                     onNotificationClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Notifications: 2 new campus updates available")
-                        }
+                        onNavigateToNotifications()
                     },
                     onLocationClick = {
                         scope.launch {
@@ -273,7 +334,7 @@ fun HubScreen(
                 )
             }
 
-            // Search Filter Active Pill
+            // Search Filter Active Pill + Inline Offline Search Alert (Pattern C)
             if (uiState.searchQuery.isNotEmpty()) {
                 item {
                     Surface(
@@ -329,17 +390,35 @@ fun HubScreen(
                         }
                     }
                 }
+
+                if (!networkState.isOnline) {
+                    item {
+                        CampusInlineNetworkAlertCard(
+                            featureName = "Search",
+                            description = "We are currently unable to reach live campus search servers while your device is offline. Please check your connection or message support.",
+                            actionLabel = "Message us 24/7",
+                            onActionClick = { networkState.triggerRetry() },
+                            onSecondarySupportClick = { onNavigateToChat("Campus Support") }
+                        )
+                    }
+                }
             }
 
             // -------------------------------------------------------------
             // 2. Member Status / Loyalty Card (Deep Blue Gradient)
             // -------------------------------------------------------------
             item {
+                val profile = uiState.studentProfile
+                val displayMemberName = profile?.fullName ?: "Lincoln Kiprotich"
+                val displayMaskedId = profile?.studentId?.takeLast(4)?.let { "•••• $it" } ?: "•••• 8842"
+                val displayMeritPoints = "${(profile?.behavioralTrustScore ?: 96) * 15} pts"
+                val displayTrustScore = "${profile?.behavioralTrustScore ?: 96} / 100"
+
                 MemberLoyaltyCard(
-                    memberName = "Ben",
-                    memberIdMasked = "•••• 4829",
-                    meritPoints = "1,450 pts",
-                    trustScore = "96 / 100",
+                    memberName = displayMemberName,
+                    memberIdMasked = displayMaskedId,
+                    meritPoints = displayMeritPoints,
+                    trustScore = displayTrustScore,
                     onCardClick = {
                         scope.launch {
                             snackbarHostState.showSnackbar("Patriarch Honor Status: Campus Verified Scholar")
@@ -418,7 +497,32 @@ fun HubScreen(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            if (displayItems.isEmpty() && displayGigs.isEmpty()) {
+            if (isProductsLoading || networkState.isRetrying) {
+                // Shimmer Skeleton Loading State for Marketplace Products (Full View or List View)
+                if (isFullCardView) {
+                    items(3, key = { "skeleton-hero-$it" }) {
+                        MarketProductHeroCardSkeleton(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    items(5, key = { "skeleton-list-$it" }) {
+                        MarketProductListItemSkeleton()
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 96.dp, end = 16.dp),
+                            thickness = 0.6.dp,
+                            color = Color(0xFFE2E8F0)
+                        )
+                    }
+                }
+            } else if (!networkState.isOnline) {
+                // Pattern B: No Internet Connection Empty State with "Try again" button (Reference Image 1)
+                item {
+                    CampusNoInternetEmptyState(
+                        onTryAgainClick = { networkState.triggerRetry() }
+                    )
+                }
+            } else if (displayItems.isEmpty() && displayGigs.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -449,9 +553,7 @@ fun HubScreen(
                             }
                         },
                         onClick = {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Connecting with seller: ${item.sellerName}")
-                            }
+                            selectedItemForDetails = item
                         },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
@@ -492,9 +594,7 @@ fun HubScreen(
                             }
                         },
                         onClick = {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Connecting with seller: ${item.sellerName}")
-                            }
+                            selectedItemForDetails = item
                         }
                     )
                     HorizontalDivider(
@@ -531,35 +631,175 @@ fun HubScreen(
             }
         }
 
+        // Full-Screen Progressive Product Details Screen (Reference Image 1)
+        selectedItemForDetails?.let { detailItem ->
+            val savedKey = "item-${detailItem.id}"
+            val currentBasketConfig = basketConfigsByItemId[detailItem.id]
+            MarketProductDetailsFullScreen(
+                item = detailItem,
+                isSaved = savedListingIds.contains(savedKey),
+                basketConfig = currentBasketConfig,
+                currentUserName = uiState.studentProfile?.fullName ?: "",
+                onSecurityNotice = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                onToggleSave = {
+                    savedListingIds = if (savedListingIds.contains(savedKey)) {
+                        savedListingIds - savedKey
+                    } else {
+                        savedListingIds + savedKey
+                    }
+                    scope.launch {
+                        val msg = if (savedListingIds.contains(savedKey)) {
+                            "Saved to your watch list: ${detailItem.title}"
+                        } else {
+                            "Removed from watch list: ${detailItem.title}"
+                        }
+                        snackbarHostState.showSnackbar(msg)
+                    }
+                },
+                onBackClick = { selectedItemForDetails = null },
+                onShareClick = {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Shared campus listing link: ${detailItem.title}")
+                    }
+                },
+                onOpenOptionsSheet = {
+                    isOptionsSheetOpen = true
+                },
+                onOpenCheckoutSheet = {
+                    isCheckoutSheetOpen = true
+                },
+                onOpenQrScanner = {
+                    selectedItemForEscrowVerification = detailItem
+                },
+                onMessageSeller = { sellerName, initialOrderMessage ->
+                    isCheckoutSheetOpen = false
+                    isOptionsSheetOpen = false
+                    if (onMessageSeller != null) {
+                        onMessageSeller(sellerName, initialOrderMessage)
+                    } else {
+                        onNavigateToChat(sellerName)
+                    }
+                },
+                onOpenMapLocation = { lat, lng, name ->
+                    onNavigateToMap?.invoke(lat, lng, name)
+                }
+            )
+        }
+
+        // Stage 2: Product Options & Add-to-Basket Drawer Sheet (Reference Image 2)
+        ProductOptionsBasketDrawerSheet(
+            item = selectedItemForDetails,
+            isOpen = isOptionsSheetOpen && selectedItemForDetails != null,
+            initialConfig = selectedItemForDetails?.let { basketConfigsByItemId[it.id] },
+            onDismiss = { isOptionsSheetOpen = false },
+            onShareClick = {
+                selectedItemForDetails?.let { item ->
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Shared campus listing link: ${item.title}")
+                    }
+                }
+            },
+            onAddToBasket = { newConfig ->
+                basketConfigsByItemId = basketConfigsByItemId + (newConfig.item.id to newConfig)
+                isOptionsSheetOpen = false
+                isCheckoutSheetOpen = true
+            }
+        )
+
+        // Stage 3: Basket Checkout & SafeTrade Escrow Lock Sheet -> Unlocks Seller Chat & QR Scanner
+        val activeCheckoutConfig = selectedItemForDetails?.let { basketConfigsByItemId[it.id] }
+        BasketEscrowCheckoutSheet(
+            config = activeCheckoutConfig,
+            isOpen = isCheckoutSheetOpen && activeCheckoutConfig != null,
+            onDismiss = { isCheckoutSheetOpen = false },
+            onConfirmEscrowPurchase = { confirmedConfig ->
+                basketConfigsByItemId = basketConfigsByItemId + (confirmedConfig.item.id to confirmedConfig)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        "Order ${confirmedConfig.orderReference} locked in SafeTrade Escrow! Message ${confirmedConfig.item.sellerName} or scan QR at pickup."
+                    )
+                }
+            },
+            onMessageSeller = { sellerName, initialOrderMessage ->
+                isCheckoutSheetOpen = false
+                if (onMessageSeller != null) {
+                    onMessageSeller(sellerName, initialOrderMessage)
+                } else {
+                    onNavigateToChat(sellerName)
+                }
+            },
+            onOpenQrScanner = {
+                isCheckoutSheetOpen = false
+                selectedItemForEscrowVerification = activeCheckoutConfig?.item
+            }
+        )
+
         // Floating Snackbar Host
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 90.dp)
-        )
-
-        // Post New Item / Gig Dialog
-        if (isPostDialogOpen) {
-            PostItemDialog(
-                onDismiss = { isPostDialogOpen = false },
-                onPost = { title, price, category ->
-                    viewModel.onEvent(
-                        HubEvent.PostItem(
-                            title = title,
-                            price = price,
-                            category = category,
-                            condition = "Like New",
-                            location = "Main Campus Quad"
-                        )
-                    )
-                    isPostDialogOpen = false
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Posted $title to Campus Marketplace")
-                    }
-                }
+        ) { data ->
+            com.campus.network.core.ui.components.CampusSuccessSnackBanner(
+                message = data.visuals.message,
+                onDismiss = { data.dismiss() }
             )
         }
+
+        // Post New Product Drawer Sheet (Safe-Trade with Pickup, Payout, Multi-Photo Gallery & QR Escrow)
+        PostProductDrawerSheet(
+            isOpen = isPostDialogOpen,
+            onDismiss = { isPostDialogOpen = false },
+            onPublishProduct = { title, price, category, condition, location, description,
+                                 pickupSpotName, pickupSecurityLevel, pickupLatitude, pickupLongitude,
+                                 pickupTiming, payoutMethod, requiresQrReleaseCode, qrReleaseCode, imageUrl, imageUrls ->
+                viewModel.onEvent(
+                    HubEvent.PostItem(
+                        title = title,
+                        price = price,
+                        category = category,
+                        condition = condition,
+                        location = location,
+                        description = description,
+                        pickupSpotName = pickupSpotName,
+                        pickupSecurityLevel = pickupSecurityLevel,
+                        pickupLatitude = pickupLatitude,
+                        pickupLongitude = pickupLongitude,
+                        pickupTiming = pickupTiming,
+                        payoutMethod = payoutMethod,
+                        requiresQrReleaseCode = requiresQrReleaseCode,
+                        qrReleaseCode = qrReleaseCode,
+                        imageUrl = imageUrl,
+                        imageUrls = imageUrls
+                    )
+                )
+                isPostDialogOpen = false
+                scope.launch {
+                    val photoNote = if (imageUrls.size > 1) " (${imageUrls.size} photos)" else ""
+                    snackbarHostState.showSnackbar(
+                        "Listed $title$photoNote • Pickup at $pickupSpotName"
+                    )
+                }
+            },
+            onOpenMapLocation = { lat, lng, name ->
+                onNavigateToMap?.invoke(lat, lng, name)
+            }
+        )
+
+        // Stage 4: SafeTrade Buyer Verification & Escrow QR Scanner Drawer Sheet (Only after purchase!)
+        SafeTradeEscrowBuyerSheet(
+            item = selectedItemForEscrowVerification,
+            isOpen = selectedItemForEscrowVerification != null,
+            onDismiss = { selectedItemForEscrowVerification = null },
+            onEscrowReleased = { releasedItem ->
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        "Trade completed! Escrow funds of KES ${"%,.0f".format(releasedItem.price)} transferred to ${releasedItem.sellerName}."
+                    )
+                }
+            }
+        )
 
         // Filter Bottom Sheet Drawer Panel (Mirroring Image 1)
         CampusMarketFilterDrawerSheet(
@@ -1250,8 +1490,8 @@ private val sampleLiveUpdates = listOf(
     // 4. SafeTrade Quad Rendezvous & Flea Market
     CampusLiveUpdate(
         id = "safetrade_quad",
-        title = "SafeTrade Quad Rendezvous & Flea Market",
-        subtitle = "Authorized safe trade canopy at Main Quad. Free hardware inspection, textbook swaps, and escrow payouts.",
+        title = "SafeTrade Quad Meetup & Student Market",
+        subtitle = "Safe trade area at Main Quad. Free item inspection, textbook swaps, and secure payments.",
         tag = "CAMPUS EXCHANGE",
         isLive = true,
         liveViewerCount = "620",
@@ -1472,6 +1712,21 @@ private fun LiveUpdateStoryCard(
                         )
                     )
             )
+
+            // 2b. Paramount+ Style Radial Cog Animated Loader for Live Story Stream Sync
+            var isStoryStreamReady by remember(update.id) { mutableStateOf(false) }
+            LaunchedEffect(update.id) {
+                isStoryStreamReady = false
+                kotlinx.coroutines.delay(580L)
+                isStoryStreamReady = true
+            }
+            if (!isStoryStreamReady && update.isLive) {
+                StreamCogLoaderOverlay(
+                    message = "Optimizing video playback...",
+                    dimBackground = false,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             // 3. Card Content Stack
             Column(
@@ -2380,7 +2635,9 @@ private fun MarketProductHeroCard(
         else -> R.drawable.card_student_founder
     }
 
-    val badgeText = when (item.id) {
+    val badgeText = if (item.requiresQrReleaseCode && item.id.startsWith("item-posted-") || item.requiresQrReleaseCode) {
+        "SafePay QR Verified"
+    } else when (item.id) {
         "item-1" -> "Quad Deal"
         "item-2" -> "2 for 1 notes"
         "item-3" -> "Verified Student"
@@ -2397,13 +2654,22 @@ private fun MarketProductHeroCard(
             .clip(RoundedCornerShape(22.dp))
             .clickable { onClick() }
     ) {
-        // Full-bleed photo covering the entire card
-        Image(
-            painter = painterResource(imageRes),
-            contentDescription = item.title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        // Full-bleed photo covering the entire card (Real photo with progressive shimmer or preset fallback)
+        if (!item.imageUrl.isNullOrBlank()) {
+            ShimmerAsyncImage(
+                model = item.imageUrl,
+                contentDescription = item.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = item.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
 
         // Top-Left Badge Pill
         Box(
@@ -2515,7 +2781,7 @@ private fun MarketProductHeroCard(
                                 fontSize = 12.sp
                             )
                             Text(
-                                text = item.campusHallLocation,
+                                text = item.pickupSpotName.ifBlank { item.campusHallLocation },
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f),
                                 maxLines = 1,
@@ -2576,13 +2842,22 @@ private fun MarketGigHeroCard(
             .clip(RoundedCornerShape(22.dp))
             .clickable { onAccept() }
     ) {
-        // Full-bleed photo covering the entire card
-        Image(
-            painter = painterResource(imageRes),
-            contentDescription = gig.title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        // Full-bleed photo covering the entire card (Real banner or preset fallback)
+        if (!gig.bannerUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = gig.bannerUrl,
+                contentDescription = gig.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = gig.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
 
         // Top-Left Badge Pill
         Box(
@@ -2745,14 +3020,25 @@ private fun MarketProductListItem(
         Box(
             modifier = Modifier.size(64.dp)
         ) {
-            Image(
-                painter = painterResource(imageRes),
-                contentDescription = item.title,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp)),
-                contentScale = ContentScale.Crop
-            )
+            if (!item.imageUrl.isNullOrBlank()) {
+                ShimmerAsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(imageRes),
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -2831,7 +3117,8 @@ private fun MarketProductListItem(
                             append(ratingStr)
                         }
                         withStyle(SpanStyle(color = Color(0xFF64748B))) {
-                            append(" (120) · ${item.category} · 0.4 km")
+                            val loc = if (item.pickupSpotName.isNotBlank()) item.pickupSpotName else "0.4 km"
+                            append(" (120) · ${item.category} · $loc")
                         }
                     }
                     Text(
@@ -3281,83 +3568,6 @@ private fun FilterPill(
                 fontWeight = FontWeight.Normal,
                 color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color(0xFF64748B)
             )
-        }
-    }
-}
-
-/**
- * Post New Item / Gig Dialog.
- */
-@Composable
-private fun PostItemDialog(
-    onDismiss: () -> Unit,
-    onPost: (title: String, price: Double, category: String) -> Unit
-) {
-    var title by remember { mutableStateOf("") }
-    var priceText by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Hardware") }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(modifier = Modifier.padding(22.dp)) {
-                Text(
-                    text = "Post to Campus Hub",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF111827)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title / Item Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = priceText,
-                    onValueChange = { priceText = it },
-                    label = { Text("Price / Payout (KES)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = Color(0xFF6B7280))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val price = priceText.toDoubleOrNull() ?: 100.0
-                            if (title.isNotBlank()) {
-                                onPost(title, price, category)
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandBluePrimary,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Publish", fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                }
-            }
         }
     }
 }

@@ -1,0 +1,46 @@
+[
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_people.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_people.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_travel_places.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_travel_places.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_symbols.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_symbols.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_people_gender_inclusive.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_people_gender_inclusive.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_flags.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_flags.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_animals_nature.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_animals_nature.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_food_drink.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_food_drink.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/no_internet.json",
+        "source": "com.campus.network.feature.messages-release-86:/raw/no_internet.json"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_emotions.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_emotions.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_activity.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_activity.csv"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/raw/emoji_category_objects.csv",
+        "source": "com.campus.network.feature.messages-emoji2-emojipicker-1.5.0-46:/raw/emoji_category_objects.csv"
+    }
+]

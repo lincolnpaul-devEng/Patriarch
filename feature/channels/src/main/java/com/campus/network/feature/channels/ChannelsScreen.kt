@@ -98,6 +98,10 @@ import com.campus.network.feature.channels.components.ServerRulesSheet
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.InDemandCompany
+import com.campus.network.core.ui.components.CampusInlineNetworkAlertCard
+import com.campus.network.core.ui.components.MessageThreadRowSkeleton
+import com.campus.network.core.ui.components.ShimmerAsyncImage
+import com.campus.network.core.ui.components.rememberCampusNetworkState
 import com.campus.network.core.ui.theme.BrandBlueInteractive
 import com.campus.network.core.ui.theme.BrandBluePrimary
 import com.campus.network.core.ui.theme.BrandGold
@@ -105,6 +109,7 @@ import com.campus.network.core.ui.theme.BrandGoldDark
 import com.campus.network.core.ui.theme.SurfaceSubtle
 import com.campus.network.core.ui.theme.TextPrimary
 import com.campus.network.core.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val BrandNavy = BrandBluePrimary
@@ -130,7 +135,7 @@ fun ChannelsScreen(
     onNavigateToMessages: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onBackClick: () -> Unit = {},
-    onNavigateToDirectChat: ((peerId: String, peerName: String, peerHandle: String?) -> Unit)? = null,
+    onNavigateToDirectChat: ((peerId: String, peerName: String, peerHandle: String?, serverName: String?, serverTag: String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -246,10 +251,23 @@ fun ChannelsScreen(
                 onCancelFriendRequest = { memberId ->
                     viewModel.onEvent(ChannelsEvent.CancelFriendRequest(memberId))
                 },
+                onAcceptFriendRequest = { memberId ->
+                    viewModel.onEvent(ChannelsEvent.AcceptFriendRequest(memberId))
+                },
+                onDeclineFriendRequest = { memberId ->
+                    viewModel.onEvent(ChannelsEvent.DeclineFriendRequest(memberId))
+                },
                 onDirectMessage = { member ->
                     viewModel.onEvent(ChannelsEvent.CloseMemberProfile)
+                    val currentServerName = uiState.selectedServer?.name
                     if (onNavigateToDirectChat != null) {
-                        onNavigateToDirectChat(member.id, member.serverNickname ?: member.name, member.handle)
+                        onNavigateToDirectChat(
+                            member.id,
+                            member.serverNickname ?: member.name,
+                            member.handle,
+                            currentServerName,
+                            member.serverTag
+                        )
                     } else {
                         onNavigateToMessages()
                     }
@@ -482,6 +500,8 @@ private fun patriarchServersHubContent(
                 serverId = currentServer.id,
                 serverName = currentServer.name,
                 initialProfile = uiState.perServerProfiles[currentServer.id],
+                defaultNickname = uiState.activeUserName,
+                avatarUrl = uiState.activeUserAvatar,
                 onDismiss = {
                     viewModel.onEvent(ChannelsEvent.CloseEditServerProfile)
                 },
@@ -573,6 +593,7 @@ private fun patriarchServersHubContent(
         if (!uiState.isServerProfileDrawerOpen) {
             UserProfileFloatingBar(
                 name = uiState.activeUserName,
+                avatarUrl = uiState.activeUserAvatar,
                 status = uiState.activeUserStatus,
                 unreadCount = uiState.activeUserUnreadCount,
                 onProfileClick = onProfileClick,
@@ -1115,6 +1136,29 @@ private fun ServerDetailsPanel(
 
         HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFF2F3F5))
 
+        val networkState = rememberCampusNetworkState()
+        var isChannelsSyncing by remember(server.id) { mutableStateOf(true) }
+
+        LaunchedEffect(server.id, networkState.isOnline) {
+            if (networkState.isOnline) {
+                isChannelsSyncing = true
+                delay(if (networkState.isSlowNetwork) 680L else 380L)
+                isChannelsSyncing = false
+            } else {
+                isChannelsSyncing = false
+            }
+        }
+
+        if (!networkState.isOnline) {
+            CampusInlineNetworkAlertCard(
+                featureName = "Server Channels",
+                description = "You can browse cached channels in ${server.name}. Live messages will sync once reconnected.",
+                actionLabel = "Reconnect channels",
+                onActionClick = { networkState.triggerRetry() },
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            )
+        }
+
         // 4. CHANNELS LIST GROUPED BY CATEGORY
         val distinctChannels = remember(server.channels) {
             server.channels.distinctBy { it.id }
@@ -1123,11 +1167,21 @@ private fun ServerDetailsPanel(
             distinctChannels.groupBy { it.categoryName }
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
-        ) {
-            channelsByCategory.forEach { (categoryName, channelsInCategory) ->
+        if (isChannelsSyncing) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
+            ) {
+                items(6) {
+                    MessageThreadRowSkeleton()
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
+            ) {
+                channelsByCategory.forEach { (categoryName, channelsInCategory) ->
                 item(key = "cat_$categoryName") {
                     Row(
                         modifier = Modifier
@@ -1261,12 +1315,14 @@ private fun ServerDetailsPanel(
                 }
             }
         }
+        }
     }
 }
 
 @Composable
 private fun UserProfileFloatingBar(
     name: String,
+    avatarUrl: String?,
     status: String,
     unreadCount: Int,
     onProfileClick: () -> Unit,
@@ -1292,13 +1348,10 @@ private fun UserProfileFloatingBar(
                 modifier = Modifier.size(42.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(com.campus.network.core.ui.R.drawable.avatar_lincoln),
-                    contentDescription = name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
+                com.campus.network.core.ui.components.CampusStudentAvatar(
+                    avatarUrl = avatarUrl,
+                    fullName = name,
+                    modifier = Modifier.fillMaxSize()
                 )
 
                 // Green online status dot

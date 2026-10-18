@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "com.campus.network.feature.channels-release-71:/xml/log_file_paths.xml",
+        "source": "com.campus.network.feature.channels-stream-log-android-1.1.4-30:/xml/log_file_paths.xml"
+    }
+]

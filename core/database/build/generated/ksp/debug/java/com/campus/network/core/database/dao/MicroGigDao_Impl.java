@@ -38,7 +38,7 @@ public final class MicroGigDao_Impl implements MicroGigDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `micro_gigs` (`id`,`title`,`description`,`payoutAmount`,`currency`,`estimatedDuration`,`posterName`,`posterTrustScore`,`tag`,`urgencyName`,`spotsAvailable`,`timestampMs`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `micro_gigs` (`id`,`title`,`description`,`payoutAmount`,`currency`,`estimatedDuration`,`posterName`,`posterTrustScore`,`tag`,`urgencyName`,`spotsAvailable`,`timestampMs`,`bannerUrl`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -56,6 +56,11 @@ public final class MicroGigDao_Impl implements MicroGigDao {
         statement.bindString(10, entity.getUrgencyName());
         statement.bindLong(11, entity.getSpotsAvailable());
         statement.bindLong(12, entity.getTimestampMs());
+        if (entity.getBannerUrl() == null) {
+          statement.bindNull(13);
+        } else {
+          statement.bindString(13, entity.getBannerUrl());
+        }
       }
     };
   }
@@ -101,6 +106,7 @@ public final class MicroGigDao_Impl implements MicroGigDao {
           final int _cursorIndexOfUrgencyName = CursorUtil.getColumnIndexOrThrow(_cursor, "urgencyName");
           final int _cursorIndexOfSpotsAvailable = CursorUtil.getColumnIndexOrThrow(_cursor, "spotsAvailable");
           final int _cursorIndexOfTimestampMs = CursorUtil.getColumnIndexOrThrow(_cursor, "timestampMs");
+          final int _cursorIndexOfBannerUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "bannerUrl");
           final List<MicroGigEntity> _result = new ArrayList<MicroGigEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MicroGigEntity _item;
@@ -128,7 +134,13 @@ public final class MicroGigDao_Impl implements MicroGigDao {
             _tmpSpotsAvailable = _cursor.getInt(_cursorIndexOfSpotsAvailable);
             final long _tmpTimestampMs;
             _tmpTimestampMs = _cursor.getLong(_cursorIndexOfTimestampMs);
-            _item = new MicroGigEntity(_tmpId,_tmpTitle,_tmpDescription,_tmpPayoutAmount,_tmpCurrency,_tmpEstimatedDuration,_tmpPosterName,_tmpPosterTrustScore,_tmpTag,_tmpUrgencyName,_tmpSpotsAvailable,_tmpTimestampMs);
+            final String _tmpBannerUrl;
+            if (_cursor.isNull(_cursorIndexOfBannerUrl)) {
+              _tmpBannerUrl = null;
+            } else {
+              _tmpBannerUrl = _cursor.getString(_cursorIndexOfBannerUrl);
+            }
+            _item = new MicroGigEntity(_tmpId,_tmpTitle,_tmpDescription,_tmpPayoutAmount,_tmpCurrency,_tmpEstimatedDuration,_tmpPosterName,_tmpPosterTrustScore,_tmpTag,_tmpUrgencyName,_tmpSpotsAvailable,_tmpTimestampMs,_tmpBannerUrl);
             _result.add(_item);
           }
           return _result;

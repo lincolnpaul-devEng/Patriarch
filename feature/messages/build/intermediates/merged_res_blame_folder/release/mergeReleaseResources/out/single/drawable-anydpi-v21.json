@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-anydpi-v21/ic_call_decline.xml",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-anydpi-v21/ic_call_decline.xml"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-anydpi-v21/ic_call_decline_low.xml",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-anydpi-v21/ic_call_decline_low.xml"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-anydpi-v21/ic_call_answer_video.xml",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-anydpi-v21/ic_call_answer_video.xml"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-anydpi-v21/ic_call_answer_video_low.xml",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-anydpi-v21/ic_call_answer_video_low.xml"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-anydpi-v21/ic_call_answer_low.xml",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-anydpi-v21/ic_call_answer_low.xml"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/drawable-anydpi-v21/ic_call_answer.xml",
+        "source": "com.campus.network.feature.messages-core-1.13.1-29:/drawable-anydpi-v21/ic_call_answer.xml"
+    }
+]

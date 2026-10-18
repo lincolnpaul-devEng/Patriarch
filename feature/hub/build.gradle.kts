@@ -51,4 +51,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.core)
+
+    // Real QR Code Generator (ZXing)
+    implementation(libs.zxing.core)
+
+    // Interactive Google Maps for pickup location selection
+    implementation(libs.google.maps.compose)
+    implementation(libs.maps.ktx)
+    implementation(libs.play.services.maps)
 }

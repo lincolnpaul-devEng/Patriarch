@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "com.campus.network.core.network-release-39:/xml/log_file_paths.xml",
+        "source": "com.campus.network.core.network-stream-log-android-1.1.4-16:/xml/log_file_paths.xml"
+    }
+]

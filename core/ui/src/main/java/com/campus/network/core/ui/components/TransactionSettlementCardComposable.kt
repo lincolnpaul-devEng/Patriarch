@@ -95,11 +95,18 @@ fun TransactionSettlementCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Peer Escrow Settlement",
+                        text = "Safe Peer Payment",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                }
+
+                val statusLabel = when (payload.status) {
+                    SettlementStatus.SETTLED -> "PAID"
+                    SettlementStatus.ESCROW_LOCKED -> "HELD SAFELY"
+                    SettlementStatus.PENDING_ESCROW -> "PENDING"
+                    SettlementStatus.CANCELLED -> "CANCELLED"
                 }
 
                 Box(
@@ -109,7 +116,7 @@ fun TransactionSettlementCard(
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = payload.status.name.replace('_', ' '),
+                        text = statusLabel,
                         color = statusColor,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold

@@ -93,6 +93,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.campus.network.core.ui.components.HybridEmojiReactionDrawer
+import com.campus.network.core.ui.components.StreamCogLoaderOverlay
+import com.campus.network.core.ui.components.rememberCampusNetworkState
 import com.campus.network.feature.hub.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -295,10 +297,10 @@ val defaultCampusLiveStories = listOf(
         broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_clin,
         viewerCount = "620",
         isLive = true,
-        title = "SafeTrade Quad Rendezvous & Market",
-        description = "Streaming live from the Student Guild Quad canopy. Hardware checkups, textbook drop-offs, and safe escrow payouts.",
+        title = "SafeTrade Quad Meetup & Market",
+        description = "Streaming live from the Student Center Quad. Free item checkups, textbook drop-offs, and safe payments.",
         backdropImageRes = R.drawable.card_campus_landmark,
-        location = "Student Guild Quad, UoN",
+        location = "Student Center Quad, UoN",
         joinedDate = "21st Mar 2025",
         hoursLive = 92,
         followers = "2,310",
@@ -307,12 +309,12 @@ val defaultCampusLiveStories = listOf(
         streamsPerWeek = 5,
         weeklyActivity = activityGrid(44, 0.65f),
         pastStreams = listOf(
-            PastStream("SafeTrade Quad Rendezvous & Market", "Live now", "620 watching", "Live"),
+            PastStream("SafeTrade Quad Meetup & Market", "Live now", "620 watching", "Live"),
             PastStream("Textbook swap day highlights", "2 days ago", "1.3k views", "40 min"),
-            PastStream("How SafePay escrow protects you", "1 week ago", "2.0k views", "25 min")
+            PastStream("How SafePay protects your money", "1 week ago", "2.0k views", "25 min")
         ),
         servers = listOf(
-            StreamerServer("SafeTrade Campus Market", "Owner", "3,050 members", "Marketplace", "Verified student buy/sell listings with escrow-backed payouts.", com.campus.network.core.ui.R.drawable.avatar_clin),
+            StreamerServer("SafeTrade Campus Market", "Owner", "3,050 members", "Marketplace", "Verified student buy/sell listings with protected payments.", com.campus.network.core.ui.R.drawable.avatar_clin),
             StreamerServer("Textbook Exchange", "Admin", "1,120 members", "Study Resources", "Swap and donate textbooks, calculators and class notes.", com.campus.network.core.ui.R.drawable.server_avatar2)
         ),
         initialComments = listOf(
@@ -450,6 +452,18 @@ private fun SingleLiveFeedPage(
         }
     }
 
+    val networkState = rememberCampusNetworkState()
+    var isStreamOptimizing by remember(story.id) { mutableStateOf(true) }
+
+    LaunchedEffect(story.id, networkState.isOnline, networkState.isSlowNetwork) {
+        isStreamOptimizing = true
+        val bufferMs = if (networkState.isSlowNetwork) 1450L else 950L
+        delay(bufferMs)
+        if (networkState.isOnline) {
+            isStreamOptimizing = false
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -488,6 +502,23 @@ private fun SingleLiveFeedPage(
                     )
                 )
         )
+
+        // 2b. Cog Animated Loader Overlay ("Optimizing video playback...") matching Paramount+ reference
+        AnimatedVisibility(
+            visible = isStreamOptimizing || !networkState.isOnline,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(350)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            StreamCogLoaderOverlay(
+                message = if (!networkState.isOnline) {
+                    "Waiting for network to resume stream..."
+                } else {
+                    "Optimizing video playback..."
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // 3. Floating Heart Particles Engine (Drifting up along the right edge)
         heartParticles.forEach { particle ->

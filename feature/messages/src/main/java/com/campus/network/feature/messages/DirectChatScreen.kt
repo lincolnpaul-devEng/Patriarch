@@ -314,6 +314,27 @@ fun DirectChatScreen(
                             )
                         }
                     }
+
+                    if (thread.serverBadgeText != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFF1F5F9),
+                            border = BorderStroke(0.5.dp, Color(0xFFCBD5E1))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = thread.serverBadgeText,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF475569)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Video Call Button
@@ -1036,14 +1057,14 @@ private fun SendSettlementDialog(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "Send Peer Escrow Settlement",
+                    text = "Send Safe Payment",
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     color = TextPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Funds remain locked in campus smart-escrow for $peerName until delivery is verified.",
+                    text = "Money is held safely for $peerName until you confirm the pickup.",
                     fontSize = 12.sp,
                     color = TextSecondary
                 )

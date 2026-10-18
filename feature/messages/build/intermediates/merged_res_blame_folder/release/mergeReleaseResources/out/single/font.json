@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/font/stream_roboto_medium.ttf",
+        "source": "com.campus.network.feature.messages-stream-chat-android-ui-common-6.0.8-4:/font/stream_roboto_medium.ttf"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/font/stream_roboto_bold.ttf",
+        "source": "com.campus.network.feature.messages-stream-chat-android-ui-common-6.0.8-4:/font/stream_roboto_bold.ttf"
+    },
+    {
+        "merged": "com.campus.network.feature.messages-release-90:/font/stream_roboto_regular.ttf",
+        "source": "com.campus.network.feature.messages-stream-chat-android-ui-common-6.0.8-4:/font/stream_roboto_regular.ttf"
+    }
+]

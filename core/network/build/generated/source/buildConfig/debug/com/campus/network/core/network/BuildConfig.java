@@ -16,6 +16,10 @@ public final class BuildConfig {
   // Field from default config.
   public static final String CLOUDINARY_UPLOAD_PRESET = "photo";
   // Field from default config.
+  public static final String GOOGLE_CLIENT_ID_ANDROID = "33977563743-deh4vrtqho97silalg186sc5dkfil497.apps.googleusercontent.com";
+  // Field from default config.
+  public static final String GOOGLE_CLIENT_ID_WEB = "33977563743-06i5ph1vkl17qnntc011h65lsk3np63f.apps.googleusercontent.com";
+  // Field from default config.
   public static final String OPENROUTER_API_KEY = "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";
   // Field from default config.
   public static final String STREAM_API_KEY = "ere637qj6ze8";

@@ -2,8 +2,10 @@ package com.campus.network.core.data
 
 import com.campus.network.core.model.BadgeLevel
 import com.campus.network.core.model.ConsistencyQuest
+import com.campus.network.core.model.OnboardingPreferences
 import com.campus.network.core.model.QuestCategory
 import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.UniversityDirectoryEntry
 import com.campus.network.core.model.VerifiedSkillBadge
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -22,103 +24,132 @@ class StudentProfileRepository(
 ) {
     private val _studentProfile = MutableStateFlow(
         StudentProfile(
-            studentId = "ST-2024-8842",
-            fullName = "Lincoln Kiprotich",
-            universityEmail = "l.kiprotich@strathmore.edu",
-            universityName = "Strathmore University",
-            degreeProgram = "B.Sc. Informatics & Computer Science",
-            academicYear = "3rd Year (Semester 1)",
-            consistencyStreakDays = 24,
-            behavioralTrustScore = 96,
-            verifiedSkillBadges = listOf(
-                VerifiedSkillBadge(
-                    id = "badge-1",
-                    name = "Jetpack Compose Architect",
-                    facultyVerifier = "Dr. Odhiambo (School of Computing)",
-                    verifiedDate = "Sep 2026",
-                    endorsementCount = 18,
-                    level = BadgeLevel.GOLD
-                ),
-                VerifiedSkillBadge(
-                    id = "badge-2",
-                    name = "Kotlin Coroutines & Flow Guru",
-                    facultyVerifier = "Prof. Mwangi (Software Eng)",
-                    verifiedDate = "Aug 2026",
-                    endorsementCount = 27,
-                    level = BadgeLevel.CAMPUS_MASTER
-                ),
-                VerifiedSkillBadge(
-                    id = "badge-3",
-                    name = "Campus SafeTrade Arbitrator",
-                    facultyVerifier = "Student Guild Commerce Council",
-                    verifiedDate = "Jul 2026",
-                    endorsementCount = 12,
-                    level = BadgeLevel.SILVER
-                )
-            ),
-            privateQuestDeck = listOf(
-                ConsistencyQuest(
-                    id = "quest-1",
-                    title = "3-Day Focus Library Streak",
-                    description = "Check in to campus library / study lounge for at least 45 minutes across 3 consecutive days.",
-                    xpReward = 150,
-                    currentProgress = 2,
-                    targetProgress = 3,
-                    isCompleted = false,
-                    category = QuestCategory.FOCUS_STREAK
-                ),
-                ConsistencyQuest(
-                    id = "quest-2",
-                    title = "Academic Workspace Helper",
-                    description = "Answer 2 peer questions in your enrolled course code threads (#cs-201 or #cs-305).",
-                    xpReward = 200,
-                    currentProgress = 2,
-                    targetProgress = 2,
-                    isCompleted = true,
-                    category = QuestCategory.ACADEMIC_PEER_HELP
-                ),
-                ConsistencyQuest(
-                    id = "quest-3",
-                    title = "Zero-Dispute Marketplace Settler",
-                    description = "Complete 3 peer transactions via inline settlement cards with 100% mutual confirmation.",
-                    xpReward = 300,
-                    currentProgress = 2,
-                    targetProgress = 3,
-                    isCompleted = false,
-                    category = QuestCategory.COMMERCE_RELIABILITY
-                ),
-                ConsistencyQuest(
-                    id = "quest-4",
-                    title = "Campus Meet Host",
-                    description = "Organize a flash study-jam or hack meetup attended by at least 3 verified students.",
-                    xpReward = 250,
-                    currentProgress = 1,
-                    targetProgress = 1,
-                    isCompleted = true,
-                    category = QuestCategory.COMMUNITY_ENGAGEMENT
-                )
-            ),
-            alternateProfiles = listOf(
-                StudentProfile(
-                    studentId = "EXEC-2024-009",
-                    fullName = "Lincoln Kiprotich (Guild VP)",
-                    universityEmail = "guild.vp@strathmore.edu",
-                    universityName = "Strathmore University",
-                    degreeProgram = "Student Guild Executive Council",
-                    academicYear = "Executive Term 2026/2027",
-                    consistencyStreakDays = 45,
-                    behavioralTrustScore = 99,
-                    verifiedSkillBadges = emptyList(),
-                    privateQuestDeck = emptyList(),
-                    personaRole = "Club Executive / Campus Guild",
-                    statusNote = "Guild Office Hours: Mon-Thu 2-5 PM",
-                    statusNoteEmoji = "Guild"
-                )
-            )
+            studentId = "",
+            fullName = "",
+            avatarUrl = null,
+            universityEmail = "",
+            universityName = "",
+            degreeProgram = "",
+            academicYear = "",
+            consistencyStreakDays = 0,
+            behavioralTrustScore = 50,
+            verifiedSkillBadges = emptyList(),
+            privateQuestDeck = emptyList(),
+            alternateProfiles = emptyList(),
+            onboardingPreferences = OnboardingPreferences()
         )
     )
 
+    private val _isAuthenticatedSession = MutableStateFlow(true)
+    val isAuthenticatedSession = _isAuthenticatedSession.asStateFlow()
+
+    private val _isGuestSession = MutableStateFlow(false)
+    val isGuestSession = _isGuestSession.asStateFlow()
+
+    private val _locationPrivacyScope = MutableStateFlow(
+        com.campus.network.core.model.LocationPrivacyScope.VERIFIED_CAMPUS_PEERS
+    )
+    val locationPrivacyScope = _locationPrivacyScope.asStateFlow()
+
     fun getProfile(): Flow<StudentProfile> = _studentProfile.asStateFlow()
+
+    suspend fun applyGuestSession() = withContext(ioDispatcher) {
+        _isAuthenticatedSession.value = false
+        _isGuestSession.value = true
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(
+            personaRole = "Guest Preview (Unverified)",
+            onboardingPreferences = current.onboardingPreferences.copy(
+                isVerifiedStudentEmail = false
+            )
+        )
+    }
+
+    suspend fun updateLocationPrivacyScope(
+        scope: com.campus.network.core.model.LocationPrivacyScope
+    ) = withContext(ioDispatcher) {
+        _locationPrivacyScope.value = scope
+    }
+
+    suspend fun saveOnboardingPreferences(preferences: OnboardingPreferences) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        val updatedInterests = if (preferences.favoriteCategories.isNotEmpty()) {
+            preferences.favoriteCategories
+        } else {
+            current.interests
+        }
+        val updatedDegree = if (preferences.faculty.isNotBlank()) {
+            preferences.faculty
+        } else {
+            current.degreeProgram
+        }
+        val updatedYear = if (preferences.yearOfStudy.isNotBlank()) {
+            preferences.yearOfStudy
+        } else {
+            current.academicYear
+        }
+        val updatedUni = if (preferences.universityName.isNotBlank()) {
+            preferences.universityName
+        } else {
+            current.universityName
+        }
+        val updatedResidence = if (preferences.regionName.isNotBlank()) {
+            "${preferences.regionName}, ${preferences.countryName}"
+        } else {
+            current.campusResidence
+        }
+        _studentProfile.value = current.copy(
+            universityName = updatedUni,
+            degreeProgram = updatedDegree,
+            academicYear = updatedYear,
+            campusResidence = updatedResidence,
+            interests = updatedInterests,
+            notificationsEnabled = preferences.pushNotificationsOptIn || current.notificationsEnabled,
+            onboardingPreferences = preferences
+        )
+    }
+
+    suspend fun applyAuthenticatedUser(
+        fullName: String?,
+        email: String,
+        avatarUrl: String? = null,
+        matchedUniversity: UniversityDirectoryEntry?,
+        countryName: String?,
+        currencyCode: String?
+    ) = withContext(ioDispatcher) {
+        _isAuthenticatedSession.value = true
+        _isGuestSession.value = false
+        val current = _studentProfile.value
+        val cleanName = fullName?.trim()?.takeIf { it.isNotEmpty() } ?: current.fullName
+        val cleanEmail = email.trim().takeIf { it.isNotEmpty() } ?: current.universityEmail
+        val cleanAvatar = avatarUrl?.trim()?.takeIf { it.isNotEmpty() } ?: current.avatarUrl
+        val currentPrefs = current.onboardingPreferences
+        val isAcademicDomain = cleanEmail.lowercase().endsWith(".ac.ke") ||
+            cleanEmail.lowercase().endsWith("strathmore.edu") ||
+            matchedUniversity != null
+        val updatedPrefs = if (matchedUniversity != null) {
+            currentPrefs.copy(
+                countryCode = matchedUniversity.countryCode.ifBlank { currentPrefs.countryCode },
+                countryName = countryName ?: currentPrefs.countryName,
+                currencyCode = currencyCode ?: currentPrefs.currencyCode,
+                regionName = matchedUniversity.region.ifBlank { currentPrefs.regionName },
+                universityName = matchedUniversity.name,
+                universityDomain = matchedUniversity.domain,
+                isCustomUniversity = false,
+                isVerifiedStudentEmail = true
+            )
+        } else {
+            currentPrefs.copy(isVerifiedStudentEmail = isAcademicDomain)
+        }
+        _studentProfile.value = current.copy(
+            fullName = cleanName,
+            universityEmail = cleanEmail,
+            avatarUrl = cleanAvatar,
+            universityName = matchedUniversity?.name ?: current.universityName,
+            personaRole = if (isAcademicDomain) "Undergraduate Student" else "Guest Preview (Unverified)",
+            onboardingPreferences = updatedPrefs
+        )
+    }
 
     suspend fun completeQuest(questId: String) = withContext(ioDispatcher) {
         val current = _studentProfile.value
@@ -156,6 +187,11 @@ class StudentProfileRepository(
             bio = bio.trim(),
             interests = interests
         )
+    }
+
+    suspend fun updateAvatar(avatarUrl: String) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        _studentProfile.value = current.copy(avatarUrl = avatarUrl.trim())
     }
 
     suspend fun setStatusNote(

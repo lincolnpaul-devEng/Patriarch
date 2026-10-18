@@ -77,6 +77,8 @@ fun ServerMemberProfileSheet(
     onDismiss: () -> Unit,
     onSendFriendRequest: (memberId: String) -> Unit,
     onCancelFriendRequest: (memberId: String) -> Unit,
+    onAcceptFriendRequest: (memberId: String) -> Unit = {},
+    onDeclineFriendRequest: (memberId: String) -> Unit = {},
     onDirectMessage: (member: ServerMemberItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -340,7 +342,7 @@ fun ServerMemberProfileSheet(
                             }
                             FriendRequestStatus.REQUEST_RECEIVED -> {
                                 Button(
-                                    onClick = { onSendFriendRequest(member.id) },
+                                    onClick = { onAcceptFriendRequest(member.id) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF23A55A)),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
@@ -355,10 +357,25 @@ fun ServerMemberProfileSheet(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "Accept Request",
+                                        text = "Accept",
                                         color = Color.White,
                                         fontSize = 13.5.sp,
                                         fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                OutlinedButton(
+                                    onClick = { onDeclineFriendRequest(member.id) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE11D48)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDA4AF)),
+                                    modifier = Modifier.height(44.dp)
+                                ) {
+                                    Text(
+                                        text = "Decline",
+                                        color = Color(0xFFE11D48),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }

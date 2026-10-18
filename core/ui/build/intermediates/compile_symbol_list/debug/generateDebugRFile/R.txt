@@ -75,4 +75,5 @@ int drawable student_clin 0x0
 int drawable student_eliza 0x0
 int drawable student_june 0x0
 int drawable student_rk 0x0
+int raw no_internet 0x0
 int style Theme_Patriarch 0x0

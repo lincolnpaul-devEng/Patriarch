@@ -44,9 +44,26 @@ class CampusHubRepository(
         category: String,
         condition: String,
         sellerName: String,
-        location: String
+        location: String,
+        description: String = "",
+        pickupSpotName: String = "Quad Library Ground Floor Lockers",
+        pickupSecurityLevel: String = "CCTV Monitored Safe Zone",
+        pickupLatitude: Double = -1.3090,
+        pickupLongitude: Double = 36.8120,
+        pickupTiming: String = "Immediate (within 1 hr)",
+        payoutMethod: String = "Campus SafePay Escrow",
+        requiresQrReleaseCode: Boolean = true,
+        qrReleaseCode: String = "CP-849201",
+        imageUrl: String? = null,
+        imageUrls: List<String> = emptyList()
     ): MarketItem = withContext(ioDispatcher) {
         val now = System.currentTimeMillis()
+        val combinedUrls = imageUrls
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .ifEmpty { listOfNotNull(imageUrl?.trim()?.takeIf { it.isNotEmpty() }) }
+        val serializedImageField = combinedUrls.joinToString("|").ifBlank { null }
+
         val entity = MarketItemEntity(
             id = "item-$now",
             title = title,
@@ -58,8 +75,17 @@ class CampusHubRepository(
             sellerRating = 5.0f,
             isCampusVerifiedSeller = true,
             campusHallLocation = location,
-            imageUrl = null,
-            timestampMs = now
+            imageUrl = serializedImageField,
+            timestampMs = now,
+            description = description,
+            pickupSpotName = pickupSpotName,
+            pickupSecurityLevel = pickupSecurityLevel,
+            pickupLatitude = pickupLatitude,
+            pickupLongitude = pickupLongitude,
+            pickupTiming = pickupTiming,
+            payoutMethod = payoutMethod,
+            requiresQrReleaseCode = requiresQrReleaseCode,
+            qrReleaseCode = qrReleaseCode
         )
         itemDao.insertItems(listOf(entity))
         return@withContext entity.toDomain()
@@ -100,20 +126,37 @@ class CampusHubRepository(
         return aiClient.getSearchSuggestions(query)
     }
 
-    private fun MarketItemEntity.toDomain() = MarketItem(
-        id = id,
-        title = title,
-        price = price,
-        currency = currency,
-        category = category,
-        condition = condition,
-        sellerName = sellerName,
-        sellerRating = sellerRating,
-        isCampusVerifiedSeller = isCampusVerifiedSeller,
-        campusHallLocation = campusHallLocation,
-        imageUrl = imageUrl,
-        timestampMs = timestampMs
-    )
+    private fun MarketItemEntity.toDomain(): MarketItem {
+        val parsedUrls = imageUrl
+            ?.split("|")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+        return MarketItem(
+            id = id,
+            title = title,
+            price = price,
+            currency = currency,
+            category = category,
+            condition = condition,
+            sellerName = sellerName,
+            sellerRating = sellerRating,
+            isCampusVerifiedSeller = isCampusVerifiedSeller,
+            campusHallLocation = campusHallLocation,
+            imageUrl = parsedUrls.firstOrNull(),
+            imageUrls = parsedUrls,
+            timestampMs = timestampMs,
+            description = description,
+            pickupSpotName = pickupSpotName,
+            pickupSecurityLevel = pickupSecurityLevel,
+            pickupLatitude = pickupLatitude,
+            pickupLongitude = pickupLongitude,
+            pickupTiming = pickupTiming,
+            payoutMethod = payoutMethod,
+            requiresQrReleaseCode = requiresQrReleaseCode,
+            qrReleaseCode = qrReleaseCode
+        )
+    }
 
     private fun MicroGigEntity.toDomain() = MicroGig(
         id = id,
@@ -127,6 +170,7 @@ class CampusHubRepository(
         tag = tag,
         urgencyLevel = runCatching { GigUrgency.valueOf(urgencyName) }.getOrDefault(GigUrgency.NORMAL),
         spotsAvailable = spotsAvailable,
-        timestampMs = timestampMs
+        timestampMs = timestampMs,
+        bannerUrl = bannerUrl
     )
 }

@@ -3,10 +3,14 @@ package com.campus.network.feature.profile
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -471,7 +475,7 @@ fun ProfileScreen(
 
                         ToggleRow(
                             icon = Icons.Default.Payments,
-                            title = "SafeTrade Settlement Alerts",
+                            title = "SafeTrade Payment Alerts",
                             checked = profile?.escrowAlertsEnabled ?: true,
                             onCheckedChange = { checked ->
                                 if (profile != null) {
@@ -961,25 +965,20 @@ private fun LuxuryGoldProfileCard(
                         .padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 14.dp),
                     verticalAlignment = Alignment.Top
                 ) {
-                    // Creamy Gold Circular Avatar with Note indicator badge
+                    // Luxury Circular Avatar with Note indicator badge & photo support
                     Box(modifier = Modifier.size(68.dp)) {
                         Box(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(Color(0xFFFEF08A), Color(0xFFFDE047))
-                                    )
-                                )
+                                .background(Color(0xFF1E293B))
                                 .border(1.5.dp, GoldAccent, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = initial,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF854D0E)
+                            CampusStudentAvatar(
+                                avatarUrl = profile?.avatarUrl,
+                                fullName = studentName,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
 

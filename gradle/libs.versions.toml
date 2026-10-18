@@ -19,6 +19,7 @@ ktor = "2.3.10"
 coil = "2.6.0"
 emoji2 = "1.5.0"
 camerax = "1.3.4"
+zxing = "3.5.3"
 
 [libraries]
 # Emoji & Reaction Engine
@@ -29,10 +30,11 @@ androidx-emoji2-bundled = { group = "androidx.emoji2", name = "emoji2-bundled", 
 stream-chat-compose = { group = "io.getstream", name = "stream-chat-android-compose", version.ref = "streamSdk" }
 stream-chat-client = { group = "io.getstream", name = "stream-chat-android-client", version.ref = "streamSdk" }
 
-# Google Maps Engine
+# Google Maps & Auth Engine
 google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "googleMaps" }
 maps-ktx = { group = "com.google.maps.android", name = "maps-ktx", version.ref = "mapsKtx" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.2.0" }
 
 # AndroidX Core & Lifecycle
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -75,8 +77,19 @@ guava-android = { group = "com.google.guava", name = "guava", version = "31.1-an
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coil" }
 
+# Real QR Code Generator
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+
+# Lottie Compose Animation
+lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version = "6.4.0" }
+
+# Background Polling & Push Notifications (WorkManager + Firebase Cloud Messaging)
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version = "2.9.0" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx", version = "24.0.0" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+google-services = { id = "com.google.gms.google-services", version = "4.4.2" }

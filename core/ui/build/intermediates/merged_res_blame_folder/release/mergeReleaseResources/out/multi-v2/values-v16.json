@@ -1,0 +1,36 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.campus.network.core.ui-mergeReleaseResources-51:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/59e96032c7049e67081cf3d6f864e2f0/transformed/appcompat-1.6.1/res/values-v16/values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "com.campus.network.core.ui-release-53:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/59e96032c7049e67081cf3d6f864e2f0/transformed/appcompat-1.6.1/res/values-v16/values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,10 +1,20 @@
 {
     "logs": [
         {
-            "outputFile": "com.campus.network.app-mergeDebugResources-91:/values-id/values-id.xml",
+            "outputFile": "com.campus.network.app-mergeDebugResources-96:/values-id/values-id.xml",
             "map": [
                 {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/fc2d0fd99e12a033f6dcda548129a979/transformed/stream-chat-android-ui-common-6.0.8/res/values-id/values-id.xml",
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/1270265545dad6799531cfd42be2237e/transformed/stream-chat-android-client-6.0.8/res/values-id/values-id.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,168,263,357,436,524,610,717,797,864,939,1016",
+                        "endColumns": "112,94,93,78,87,85,106,79,66,74,76,93",
+                        "endOffsets": "163,258,352,431,519,605,712,792,859,934,1011,1105"
+                    }
+                },
+                {
+                    "source": "/home/lincoln/.gradle/caches/transforms-4/070ad8934415d032580c84e912981a39/transformed/stream-chat-android-ui-common-6.0.8/res/values-id/values-id.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7",
                         "startColumns": "4,4,4,4,4,4",
@@ -18,16 +28,6 @@
                         "startOffsets": "1110,1192,1320,1454,1572,1705",
                         "endColumns": "81,127,133,117,132,57",
                         "endOffsets": "1187,1315,1449,1567,1700,1758"
-                    }
-                },
-                {
-                    "source": "/home/lincoln/.gradle/caches/transforms-4/de28b7fe24b440bcbefb67fd39ef6df2/transformed/stream-chat-android-client-6.0.8/res/values-id/values-id.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9,10,11,12,13",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,168,263,357,436,524,610,717,797,864,939,1016",
-                        "endColumns": "112,94,93,78,87,85,106,79,66,74,76,93",
-                        "endOffsets": "163,258,352,431,519,605,712,792,859,934,1011,1105"
                     }
                 }
             ]

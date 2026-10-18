@@ -445,7 +445,7 @@ fun CampusWalletScreen(
                                 color = Color(0xFF1E3A8A)
                             )
                             Text(
-                                text = "Funds are locked in the SafePay Vault until buyer and seller mutually confirm inspection at a verified rendezvous point.",
+                                text = "Money is held safely until the buyer and seller meet up and confirm the item in person.",
                                 fontSize = 11.5.sp,
                                 color = Color(0xFF3B82F6),
                                 lineHeight = 16.sp
@@ -777,12 +777,12 @@ fun CampusWalletScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "1. When you buy a textbook, gadget, or service, your payment is securely vaulted — NOT sent to the seller yet.",
+                        "1. When you buy a textbook, gadget, or service, your payment is held safely — NOT sent to the seller yet.",
                         fontSize = 13.sp,
                         color = Color(0xFF334155)
                     )
                     Text(
-                        "2. You meet up safely at an authorized campus rendezvous point (Library, Quad, Student Guild Center).",
+                        "2. You meet up safely at an agreed campus spot (Library, Quad, Student Center).",
                         fontSize = 13.sp,
                         color = Color(0xFF334155)
                     )
@@ -792,7 +792,7 @@ fun CampusWalletScreen(
                         color = Color(0xFF334155)
                     )
                     Text(
-                        "4. If there is an issue, our student arbiters mediate and refund you 100% with no disputes.",
+                        "4. If there is an issue, student support helps you and refunds 100% of your money.",
                         fontSize = 13.sp,
                         color = Color(0xFF334155)
                     )

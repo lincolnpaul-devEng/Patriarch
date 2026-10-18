@@ -97,7 +97,17 @@ data class MarketItem(
     val isCampusVerifiedSeller: Boolean,
     val campusHallLocation: String,
     val imageUrl: String? = null,
-    val timestampMs: Long
+    val imageUrls: List<String> = if (imageUrl != null) listOf(imageUrl) else emptyList(),
+    val timestampMs: Long,
+    val description: String = "",
+    val pickupSpotName: String = "Quad Library Ground Floor Lockers",
+    val pickupSecurityLevel: String = "CCTV Monitored Safe Zone",
+    val pickupLatitude: Double = -1.3090,
+    val pickupLongitude: Double = 36.8120,
+    val pickupTiming: String = "Immediate (within 1 hr)",
+    val payoutMethod: String = "Campus SafePay Escrow",
+    val requiresQrReleaseCode: Boolean = true,
+    val qrReleaseCode: String = "CP-849201"
 )
 
 data class MicroGig(
@@ -112,7 +122,8 @@ data class MicroGig(
     val tag: String,
     val urgencyLevel: GigUrgency,
     val spotsAvailable: Int = 1,
-    val timestampMs: Long
+    val timestampMs: Long,
+    val bannerUrl: String? = null
 )
 
 enum class GigUrgency {
@@ -138,13 +149,13 @@ data class StudentProfile(
     val statusNote: String? = null,
     val statusNoteEmoji: String? = null,
     val statusNoteExpiry: String? = null,
-    val bio: String = "Undergraduate researcher in distributed campus systems & mobile architectures.",
+    val bio: String = "",
     val avatarUrl: String? = null,
-    val campusResidence: String = "Strathmore Quad B, Hall 4",
-    val phoneNumber: String = "+254 712 345 678",
-    val interests: List<String> = listOf("Mobile Engineering", "Distributed Systems", "AI / LLM Agents", "Fintech Escrow"),
-    val storageUsedBytes: Long = 348_000_000L, // 348 MB used out of 1 GB
-    val storageQuotaBytes: Long = 1_073_741_824L, // 1 GB dedicated storage
+    val campusResidence: String = "",
+    val phoneNumber: String = "",
+    val interests: List<String> = emptyList(),
+    val storageUsedBytes: Long = 0L,
+    val storageQuotaBytes: Long = 1_073_741_824L,
     val notificationsEnabled: Boolean = true,
     val escrowAlertsEnabled: Boolean = true,
     val questRemindersEnabled: Boolean = true,
@@ -152,8 +163,57 @@ data class StudentProfile(
     val isOnlineStatusVisible: Boolean = true,
     val activityLedgerVisibility: String = "Public to Campus",
     val personaRole: String = "Undergraduate Student",
-    val alternateProfiles: List<StudentProfile> = emptyList()
+    val alternateProfiles: List<StudentProfile> = emptyList(),
+    val onboardingPreferences: OnboardingPreferences = OnboardingPreferences()
 )
+
+data class OnboardingPreferences(
+    val languageCode: String = "en",
+    val countryCode: String = "KE",
+    val countryName: String = "Kenya",
+    val currencyCode: String = "KES",
+    val regionName: String = "Nairobi",
+    val universityName: String = "Strathmore University",
+    val universityDomain: String = "strathmore.edu",
+    val isCustomUniversity: Boolean = false,
+    val isVerifiedStudentEmail: Boolean = false,
+    val faculty: String = "Computing & Informatics",
+    val yearOfStudy: String = "Year 3",
+    val intents: List<String> = emptyList(),
+    val favoriteCategories: List<String> = emptyList(),
+    val priorities: List<String> = emptyList(),
+    val pushNotificationsOptIn: Boolean = false,
+    val personalizedNewsConsent: Boolean = true,
+    val hasCompletedSurvey: Boolean = false
+)
+
+data class CountryDirectoryEntry(
+    val code: String,
+    val name: String,
+    val currencyCode: String,
+    val isFeatured: Boolean
+)
+
+data class UniversityDirectoryEntry(
+    val name: String,
+    val countryCode: String,
+    val region: String,
+    val domain: String,
+    val featuredOrder: Int
+)
+
+val StudentProfile.firstName: String
+    get() = fullName.trim().split(" ").firstOrNull()?.takeIf { it.isNotEmpty() } ?: fullName
+
+val StudentProfile.initials: String
+    get() {
+        val parts = fullName.trim().split(" ").filter { it.isNotEmpty() }
+        return when {
+            parts.isEmpty() -> "U"
+            parts.size == 1 -> parts[0].take(2).uppercase()
+            else -> "${parts[0].first()}${parts[1].first()}".uppercase()
+        }
+    }
 
 data class VerifiedSkillBadge(
     val id: String,
@@ -229,4 +289,5 @@ data class StreamComment(
     val commentText: String,
     val timestampEpochMs: Long = System.currentTimeMillis()
 )
+
 

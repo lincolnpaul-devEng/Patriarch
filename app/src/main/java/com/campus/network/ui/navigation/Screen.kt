@@ -41,6 +41,12 @@ sealed class Screen(
         icon = Icons.Default.Home
     )
 
+    data object OnboardingSurvey : Screen(
+        route = "onboarding_survey",
+        title = "Onboarding Survey",
+        icon = Icons.Default.Home
+    )
+
     data object Hub : Screen(
         route = "tab_hub",
         title = "Home",
@@ -83,6 +89,18 @@ sealed class Screen(
     data object GoLive : Screen(
         route = "go_live",
         title = "Go Live",
+        icon = Icons.Default.Home
+    )
+
+    data object Notifications : Screen(
+        route = "notifications",
+        title = "Notifications",
+        icon = Icons.Default.Home
+    )
+
+    data object NotificationSettings : Screen(
+        route = "notification_settings",
+        title = "Notification Settings",
         icon = Icons.Default.Home
     )
 

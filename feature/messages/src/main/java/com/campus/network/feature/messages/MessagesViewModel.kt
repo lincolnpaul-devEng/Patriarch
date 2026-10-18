@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.campus.network.core.model.PeerTransactionPayload
 import com.campus.network.core.model.SettlementStatus
+import com.campus.network.core.data.StudentProfileRepository
+import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.firstName
 import com.campus.network.core.network.StreamChatEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -15,10 +18,12 @@ import kotlinx.coroutines.launch
 
 class MessagesViewModel(
     private val streamChatEngine: StreamChatEngine? = null,
-    private val telecomCallManager: CampusTelecomCallManager? = null
+    private val telecomCallManager: CampusTelecomCallManager? = null,
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
 ) : ViewModel() {
 
     private var callTimerJob: Job? = null
+    private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
 
     private val initialThreads = listOf(
         ConversationThread(
@@ -38,7 +43,7 @@ class MessagesViewModel(
             peerName = "Sarah Nduta",
             peerHandle = "@sarah_n",
             avatarInitials = "SN",
-            lastMessage = "Sending peer escrow settlement for the micro-gig.",
+            lastMessage = "Sending safe payment for the gig.",
             lastTimestamp = "10:09 AM",
             unreadCount = 0,
             isOnline = true,
@@ -171,7 +176,7 @@ class MessagesViewModel(
                 id = "msg-3",
                 senderName = "Lincoln",
                 isMine = true,
-                text = "Sending peer escrow settlement for the micro-gig.",
+                text = "Sending safe payment for the gig.",
                 timestamp = "10:09 AM",
                 settlementPayload = PeerTransactionPayload(
                     transactionId = "tx-9921",
@@ -247,11 +252,102 @@ class MessagesViewModel(
 
     val voiceTransformerEngine = com.campus.network.feature.messages.audio.VoiceTransformerEngine(viewModelScope)
 
+    init {
+        viewModelScope.launch {
+            studentProfileRepository.getProfile().collect { profile ->
+                _currentProfile.value = profile
+                _uiState.update { current ->
+                    current.copy(
+                        studentProfile = profile,
+                        currentUserNote = profile.statusNote ?: current.currentUserNote
+                    )
+                }
+            }
+        }
+
+        // Apply any inline replies that were sent from the notification shade while the ViewModel was inactive
+        com.campus.network.core.ui.notifications.CampusSystemNotificationCenter
+            .consumeAllPendingInlineReplies()
+            .forEach { replyEvent ->
+                applyInlineNotificationReply(
+                    threadId = replyEvent.threadId,
+                    peerName = replyEvent.peerName,
+                    replyText = replyEvent.replyText,
+                    timestampLabel = replyEvent.timestampLabel
+                )
+            }
+
+        // Observe live WhatsApp-style inline replies sent from the Android notification shade
+        viewModelScope.launch {
+            com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.inlineRepliesFlow.collect { replyEvent ->
+                com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.consumePendingInlineReplies(replyEvent.threadId)
+                applyInlineNotificationReply(
+                    threadId = replyEvent.threadId,
+                    peerName = replyEvent.peerName,
+                    replyText = replyEvent.replyText,
+                    timestampLabel = replyEvent.timestampLabel
+                )
+            }
+        }
+
+        // Observe "Mark as Read" actions from the Android notification shade
+        viewModelScope.launch {
+            com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.markReadFlow.collect { markRead ->
+                _uiState.update { state ->
+                    state.copy(
+                        threads = state.threads.map { t ->
+                            if (t.id == markRead.threadId) t.copy(unreadCount = 0) else t
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private fun applyInlineNotificationReply(
+        threadId: String,
+        peerName: String,
+        replyText: String,
+        timestampLabel: String
+    ) {
+        val currentUserFirstName = _currentProfile.value?.firstName ?: "Lincoln"
+        val newMsg = DirectMessageItem(
+            id = "msg_inline_${System.currentTimeMillis()}",
+            senderName = currentUserFirstName,
+            isMine = true,
+            text = replyText,
+            timestamp = timestampLabel
+        )
+        val existingList = threadMessagesMap[threadId] ?: emptyList()
+        val updatedMessages = existingList + newMsg
+        threadMessagesMap[threadId] = updatedMessages
+
+        _uiState.update { state ->
+            val updatedThreads = state.threads.map { t ->
+                if (t.id == threadId || t.peerName.equals(peerName, ignoreCase = true)) {
+                    t.copy(
+                        lastMessage = "You: $replyText",
+                        lastTimestamp = "Just now",
+                        unreadCount = 0
+                    )
+                } else {
+                    t
+                }
+            }
+            val isViewingThisThread = state.selectedThread?.id == threadId
+            state.copy(
+                threads = updatedThreads,
+                messages = if (isViewingThisThread) updatedMessages else state.messages
+            )
+        }
+    }
+
     fun onEvent(event: MessagesEvent) {
         when (event) {
             is MessagesEvent.SelectThread -> {
                 val thread = _uiState.value.threads.find { it.id == event.threadId }
                 if (thread != null) {
+                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = thread.id
                     val messages = threadMessagesMap[thread.id] ?: emptyList()
                     val updatedThreads = _uiState.value.threads.map {
                         if (it.id == thread.id) it.copy(unreadCount = 0) else it
@@ -278,6 +374,7 @@ class MessagesViewModel(
                     it.id == event.peerId || it.id == "thread_${event.peerId}" || it.peerName.equals(event.peerName, ignoreCase = true)
                 }
                 if (existing != null) {
+                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = existing.id
                     val messages = threadMessagesMap[existing.id] ?: emptyList()
                     val updatedThreads = _uiState.value.threads.map {
                         if (it.id == existing.id) it.copy(unreadCount = 0) else it
@@ -292,25 +389,32 @@ class MessagesViewModel(
                     }
                 } else {
                     val newThreadId = if (event.peerId.startsWith("thread_")) event.peerId else "thread_${event.peerId}"
+                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = newThreadId
                     val initials = event.avatarInitials ?: event.peerName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
+                    val badge = if (!event.serverTag.isNullOrBlank()) {
+                        "${event.serverTag.uppercase()} • ${event.serverName ?: "Server"}"
+                    } else if (!event.serverName.isNullOrBlank()) {
+                        event.serverName
+                    } else null
                     val newThread = ConversationThread(
                         id = newThreadId,
                         peerName = event.peerName,
                         peerHandle = event.peerHandle ?: "@${event.peerName.lowercase().replace(" ", "")}",
                         avatarInitials = initials.ifBlank { "M" },
-                        lastMessage = "Started direct chat from server",
+                        lastMessage = if (!event.serverName.isNullOrBlank()) "Direct chat from ${event.serverName}" else "Started direct chat from server",
                         lastTimestamp = "Just now",
                         unreadCount = 0,
                         isOnline = true,
                         isVerified = true,
-                        category = ThreadCategory.DIRECT
+                        category = ThreadCategory.DIRECT,
+                        serverBadgeText = badge
                     )
                     val welcomeMsg = listOf(
                         DirectMessageItem(
                             id = "msg_${System.currentTimeMillis()}",
                             senderName = event.peerName,
                             isMine = false,
-                            text = "Hey Lincoln! Connected from campus server.",
+                            text = if (!event.serverName.isNullOrBlank()) "Hey Lincoln! Connected from ${event.serverName} server." else "Hey Lincoln! Connected from campus server.",
                             timestamp = "Just now"
                         )
                     )
@@ -327,6 +431,7 @@ class MessagesViewModel(
             }
 
             is MessagesEvent.BackToThreads -> {
+                com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = null
                 _uiState.update {
                     it.copy(
                         currentScreen = MessagesScreenMode.THREADS,
@@ -348,7 +453,7 @@ class MessagesViewModel(
                 val activeThread = _uiState.value.selectedThread ?: return
                 val newMsg = DirectMessageItem(
                     id = "msg-${System.currentTimeMillis()}",
-                    senderName = "Lincoln",
+                    senderName = _currentProfile.value?.firstName ?: "Lincoln",
                     isMine = true,
                     text = event.text.trim(),
                     timestamp = "Just now",
@@ -394,7 +499,7 @@ class MessagesViewModel(
                 val activeThread = _uiState.value.selectedThread ?: return
                 val txPayload = PeerTransactionPayload(
                     transactionId = "tx-${System.currentTimeMillis()}",
-                    senderName = "Lincoln Kiprotich",
+                    senderName = _currentProfile.value?.fullName ?: "Lincoln Kiprotich",
                     recipientName = activeThread.peerName,
                     amount = event.amount,
                     currency = "KES",
@@ -405,7 +510,7 @@ class MessagesViewModel(
                 )
                 val newMsg = DirectMessageItem(
                     id = "msg-${System.currentTimeMillis()}",
-                    senderName = "Lincoln",
+                    senderName = _currentProfile.value?.firstName ?: "Lincoln",
                     isMine = true,
                     text = "Escrow initiated: KES ${event.amount} for ${event.purpose}",
                     timestamp = "Just now",
@@ -590,7 +695,7 @@ class MessagesViewModel(
                     event.peerIds.forEach { peerId ->
                         val newMsg = DirectMessageItem(
                             id = "msg-${System.currentTimeMillis()}-${peerId.hashCode()}",
-                            senderName = "Lincoln",
+                            senderName = _currentProfile.value?.firstName ?: "Lincoln",
                             isMine = true,
                             text = trimmedText,
                             timestamp = "Just now"
