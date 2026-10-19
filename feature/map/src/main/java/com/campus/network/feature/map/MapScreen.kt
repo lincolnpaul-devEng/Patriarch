@@ -198,7 +198,9 @@ fun MapScreen(
                         onCreateEventClick = {
                             viewModel.onEvent(MapEvent.ToggleCreateDialog(true))
                         },
-                        onNotificationsClick = onNavigateToNotifications
+                        onNotificationsClick = onNavigateToNotifications,
+                        avatarUrl = uiState.studentAvatarUrl,
+                        userName = uiState.studentName
                     )
                 }
 

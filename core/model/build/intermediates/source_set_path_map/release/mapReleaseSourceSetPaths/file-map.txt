@@ -1,7 +1,0 @@
-com.campus.network.core.model-pngs-0 /home/lincoln/patreon/core/model/build/generated/res/pngs/release
-com.campus.network.core.model-resValues-1 /home/lincoln/patreon/core/model/build/generated/res/resValues/release
-com.campus.network.core.model-mergeReleaseResources-2 /home/lincoln/patreon/core/model/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
-com.campus.network.core.model-mergeReleaseResources-3 /home/lincoln/patreon/core/model/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
-com.campus.network.core.model-release-4 /home/lincoln/patreon/core/model/build/intermediates/merged_res/release/mergeReleaseResources
-com.campus.network.core.model-main-5 /home/lincoln/patreon/core/model/src/main/res
-com.campus.network.core.model-release-6 /home/lincoln/patreon/core/model/src/release/res

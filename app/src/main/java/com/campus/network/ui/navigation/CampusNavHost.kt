@@ -39,6 +39,9 @@ import com.campus.network.feature.messages.MessagesScreen
 import com.campus.network.feature.messages.MessagesViewModel
 import com.campus.network.feature.profile.ProfileScreen
 import com.campus.network.feature.profile.ProfileViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 import com.campus.network.ui.auth.AuthScreen
 import com.campus.network.ui.auth.OnboardingScreen
@@ -58,7 +61,7 @@ fun CampusNavHost(
     database: CampusDatabase,
     streamChatEngine: StreamChatEngine?,
     modifier: Modifier = Modifier,
-    messagesViewModel: MessagesViewModel = remember { MessagesViewModel(streamChatEngine) },
+    messagesViewModel: MessagesViewModel? = null,
     channelsViewModel: ChannelsViewModel? = null,
     studentProfileRepository: StudentProfileRepository = remember(database) {
         StudentProfileRepository(
@@ -73,18 +76,61 @@ fun CampusNavHost(
 
     // Repositories backed by local database cache and worker thread dispatchers
     val directoryRepository = remember(context) { CampusDirectoryRepository(context.applicationContext) }
-    val flashMeetRepository = remember { FlashMeetRepository(database) }
+    val flashMeetRepository = remember(database) { FlashMeetRepository(database) }
     val placesRepository = remember { com.campus.network.core.data.PlacesRepository() }
-    val academicChannelsRepository = remember { AcademicChannelsRepository(database) }
-    val campusHubRepository = remember { CampusHubRepository(database) }
+    val academicChannelsRepository = remember(database) { AcademicChannelsRepository(database) }
+    val campusHubRepository = remember(database) { CampusHubRepository(database) }
+    val serverRepository = remember(database) { com.campus.network.core.data.ServerRepository(database) }
+    val liveStreamRepository = remember(database) { com.campus.network.core.data.LiveStreamRepository(database) }
 
-    // ViewModels with UDF patterns
-    val mapViewModel = remember { MapViewModel(flashMeetRepository, placesRepository, studentProfileRepository) }
-    val serverRepository = remember { com.campus.network.core.data.ServerRepository(database) }
-    val liveStreamRepository = remember { com.campus.network.core.data.LiveStreamRepository(database) }
-    val resolvedChannelsViewModel = channelsViewModel ?: remember { ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository) }
-    val hubViewModel = remember { HubViewModel(campusHubRepository, studentProfileRepository) }
-    val profileViewModel = remember { ProfileViewModel(studentProfileRepository) }
+    // Scoped ViewModels managed by ViewModelProvider to survive configuration changes
+    val resolvedMessagesViewModel: MessagesViewModel = messagesViewModel ?: viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return MessagesViewModel(
+                    streamChatEngine = streamChatEngine,
+                    studentProfileRepository = studentProfileRepository
+                ) as T
+            }
+        }
+    )
+
+    val resolvedChannelsViewModel: ChannelsViewModel = channelsViewModel ?: viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository) as T
+            }
+        }
+    )
+
+    val mapViewModel: MapViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return MapViewModel(flashMeetRepository, placesRepository, studentProfileRepository) as T
+            }
+        }
+    )
+
+    val hubViewModel: HubViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return HubViewModel(campusHubRepository, studentProfileRepository) as T
+            }
+        }
+    )
+
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return ProfileViewModel(studentProfileRepository) as T
+            }
+        }
+    )
 
     // Route guard: every navigation (including deep links) is checked against the session access tier.
     val currentProfile by remember { studentProfileRepository.getProfile() }
@@ -133,32 +179,59 @@ fun CampusNavHost(
             val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             SplashScreen(
                 onSplashComplete = {
-                    val savedSession = authClient.getSavedSession()
-                    val profileSync = currentProfile
-                    val email = savedSession?.email ?: profileSync?.universityEmail.orEmpty()
-                    val hasAuth = (savedSession != null && savedSession.email.isNotBlank()) ||
-                        (profileSync != null && profileSync.universityEmail.isNotBlank())
+                    coroutineScope.launch {
+                        val savedSession = authClient.getSavedSession()
+                        val localProfile = studentProfileRepository.getProfileSync()
+                        val email = savedSession?.email?.trim()?.ifBlank { null }
+                            ?: localProfile?.universityEmail?.trim()?.ifBlank { null }
 
-                    val isSurveyDone = authClient.isSurveyCompleted(email) ||
-                        (profileSync?.onboardingPreferences?.hasCompletedSurvey == true)
-
-                    val targetRoute = when {
-                        hasAuth && isSurveyDone -> {
-                            Screen.Hub.route
+                        if (email.isNullOrBlank()) {
+                            val targetRoute = if (authClient.hasSeenIntroOnboarding()) {
+                                Screen.Auth.route
+                            } else {
+                                Screen.Onboarding.route
+                            }
+                            navController.navigate(targetRoute) {
+                                popUpTo(Screen.Splash.route) { inclusive = true }
+                            }
+                            return@launch
                         }
-                        hasAuth && !isSurveyDone -> {
+
+                        // Validate that the user ACTUALLY still exists in the Supabase database!
+                        val userExistsResult = studentProfileRepository.validateUserExistsInDatabase(email)
+                        val exists = userExistsResult.getOrNull()
+
+                        if (exists == false) {
+                            // User was deleted from the remote database! Purge local session
+                            authClient.signOut()
+                            studentProfileRepository.signOut()
+                            android.widget.Toast.makeText(
+                                context,
+                                "Your account was not found in the campus database. Please sign in again.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            navController.navigate(Screen.Auth.route) {
+                                popUpTo(Screen.Splash.route) { inclusive = true }
+                            }
+                            return@launch
+                        }
+
+                        // If user exists, sync latest profile state
+                        val isSurveyDone = if (exists == true) {
+                            studentProfileRepository.syncProfileWithRemote(email)
+                        } else {
+                            authClient.isSurveyCompleted(email) || (localProfile?.onboardingPreferences?.hasCompletedSurvey == true)
+                        }
+
+                        val targetRoute = if (isSurveyDone) {
+                            Screen.Hub.route
+                        } else {
                             Screen.OnboardingSurvey.route
                         }
-                        authClient.hasSeenIntroOnboarding() -> {
-                            Screen.Auth.route
-                        }
-                        else -> {
-                            Screen.Onboarding.route
-                        }
-                    }
 
-                    navController.navigate(targetRoute) {
-                        popUpTo(Screen.Splash.route) { inclusive = true }
+                        navController.navigate(targetRoute) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -329,7 +402,7 @@ fun CampusNavHost(
                     navController.navigate(Screen.Notifications.route)
                 },
                 onNavigateToDirectChat = { peerId, peerName, peerHandle, serverName, serverTag ->
-                    messagesViewModel.onEvent(
+                    resolvedMessagesViewModel.onEvent(
                         com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
                             peerId = peerId,
                             peerName = peerName,
@@ -346,7 +419,7 @@ fun CampusNavHost(
         // Tab 3: Messages (Direct Streams)
         composable(route = Screen.Messages.route) {
             MessagesScreen(
-                viewModel = messagesViewModel,
+                viewModel = resolvedMessagesViewModel,
                 onNavigateBack = {
                     navController.navigate(Screen.Channels.route) {
                         popUpTo(Screen.Channels.route) { inclusive = false }
@@ -380,7 +453,7 @@ fun CampusNavHost(
                 viewModel = hubViewModel,
                 onNavigateToChat = { sellerName ->
                     val cleanId = sellerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
-                    messagesViewModel.onEvent(
+                    resolvedMessagesViewModel.onEvent(
                         com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
                             peerId = "seller_$cleanId",
                             peerName = sellerName,
@@ -393,7 +466,7 @@ fun CampusNavHost(
                 },
                 onMessageSeller = { sellerName, initialOrderMessage ->
                     val cleanId = sellerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
-                    messagesViewModel.onEvent(
+                    resolvedMessagesViewModel.onEvent(
                         com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
                             peerId = "seller_$cleanId",
                             peerName = sellerName,
@@ -403,7 +476,7 @@ fun CampusNavHost(
                         )
                     )
                     if (!initialOrderMessage.isNullOrBlank()) {
-                        messagesViewModel.onEvent(
+                        resolvedMessagesViewModel.onEvent(
                             com.campus.network.feature.messages.MessagesEvent.SendMessage(
                                 text = initialOrderMessage
                             )
@@ -443,7 +516,7 @@ fun CampusNavHost(
                 },
                 onNavigateToMessages = { peerId, peerName ->
                     if (peerId != null && peerName != null) {
-                        messagesViewModel.onEvent(
+                        resolvedMessagesViewModel.onEvent(
                             com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
                                 peerId = peerId,
                                 peerName = peerName,

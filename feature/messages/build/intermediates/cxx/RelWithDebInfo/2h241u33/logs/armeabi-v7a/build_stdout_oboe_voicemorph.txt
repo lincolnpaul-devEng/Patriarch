@@ -1,3 +1,0 @@
-ninja: Entering directory `/home/lincoln/patreon/feature/messages/.cxx/RelWithDebInfo/2h241u33/armeabi-v7a'
-[1/2] Building CXX object CMakeFiles/oboe_voicemorph.dir/OboeVoiceTransformerStream.cpp.o
-[2/2] Linking CXX shared library /home/lincoln/patreon/feature/messages/build/intermediates/cxx/RelWithDebInfo/2h241u33/obj/armeabi-v7a/liboboe_voicemorph.so

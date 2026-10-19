@@ -1,4 +1,0 @@
-/home/lincoln/Android/Sdk/cmake/3.22.1/bin/ninja \
-  -C \
-  /home/lincoln/patreon/feature/messages/.cxx/RelWithDebInfo/2h241u33/armeabi-v7a \
-  oboe_voicemorph

@@ -1,8 +1,0 @@
-com.campus.network.core.security-release-0 /home/lincoln/patreon/core/model/build/intermediates/packaged_res/release/packageReleaseResources
-com.campus.network.core.security-pngs-1 /home/lincoln/patreon/core/security/build/generated/res/pngs/release
-com.campus.network.core.security-resValues-2 /home/lincoln/patreon/core/security/build/generated/res/resValues/release
-com.campus.network.core.security-mergeReleaseResources-3 /home/lincoln/patreon/core/security/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
-com.campus.network.core.security-mergeReleaseResources-4 /home/lincoln/patreon/core/security/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
-com.campus.network.core.security-release-5 /home/lincoln/patreon/core/security/build/intermediates/merged_res/release/mergeReleaseResources
-com.campus.network.core.security-main-6 /home/lincoln/patreon/core/security/src/main/res
-com.campus.network.core.security-release-7 /home/lincoln/patreon/core/security/src/release/res

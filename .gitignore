@@ -1,11 +1,19 @@
 *.iml
-.gradle
+.gradle/
+**/.gradle/
+**/build/
+build/
 /local.properties
 /.idea/
 .DS_Store
-/build
 /captures
 .externalNativeBuild
-.cxx
+.cxx/
+**/.cxx/
 local.properties
 secrets.properties
+
+# Android build outputs should be regenerated locally/through CI, not committed.
+*.apk
+*.aab
+

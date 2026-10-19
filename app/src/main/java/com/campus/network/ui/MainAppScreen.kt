@@ -29,6 +29,9 @@ import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.messages.CampusTelecomCallManager
 import com.campus.network.feature.messages.MessagesScreenMode
 import com.campus.network.feature.messages.MessagesViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import com.campus.network.core.ui.components.CampusOfflineTopBanner
@@ -59,14 +62,18 @@ fun MainAppScreen(
     val telecomCallManager = remember(context) {
         CampusTelecomCallManager(context, coroutineScope)
     }
-    val messagesViewModel = remember(streamChatEngine) {
-        MessagesViewModel(
-            streamChatEngine = streamChatEngine,
-            telecomCallManager = telecomCallManager,
-            studentProfileRepository = studentProfileRepository
-        )
-    }
-    val messagesUiState by messagesViewModel.uiState.collectAsStateWithLifecycle()
+    val messagesViewModel: MessagesViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return MessagesViewModel(
+                    streamChatEngine = streamChatEngine,
+                    telecomCallManager = telecomCallManager,
+                    studentProfileRepository = studentProfileRepository
+                ) as T
+            }
+        }
+    )
 
     val academicChannelsRepository = remember(database) {
         AcademicChannelsRepository(database)
@@ -74,9 +81,14 @@ fun MainAppScreen(
     val serverRepository = remember(database) {
         com.campus.network.core.data.ServerRepository(database)
     }
-    val channelsViewModel = remember(academicChannelsRepository, serverRepository) {
-        ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository)
-    }
+    val channelsViewModel: ChannelsViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository) as T
+            }
+        }
+    )
     val channelsUiState by channelsViewModel.uiState.collectAsStateWithLifecycle()
 
     var isScreenHidingBottomBar by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }

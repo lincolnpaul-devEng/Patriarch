@@ -33,6 +33,10 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.outlined.Celebration
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -46,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,10 +73,12 @@ fun EventsScreen(
     onNavigateToMap: () -> Unit,
     onCreateEventClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
+    avatarUrl: String? = null,
+    userName: String = "Student",
     modifier: Modifier = Modifier
 ) {
-    val yourEvents = events.filter { it.dateSection == "Your Events" }
-    val pickedForYou = events.filter { it.dateSection != "Your Events" }
+    val yourEvents = events.filter { it.dateSection == "Your Events" || it.isUserRegistered }
+    val pickedForYou = events.filter { it.dateSection != "Your Events" && !it.isUserRegistered }
 
     Box(
         modifier = modifier
@@ -82,7 +89,7 @@ fun EventsScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
-            // 1. Top Header Bar (User Avatar, "patriarch", Star, Create & Notification Pill)
+            // 1. Top Header Bar (Real User Avatar, "patriarch", Star, Create & Notification Pill)
             item {
                 Row(
                     modifier = Modifier
@@ -93,15 +100,14 @@ fun EventsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(id = R.drawable.event_user_avatar),
-                            contentDescription = "User Profile",
+                        CampusStudentAvatar(
+                            avatarUrl = avatarUrl,
+                            fullName = userName,
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
                                 .border(1.dp, BorderSubtle, CircleShape)
-                                .clickable(onClick = onNavigateToMap),
-                            contentScale = ContentScale.Crop
+                                .clickable(onClick = onNavigateToMap)
                         )
 
                         Spacer(modifier = Modifier.width(12.dp))
@@ -167,141 +173,264 @@ fun EventsScreen(
                 }
             }
 
-            // 2. "Your Events >" Section Header
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Your Events",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "View all your events",
-                        tint = TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            // Your Events List
-            items(yourEvents, key = { it.id }) { event ->
-                EventCardRow(
-                    event = event,
-                    onClick = { onEventClick(event) }
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // 3. "Picked for You" Section Header
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                ) {
-                    Text(
-                        text = "Picked for You",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { /* Toggle filter */ }
-                    ) {
-                        Text(
-                            text = "Nearby",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Icon(
-                            imageVector = Icons.Default.UnfoldMore,
-                            contentDescription = "Sort nearby",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Date Section Divider 1
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    ) {
-                        Text(
-                            text = "Tomorrow",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = " / Wednesday",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = TextSecondary
-                        )
-                    }
-                }
-            }
-
-            // First Picked Event (after hours)
-            val afterHours = pickedForYou.find { it.id == "evt_afterhours" }
-            if (afterHours != null) {
+            // 2. EMPTY STATE: Shown when no campus events are scheduled
+            if (events.isEmpty()) {
                 item {
-                    EventCardRow(
-                        event = afterHours,
-                        onClick = { onEventClick(afterHours) }
-                    )
-                }
-            }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = BrandBluePrimary.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, BrandBluePrimary.copy(alpha = 0.2f)),
+                            modifier = Modifier.size(76.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Celebration,
+                                    contentDescription = null,
+                                    tint = BrandBluePrimary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
 
-            // Date Section Divider 2
-            item {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(modifier = Modifier.height(18.dp))
+
                         Text(
-                            text = "8 Jul",
-                            fontSize = 15.sp,
+                            text = "No Campus Events Right Now",
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
                         )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         Text(
-                            text = " / Wednesday",
+                            text = "There are no upcoming meetups or gatherings scheduled on your campus today. Be the first to host a study group, game night, or social session!",
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp)
                         )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = onCreateEventClick,
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = TextWhite,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Host an Event",
+                                    color = TextWhite,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = onNavigateToMap,
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, BorderSubtle),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Place,
+                                    contentDescription = null,
+                                    tint = BrandBluePrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Campus Map",
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = SurfaceSubtle,
+                            border = BorderStroke(1.dp, BorderSubtle),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "POPULAR EVENT IDEAS",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextMuted,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    EventIdeaPill(label = "Study Group", onClick = onCreateEventClick, modifier = Modifier.weight(1f))
+                                    EventIdeaPill(label = "Hackathon", onClick = onCreateEventClick, modifier = Modifier.weight(1f))
+                                    EventIdeaPill(label = "Game Night", onClick = onCreateEventClick, modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 3. YOUR EVENTS SECTION: Only displayed when the user has registered/created events
+                if (yourEvents.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Your Events (${yourEvents.size})",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = "View all your events",
+                                tint = TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    items(yourEvents, key = { it.id }) { event ->
+                        EventCardRow(
+                            event = event,
+                            onClick = { onEventClick(event) }
+                        )
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                    }
+                }
+
+                // 4. PICKED FOR YOU SECTION: Only displayed when other events exist
+                if (pickedForYou.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                        ) {
+                            Text(
+                                text = "Picked for You",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Nearby",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextSecondary
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = Icons.Default.UnfoldMore,
+                                    contentDescription = "Sort nearby",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
+
+                    val groupedEvents = pickedForYou.groupBy { it.dateSection.ifBlank { "Upcoming Events" } }
+                    groupedEvents.forEach { (dateHeader, eventList) ->
+                        item {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = dateHeader,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+
+                        items(eventList, key = { it.id }) { event ->
+                            EventCardRow(
+                                event = event,
+                                onClick = { onEventClick(event) }
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
 
-            // Featured Tree Event
-            val treesEvent = pickedForYou.find { it.id == "evt_trees" }
-            if (treesEvent != null) {
-                item {
-                    EventCardRow(
-                        event = treesEvent,
-                        onClick = { onEventClick(treesEvent) }
-                    )
-                }
-            }
+@Composable
+private fun EventIdeaPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = SurfaceWhite,
+        border = BorderStroke(1.dp, BorderSubtle),
+        modifier = modifier
+            .height(38.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

@@ -99,63 +99,6 @@ data class CampusFriend(
     val isOnline: Boolean = true
 )
 
-val defaultCampusFriends = listOf(
-    CampusFriend(
-        id = "user_robloach",
-        name = "RobLoach",
-        handle = "@robloach",
-        faculty = "Computer Science & AI",
-        avatarInitials = "RL",
-        avatarBg = Color(0xFF6366F1),
-        isOnline = true
-    ),
-    CampusFriend(
-        id = "user_ath",
-        name = "Ath",
-        handle = "@ath_sound",
-        faculty = "Audio Engineering",
-        avatarInitials = "AS",
-        avatarBg = Color(0xFF0EA5E9),
-        isOnline = true
-    ),
-    CampusFriend(
-        id = "user_reallybasic",
-        name = "ReallyBasicName",
-        handle = "@basic_name",
-        faculty = "Interactive Media Design",
-        avatarInitials = "RB",
-        avatarBg = Color(0xFFEC4899),
-        isOnline = true
-    ),
-    CampusFriend(
-        id = "user_sarah_n",
-        name = "Sarah Nduta",
-        handle = "@sarah_n",
-        faculty = "Business Information Tech",
-        avatarInitials = "SN",
-        avatarBg = Color(0xFF10B981),
-        isOnline = true
-    ),
-    CampusFriend(
-        id = "user_evans_k",
-        name = "Evans Kariuki",
-        handle = "@evans_k",
-        faculty = "Robotics & Embedded Systems",
-        avatarInitials = "EK",
-        avatarBg = Color(0xFFF59E0B),
-        isOnline = true
-    ),
-    CampusFriend(
-        id = "user_denis_k",
-        name = "Denis Kiprono",
-        handle = "@denis_k",
-        faculty = "Telecommunications Hub",
-        avatarInitials = "DK",
-        avatarBg = Color(0xFF8B5CF6),
-        isOnline = false
-    )
-)
-
 /**
  * Top-left circular close button to exit "My Location" mode.
  */
@@ -487,7 +430,7 @@ fun MyLocationBottomSheet(
 fun TriggerFlashMeetFriendsSheet(
     locationName: String,
     address: String,
-    friends: List<CampusFriend> = defaultCampusFriends,
+    friends: List<CampusFriend> = emptyList(),
     onBackClick: () -> Unit,
     onCloseClick: () -> Unit,
     onShareFlashMeet: (String, MeetCategory, Int, List<CampusFriend>) -> Unit,
@@ -673,13 +616,35 @@ fun TriggerFlashMeetFriendsSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Friends List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 190.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            if (friends.isEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp, horizontal = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No campus peers discovered yet. As students join, they will appear here.",
+                            fontSize = 13.sp,
+                            color = Color(0xFF64748B),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            } else {
+                // Friends List
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 190.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                 items(friends, key = { it.id }) { friend ->
                     val isChecked = selectedFriendIds.contains(friend.id)
                     Surface(
@@ -767,6 +732,7 @@ fun TriggerFlashMeetFriendsSheet(
                     }
                 }
             }
+        }
 
             Spacer(modifier = Modifier.height(16.dp))
 

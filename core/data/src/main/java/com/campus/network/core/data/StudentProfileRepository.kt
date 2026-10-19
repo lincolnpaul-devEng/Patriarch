@@ -126,7 +126,89 @@ class StudentProfileRepository(
     }
 
     private suspend fun persistToDatabase(profile: StudentProfile): Result<Unit> = runCatching {
+        val client = supabaseClient
+        val cleanEmail = profile.universityEmail.trim()
+
+        if (client != null && cleanEmail.isNotBlank()) {
+            val json = org.json.JSONObject().apply {
+                put("student_id", profile.studentId)
+                put("full_name", profile.fullName)
+                put("university_email", cleanEmail)
+                put("university_name", profile.universityName)
+                put("degree_program", profile.degreeProgram)
+                put("academic_year", profile.academicYear)
+                put("behavioral_trust_score", profile.behavioralTrustScore)
+                put("campus_merit_points", profile.campusMeritPoints)
+                put("bio", profile.bio)
+                if (profile.avatarUrl != null) put("avatar_url", profile.avatarUrl)
+                put("campus_residence", profile.campusResidence)
+                put("phone_number", profile.phoneNumber)
+                put("wallet_balance", profile.walletBalance)
+                put("vault_balance", profile.vaultProtectedBalance)
+                put("preferred_rendezvous_point", profile.preferredRendezvousPoint)
+                put("notifications_enabled", profile.notificationsEnabled)
+                put("escrow_alerts_enabled", profile.escrowAlertsEnabled)
+                put("quest_reminders_enabled", profile.questRemindersEnabled)
+                put("is_trust_score_public", profile.isTrustScorePublic)
+                put("is_online_status_visible", profile.isOnlineStatusVisible)
+                put("activity_ledger_visibility", profile.activityLedgerVisibility)
+                put("location_privacy_scope", profile.locationPrivacyScope.name)
+                put("interests", org.json.JSONArray(profile.interests))
+                put("onboarding_preferences", org.json.JSONObject(StudentProfileEntity.serializeOnboardingPreferences(profile.onboardingPreferences)))
+            }
+            val payload = json.toString()
+            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+
+            var updated = false
+            var remoteError: Throwable? = null
+
+            val patchIlikeResult = client.updateRecord(
+                "campusprofile?university_email=ilike.$encodedEmail",
+                payload
+            )
+            if (patchIlikeResult.isSuccess) {
+                val rows = runCatching { org.json.JSONArray(patchIlikeResult.getOrNull()) }.getOrNull()
+                if (rows != null && rows.length() > 0) {
+                    updated = true
+                }
+            } else {
+                remoteError = patchIlikeResult.exceptionOrNull()
+            }
+
+            if (!updated) {
+                val patchEqResult = client.updateRecord(
+                    "campusprofile?university_email=eq.$encodedEmail",
+                    payload
+                )
+                if (patchEqResult.isSuccess) {
+                    val rows = runCatching { org.json.JSONArray(patchEqResult.getOrNull()) }.getOrNull()
+                    if (rows != null && rows.length() > 0) {
+                        updated = true
+                    }
+                } else if (remoteError == null) {
+                    remoteError = patchEqResult.exceptionOrNull()
+                }
+            }
+
+            if (!updated) {
+                val insertResult = client.insertRecord("campusprofile", payload)
+                if (insertResult.isSuccess) {
+                    updated = true
+                } else if (remoteError == null) {
+                    remoteError = insertResult.exceptionOrNull()
+                }
+            }
+
+            // If remote database transfer failed, abort and DO NOT save locally!
+            if (!updated) {
+                throw remoteError ?: IllegalStateException("Database transaction failed. Profile changes were not saved.")
+            }
+        }
+
+        // ONLY store locally when database transaction is truly successful!
         profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(profile))
+        _studentProfile.value = profile
+
         // Keep knownProfiles synchronized locally in memory across channels/feeds
         if (profile.fullName.isNotBlank()) {
             val updatedMap = _knownProfiles.value.toMutableMap()
@@ -134,68 +216,6 @@ class StudentProfileRepository(
             if (profile.universityEmail.isNotBlank()) updatedMap[profile.universityEmail] = profile
             updatedMap[profile.fullName.lowercase()] = profile
             _knownProfiles.value = updatedMap
-        }
-
-        val client = supabaseClient ?: return@runCatching Unit
-        val cleanEmail = profile.universityEmail.trim()
-        if (cleanEmail.isBlank()) return@runCatching Unit
-
-        val json = org.json.JSONObject().apply {
-            put("student_id", profile.studentId)
-            put("full_name", profile.fullName)
-            put("university_email", cleanEmail)
-            put("university_name", profile.universityName)
-            put("degree_program", profile.degreeProgram)
-            put("academic_year", profile.academicYear)
-            put("behavioral_trust_score", profile.behavioralTrustScore)
-            put("campus_merit_points", profile.campusMeritPoints)
-            put("bio", profile.bio)
-            if (profile.avatarUrl != null) put("avatar_url", profile.avatarUrl)
-            put("campus_residence", profile.campusResidence)
-            put("phone_number", profile.phoneNumber)
-            put("wallet_balance", profile.walletBalance)
-            put("vault_balance", profile.vaultProtectedBalance)
-            put("preferred_rendezvous_point", profile.preferredRendezvousPoint)
-            put("notifications_enabled", profile.notificationsEnabled)
-            put("escrow_alerts_enabled", profile.escrowAlertsEnabled)
-            put("quest_reminders_enabled", profile.questRemindersEnabled)
-            put("is_trust_score_public", profile.isTrustScorePublic)
-            put("is_online_status_visible", profile.isOnlineStatusVisible)
-            put("activity_ledger_visibility", profile.activityLedgerVisibility)
-            put("location_privacy_scope", profile.locationPrivacyScope.name)
-            put("interests", org.json.JSONArray(profile.interests))
-            put("onboarding_preferences", org.json.JSONObject(StudentProfileEntity.serializeOnboardingPreferences(profile.onboardingPreferences)))
-        }
-        val payload = json.toString()
-        val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-
-        var updated = false
-        val patchIlike = client.updateRecord(
-            "campusprofile?university_email=ilike.$encodedEmail",
-            payload
-        ).getOrNull()
-        if (!patchIlike.isNullOrBlank()) {
-            val rows = runCatching { org.json.JSONArray(patchIlike) }.getOrNull()
-            if (rows != null && rows.length() > 0) {
-                updated = true
-            }
-        }
-
-        if (!updated) {
-            val patchEq = client.updateRecord(
-                "campusprofile?university_email=eq.$encodedEmail",
-                payload
-            ).getOrNull()
-            if (!patchEq.isNullOrBlank()) {
-                val rows = runCatching { org.json.JSONArray(patchEq) }.getOrNull()
-                if (rows != null && rows.length() > 0) {
-                    updated = true
-                }
-            }
-        }
-
-        if (!updated) {
-            client.insertRecord("campusprofile", payload).getOrNull()
         }
     }
 
@@ -240,10 +260,38 @@ class StudentProfileRepository(
                     _studentProfile.value = updated
                     profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
                     return@runCatching updated.onboardingPreferences.hasCompletedSurvey
+                } else {
+                    // Empty array returned from Supabase means user was deleted from the database!
+                    signOut()
+                    return@runCatching false
                 }
             }
             false
         }.getOrDefault(false)
+    }
+
+    /**
+     * Verifies against Supabase whether a user record exists in the remote database.
+     * If user does not exist in the database, automatically signs out and purges local cache.
+     */
+    suspend fun validateUserExistsInDatabase(email: String): Result<Boolean> = withContext(ioDispatcher) {
+        runCatching {
+            val cleanEmail = email.trim()
+            if (cleanEmail.isBlank()) {
+                signOut()
+                return@runCatching false
+            }
+            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+            val client = supabaseClient ?: return@runCatching true
+            val queryResult = client.queryTable("campusprofile?university_email=eq.$encodedEmail&select=id,university_email").getOrThrow()
+            val jsonArray = org.json.JSONArray(queryResult.trim())
+            val exists = jsonArray.length() > 0
+            if (!exists) {
+                // User has been deleted from Supabase! Purge local session and database cache
+                signOut()
+            }
+            exists
+        }
     }
 
     suspend fun signOut() = withContext(ioDispatcher) {
@@ -273,6 +321,24 @@ class StudentProfileRepository(
     suspend fun isEmailRegistered(email: String): Boolean = withContext(ioDispatcher) {
         val cleanEmail = email.trim()
         if (cleanEmail.isBlank()) return@withContext false
+
+        // 1. Check live Supabase database first
+        val remoteCheck = runCatching {
+            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+            val queryResult = supabaseClient?.queryTable("campusprofile?university_email=eq.$encodedEmail&select=id,university_email")?.getOrThrow()
+            if (!queryResult.isNullOrBlank()) {
+                val arr = org.json.JSONArray(queryResult.trim())
+                arr.length() > 0
+            } else {
+                false
+            }
+        }.getOrNull()
+
+        if (remoteCheck != null) {
+            return@withContext remoteCheck
+        }
+
+        // 2. Fallback to local Room cache if network request failed
         val local = profileDao?.getProfileByEmail(cleanEmail)
         if (local != null && local.universityEmail.isNotBlank()) {
             return@withContext true
@@ -280,8 +346,7 @@ class StudentProfileRepository(
         false
     }
 
-    suspend fun updateProfileDirect(profile: StudentProfile) = withContext(ioDispatcher) {
-        _studentProfile.value = profile
+    suspend fun updateProfileDirect(profile: StudentProfile): Result<Unit> = withContext(ioDispatcher) {
         persistToDatabase(profile)
     }
 
@@ -435,14 +500,13 @@ class StudentProfileRepository(
             interests = interests,
             avatarUrl = avatarUrl?.trim()?.ifBlank { null } ?: current.avatarUrl
         )
-        _studentProfile.value = updated
         persistToDatabase(updated)
     }
 
-    suspend fun updateAvatar(avatarUrl: String) = withContext(ioDispatcher) {
+    suspend fun updateAvatar(avatarUrl: String): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        _studentProfile.value = current.copy(avatarUrl = avatarUrl.trim())
-        persistToDatabase(_studentProfile.value)
+        val updated = current.copy(avatarUrl = avatarUrl.trim())
+        persistToDatabase(updated)
     }
 
     suspend fun setStatusNote(

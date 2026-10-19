@@ -102,15 +102,20 @@ class ProfileViewModel(
                         onSuccess = { _userMessage.emit("Profile details and image saved successfully") },
                         onFailure = { error ->
                             _userMessage.emit(
-                                "Profile saved on this device, but cloud save failed: " +
-                                    (error.localizedMessage ?: "Check your connection and Supabase profile policy.")
+                                "Profile update failed: " +
+                                    (error.localizedMessage ?: "Database transfer failed. Please try again.")
                             )
                         }
                     )
                 }
                 is ProfileEvent.UpdateAvatar -> {
-                    repository.updateAvatar(event.avatarUrl)
-                    _userMessage.emit("Profile avatar updated successfully")
+                    val res = repository.updateAvatar(event.avatarUrl)
+                    res.fold(
+                        onSuccess = { _userMessage.emit("Profile avatar updated successfully") },
+                        onFailure = { error ->
+                            _userMessage.emit("Failed to save avatar: ${error.localizedMessage ?: "Database transfer failed."}")
+                        }
+                    )
                 }
                 is ProfileEvent.AddProfile -> {
                     repository.addProfile(event.profile)
