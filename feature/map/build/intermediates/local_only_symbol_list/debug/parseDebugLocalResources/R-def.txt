@@ -1,10 +1,5 @@
 R_DEF: Internal format may change without notice
 local
-drawable avatar_andrew
-drawable avatar_clin
-drawable avatar_eliza
-drawable avatar_junebog
-drawable avatar_me
 drawable cat_bars
 drawable cat_cafes
 drawable cat_eat
@@ -28,6 +23,3 @@ drawable pin_event_stage
 drawable pin_pasta
 drawable pin_plate
 drawable pin_steak
-drawable place_photo_1
-drawable place_photo_2
-drawable place_photo_3

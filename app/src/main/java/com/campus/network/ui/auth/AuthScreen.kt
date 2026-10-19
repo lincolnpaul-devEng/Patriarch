@@ -99,7 +99,7 @@ private val BrandAuthBlue = BrandBlueAuth
 @Composable
 fun AuthScreen(
     onLoginSuccess: (email: String, fullName: String?, avatarUrl: String?) -> Unit,
-    onContinueAsGuest: () -> Unit,
+    onNavigateToVerify: (target: String, isPhone: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -138,37 +138,116 @@ fun AuthScreen(
             statusBannerMessage = null
             val idToken = account.idToken
             val email = account.email ?: ""
-            val displayName = account.displayName
+            val displayName = account.displayName ?: ""
             val photoUrl = account.photoUrl?.toString()
 
-            val result = if (!idToken.isNullOrBlank()) {
-                authClient.signInWithGoogleIdToken(
-                    idToken = idToken,
-                    fallbackEmail = email,
-                    fallbackName = displayName,
-                    fallbackAvatarUrl = photoUrl
-                )
-            } else if (email.isNotBlank()) {
-                authClient.signInWithGoogleAccountProfile(
-                    email = email,
-                    fullName = displayName,
-                    avatarUrl = photoUrl,
-                    googleId = account.id
-                )
-            } else {
-                Result.failure(IllegalStateException("Unable to retrieve Google account email."))
+            if (email.isBlank()) {
+                isLoading = false
+                showFeedback("Unable to retrieve Google account email.", isError = true)
+                return@launch
             }
 
-            isLoading = false
-            result.onSuccess { sessionUser ->
-                showAuthSheet = false
-                onLoginSuccess(
-                    sessionUser.email,
-                    sessionUser.fullName ?: displayName,
-                    sessionUser.avatarUrl ?: photoUrl
-                )
-            }.onFailure { err ->
-                showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
+            // Check if user's Google account is already registered in campusprofile database
+            val isRegistered = authClient.isProfileRegistered(email).getOrDefault(false)
+
+            val isSigningIn = (activeTab == 0 || !showAuthSheet)
+
+            if (isSigningIn) {
+                // USER IS TRYING TO SIGN IN WITH GOOGLE
+                if (!isRegistered) {
+                    // NOT REGISTERED: Immediately knock them out to Sign Up with Google and Verify!
+                    isLoading = false
+                    activeTab = 1 // Switch to Sign Up tab
+                    showAuthSheet = true
+                    regFullName = displayName
+                    regEmail = email
+                    statusBannerMessage = "No student account found for $email. Please complete sign-up with Google and verify your campus credentials."
+                    isStatusError = true
+                    snackbarHostState.showSnackbar("No account found for $email. Please sign up and verify first.")
+                    return@launch
+                }
+
+                // REGISTERED: Proceed with Sign-In
+                val result = if (!idToken.isNullOrBlank()) {
+                    authClient.signInWithGoogleIdToken(
+                        idToken = idToken,
+                        fallbackEmail = email,
+                        fallbackName = displayName,
+                        fallbackAvatarUrl = photoUrl
+                    )
+                } else {
+                    authClient.signInWithGoogleAccountProfile(
+                        email = email,
+                        fullName = displayName,
+                        avatarUrl = photoUrl,
+                        googleId = account.id
+                    )
+                }
+
+                isLoading = false
+                result.onSuccess { sessionUser ->
+                    showAuthSheet = false
+                    onLoginSuccess(
+                        sessionUser.email,
+                        sessionUser.fullName ?: displayName,
+                        sessionUser.avatarUrl ?: photoUrl
+                    )
+                }.onFailure { err ->
+                    showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
+                }
+            } else {
+                // USER IS IN SIGN-UP WITH GOOGLE
+                if (isRegistered) {
+                    // ALREADY REGISTERED: Knock them back to Log In tab
+                    isLoading = false
+                    activeTab = 0
+                    showAuthSheet = true
+                    loginEmail = email
+                    statusBannerMessage = "An account with $email is already registered. Please log in."
+                    isStatusError = false
+                    snackbarHostState.showSnackbar("Account already exists for $email. Please log in.")
+                    return@launch
+                }
+
+                // NEW USER: Sign up with Google & Verify
+                val result = if (!idToken.isNullOrBlank()) {
+                    authClient.signInWithGoogleIdToken(
+                        idToken = idToken,
+                        fallbackEmail = email,
+                        fallbackName = displayName,
+                        fallbackAvatarUrl = photoUrl
+                    )
+                } else {
+                    authClient.signInWithGoogleAccountProfile(
+                        email = email,
+                        fullName = displayName,
+                        avatarUrl = photoUrl,
+                        googleId = account.id
+                    )
+                }
+
+                isLoading = false
+                result.onSuccess { sessionUser ->
+                    val cleanEmail = sessionUser.email
+                    val cleanName = sessionUser.fullName ?: displayName
+                    // Register row in campusprofile so all Google and normal email sign-ins appear in the same table
+                    authClient.registerCampusProfile(
+                        userId = sessionUser.userId,
+                        email = cleanEmail,
+                        fullName = cleanName,
+                        avatarUrl = sessionUser.avatarUrl ?: photoUrl
+                    )
+                    // Dispatch real 6-digit verification code to Google email via Resend
+                    authClient.sendOtp(
+                        email = cleanEmail,
+                        fullName = cleanName
+                    )
+                    showAuthSheet = false
+                    // Knock out to verification screen
+                    onNavigateToVerify(cleanEmail, false)
+                }.onFailure { err ->
+                    showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
+                }
             }
         }
     }
@@ -257,7 +336,13 @@ fun AuthScreen(
                 showAuthSheet = false
                 onLoginSuccess(user.email, user.fullName, user.avatarUrl)
             }.onFailure { err ->
-                showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
+                val friendly = SupabaseGoogleAuthClient.getFriendlyErrorMessage(err)
+                if (err.message?.contains("Email not confirmed", ignoreCase = true) == true) {
+                    showAuthSheet = false
+                    onNavigateToVerify(loginEmail.trim(), false)
+                } else {
+                    showFeedback(friendly, isError = true)
+                }
             }
         }
     }
@@ -277,19 +362,22 @@ fun AuthScreen(
             )
             isLoading = false
             result.onSuccess { user ->
-                if (user.requiresEmailConfirmation) {
-                    loginEmail = regEmail.trim()
-                    loginPassword = regPassword
-                    activeTab = 0
-                    showFeedback("Check your email to verify your account!", isError = false)
-                } else {
-                    showAuthSheet = false
-                    onLoginSuccess(
-                        user.email.ifBlank { regEmail.trim() },
-                        user.fullName ?: regFullName.trim(),
-                        user.avatarUrl
-                    )
-                }
+                val cleanEmail = user.email.ifBlank { regEmail.trim() }
+                val cleanName = user.fullName ?: regFullName.trim()
+                // Register into campusprofile table so email and google users appear in same table
+                authClient.registerCampusProfile(
+                    userId = user.userId,
+                    email = cleanEmail,
+                    fullName = cleanName,
+                    avatarUrl = user.avatarUrl
+                )
+                // Dispatch real 6-digit verification code to student email via Resend
+                authClient.sendOtp(
+                    email = cleanEmail,
+                    fullName = cleanName
+                )
+                showAuthSheet = false
+                onNavigateToVerify(cleanEmail, false)
             }.onFailure { err ->
                 showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
             }
@@ -397,31 +485,9 @@ fun AuthScreen(
                     )
                 }
 
-                // 3. Outlined "Continue as guest" Pill Button
-                OutlinedButton(
-                    onClick = onContinueAsGuest,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = CircleShape,
-                    border = BorderStroke(1.5.dp, Color.White),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White
-                    ),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text(
-                        text = "Continue as guest",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                }
+                Spacer(modifier = Modifier.height(10.dp))
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // 4. "Join the Patriarch program ->" Link (Opens Sign Up tab)
+                // 3. "Join the Patriarch program ->" Link (Opens Sign Up tab)
                 Row(
                     modifier = Modifier
                         .clickable(

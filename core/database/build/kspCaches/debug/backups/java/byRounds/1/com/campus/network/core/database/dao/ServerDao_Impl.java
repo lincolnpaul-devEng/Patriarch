@@ -420,6 +420,84 @@ public final class ServerDao_Impl implements ServerDao {
     }, $completion);
   }
 
+  @Override
+  public Flow<List<ServerEntity>> getJoinedServersForUser(final String userId) {
+    final String _sql = "\n"
+            + "        SELECT DISTINCT s.* FROM servers s\n"
+            + "        LEFT JOIN server_members m ON s.id = m.serverId\n"
+            + "        WHERE s.ownerId = ? OR (m.userId = ? AND m.userId IS NOT NULL AND m.userId != '')\n"
+            + "        ORDER BY s.createdAtEpochMs ASC\n"
+            + "    ";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, userId);
+    _argIndex = 2;
+    _statement.bindString(_argIndex, userId);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"servers",
+        "server_members"}, new Callable<List<ServerEntity>>() {
+      @Override
+      @NonNull
+      public List<ServerEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+          final int _cursorIndexOfOwnerId = CursorUtil.getColumnIndexOrThrow(_cursor, "ownerId");
+          final int _cursorIndexOfAvatarResName = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarResName");
+          final int _cursorIndexOfBannerResName = CursorUtil.getColumnIndexOrThrow(_cursor, "bannerResName");
+          final int _cursorIndexOfIsVerified = CursorUtil.getColumnIndexOrThrow(_cursor, "isVerified");
+          final int _cursorIndexOfMemberCount = CursorUtil.getColumnIndexOrThrow(_cursor, "memberCount");
+          final int _cursorIndexOfInviteCode = CursorUtil.getColumnIndexOrThrow(_cursor, "inviteCode");
+          final int _cursorIndexOfCreatedAtEpochMs = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAtEpochMs");
+          final List<ServerEntity> _result = new ArrayList<ServerEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final ServerEntity _item;
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpDescription;
+            _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            final String _tmpCategory;
+            _tmpCategory = _cursor.getString(_cursorIndexOfCategory);
+            final String _tmpOwnerId;
+            _tmpOwnerId = _cursor.getString(_cursorIndexOfOwnerId);
+            final String _tmpAvatarResName;
+            _tmpAvatarResName = _cursor.getString(_cursorIndexOfAvatarResName);
+            final String _tmpBannerResName;
+            if (_cursor.isNull(_cursorIndexOfBannerResName)) {
+              _tmpBannerResName = null;
+            } else {
+              _tmpBannerResName = _cursor.getString(_cursorIndexOfBannerResName);
+            }
+            final boolean _tmpIsVerified;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsVerified);
+            _tmpIsVerified = _tmp != 0;
+            final int _tmpMemberCount;
+            _tmpMemberCount = _cursor.getInt(_cursorIndexOfMemberCount);
+            final String _tmpInviteCode;
+            _tmpInviteCode = _cursor.getString(_cursorIndexOfInviteCode);
+            final long _tmpCreatedAtEpochMs;
+            _tmpCreatedAtEpochMs = _cursor.getLong(_cursorIndexOfCreatedAtEpochMs);
+            _item = new ServerEntity(_tmpId,_tmpName,_tmpDescription,_tmpCategory,_tmpOwnerId,_tmpAvatarResName,_tmpBannerResName,_tmpIsVerified,_tmpMemberCount,_tmpInviteCode,_tmpCreatedAtEpochMs);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
   @NonNull
   public static List<Class<?>> getRequiredConverters() {
     return Collections.emptyList();

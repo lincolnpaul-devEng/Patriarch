@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.campus.network.core.model.StudentProfile
 
 data class RendezvousSpot(
     val id: String,
@@ -52,37 +54,44 @@ data class RendezvousSpot(
 
 @Composable
 fun RendezvousPointsScreen(
-    currentResidence: String = "Strathmore Quad B, Hall 4",
+    profile: StudentProfile? = null,
     onBackClick: () -> Unit,
+    onSelectSpot: (String) -> Unit = {},
     onShowFeedback: (String) -> Unit = {}
 ) {
-    val spots = listOf(
-        RendezvousSpot(
-            id = "spot-1",
-            name = currentResidence,
-            description = "Your primary campus residential dorm hall for item deliveries and study meetups.",
-            securityLevel = "Hall Security Desk Verified",
-            isPrimaryDorm = true
-        ),
-        RendezvousSpot(
-            id = "spot-2",
-            name = "Quad Library Ground Floor Lockers",
-            description = "High-traffic safe exchange zone with automated lockers and 24/7 CCTV surveillance.",
-            securityLevel = "CCTV Monitored Safe Zone"
-        ),
-        RendezvousSpot(
-            id = "spot-3",
-            name = "Student Guild Center (Table 4)",
-            description = "Open cafeteria and peer commerce hub near the student union offices.",
-            securityLevel = "Campus Guard Station Adjacent"
-        ),
-        RendezvousSpot(
-            id = "spot-4",
-            name = "Phase 1 Science & Computing Labs Entrance",
-            description = "Faculty building foyer with electronic card-access entry gate.",
-            securityLevel = "Biometric / Student ID Gated"
+    val residence = profile?.campusResidence?.takeIf { it.isNotBlank() } ?: "Campus Residence (Not set)"
+    val university = profile?.universityName?.takeIf { it.isNotBlank() } ?: "Campus"
+    val preferred = profile?.preferredRendezvousPoint?.takeIf { it.isNotBlank() }
+
+    val spots = remember(residence, university) {
+        listOf(
+            RendezvousSpot(
+                id = "spot-dorm",
+                name = residence,
+                description = "Your primary campus residential dorm hall for item deliveries and study meetups.",
+                securityLevel = "Hall Security Desk Verified",
+                isPrimaryDorm = true
+            ),
+            RendezvousSpot(
+                id = "spot-lib",
+                name = "$university Library Ground Floor Lockers",
+                description = "High-traffic safe exchange zone with automated lockers and 24/7 CCTV surveillance.",
+                securityLevel = "CCTV Monitored Safe Zone"
+            ),
+            RendezvousSpot(
+                id = "spot-guild",
+                name = "$university Student Guild Center Foyer",
+                description = "Open cafeteria and peer commerce hub near the student union offices.",
+                securityLevel = "Campus Guard Station Adjacent"
+            ),
+            RendezvousSpot(
+                id = "spot-gate",
+                name = "$university Main Gate Security Pavilion",
+                description = "24/7 manned security check post for external deliveries and verified handoffs.",
+                securityLevel = "24/7 Manned Security Post"
+            )
         )
-    )
+    }
 
     Column(
         modifier = Modifier
@@ -180,10 +189,14 @@ fun RendezvousPointsScreen(
             }
 
             items(spots, key = { it.id }) { spot ->
+                val isSelected = (preferred != null && spot.name == preferred) || (preferred == null && spot.isPrimaryDorm)
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, if (spot.isPrimaryDorm) Color(0xFF007AFF).copy(alpha = 0.5f) else Color(0xFFE2E8F0)),
+                    border = BorderStroke(
+                        width = if (isSelected) 1.5.dp else 1.dp,
+                        color = if (isSelected) Color(0xFF007AFF) else Color(0xFFE2E8F0)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -200,13 +213,13 @@ fun RendezvousPointsScreen(
                                     modifier = Modifier
                                         .size(34.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (spot.isPrimaryDorm) Color(0xFFEFF6FF) else Color(0xFFF1F5F9)),
+                                        .background(if (isSelected) Color(0xFFEFF6FF) else Color(0xFFF1F5F9)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = if (spot.isPrimaryDorm) Icons.Default.Home else Icons.Default.LocationOn,
                                         contentDescription = null,
-                                        tint = if (spot.isPrimaryDorm) Color(0xFF007AFF) else Color(0xFF64748B),
+                                        tint = if (isSelected) Color(0xFF007AFF) else Color(0xFF64748B),
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -221,7 +234,7 @@ fun RendezvousPointsScreen(
                                 )
                             }
 
-                            if (spot.isPrimaryDorm) {
+                            if (isSelected) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Box(
                                     modifier = Modifier
@@ -230,12 +243,11 @@ fun RendezvousPointsScreen(
                                         .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "Primary Dorm",
+                                        text = "Active Choice",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF16A34A),
-                                        maxLines = 1,
-                                        softWrap = false
+                                        maxLines = 1
                                     )
                                 }
                             }
@@ -250,22 +262,48 @@ fun RendezvousPointsScreen(
                             lineHeight = 17.sp
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Videocam,
-                                contentDescription = null,
-                                tint = Color(0xFF16A34A),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = spot.securityLevel,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF16A34A)
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Videocam,
+                                    contentDescription = null,
+                                    tint = Color(0xFF16A34A),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = spot.securityLevel,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF16A34A)
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    onSelectSpot(spot.name)
+                                    onShowFeedback("Selected ${spot.name} as preferred rendezvous point")
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSelected) Color(0xFF007AFF) else Color(0xFFF1F5F9),
+                                    contentColor = if (isSelected) Color.White else Color(0xFF0F172A)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Text(
+                                    text = if (isSelected) "Selected" else "Select Spot",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }

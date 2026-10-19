@@ -25,223 +25,9 @@ class MessagesViewModel(
     private var callTimerJob: Job? = null
     private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
 
-    private val initialThreads = listOf(
-        ConversationThread(
-            id = "thread_jane",
-            peerName = "Jane Doe",
-            peerHandle = "@janedoe",
-            avatarInitials = "J",
-            lastMessage = "I'll bring cookies",
-            lastTimestamp = "9:23 AM",
-            unreadCount = 0,
-            isOnline = true,
-            isVerified = true,
-            category = ThreadCategory.DIRECT
-        ),
-        ConversationThread(
-            id = "thread_sarah",
-            peerName = "Sarah Nduta",
-            peerHandle = "@sarah_n",
-            avatarInitials = "SN",
-            lastMessage = "Sending safe payment for the gig.",
-            lastTimestamp = "10:09 AM",
-            unreadCount = 0,
-            isOnline = true,
-            isVerified = true,
-            category = ThreadCategory.DIRECT
-        ),
-        ConversationThread(
-            id = "thread_mwangi",
-            peerName = "Prof. Mwangi (Supervisor)",
-            peerHandle = "@prof_mwangi",
-            avatarInitials = "PM",
-            lastMessage = "Please review chapter 4 citations before tomorrow's seminar.",
-            lastTimestamp = "09:40 AM",
-            unreadCount = 2,
-            isOnline = true,
-            isVerified = true,
-            category = ThreadCategory.ACADEMIC
-        ),
-        ConversationThread(
-            id = "thread_brian",
-            peerName = "Brian Ochieng (Calculators)",
-            peerHandle = "@brian_och",
-            avatarInitials = "BO",
-            lastMessage = "Casio fx-991EX is ready for pickup at Science Complex.",
-            lastTimestamp = "Yesterday",
-            unreadCount = 0,
-            isOnline = false,
-            isVerified = false,
-            category = ThreadCategory.GIGS
-        ),
-        ConversationThread(
-            id = "thread_guild",
-            peerName = "Nairobi Tech Guild",
-            peerHandle = "@tech_guild",
-            avatarInitials = "TG",
-            lastMessage = "Hackathon registration closes at midnight!",
-            lastTimestamp = "Yesterday",
-            unreadCount = 5,
-            isOnline = true,
-            isVerified = true,
-            category = ThreadCategory.ACADEMIC
-        ),
-        ConversationThread(
-            id = "thread_faith",
-            peerName = "Faith Wangari",
-            peerHandle = "@faith_w",
-            avatarInitials = "FW",
-            lastMessage = "Can we do a quick video call regarding the lab presentation slides?",
-            lastTimestamp = "Monday",
-            unreadCount = 1,
-            isOnline = true,
-            isVerified = true,
-            category = ThreadCategory.DIRECT
-        )
-    )
+    private val initialThreads = emptyList<ConversationThread>()
 
-    private val threadMessagesMap = mutableMapOf<String, List<DirectMessageItem>>(
-        "thread_jane" to listOf(
-            DirectMessageItem(
-                id = "msg-j0",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "I just got back in town, let's meet!",
-                timestamp = "Today 1:30 AM",
-                replyToText = "Good!"
-            ),
-            DirectMessageItem(
-                id = "msg-j1",
-                senderName = "Jane Doe",
-                isMine = false,
-                text = "My family are hosting an Eid lunch today, come over to my house!",
-                timestamp = "Today 1.43 AM"
-            ),
-            DirectMessageItem(
-                id = "msg-j2",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "Happy Eid!",
-                timestamp = "Today 1.44 AM"
-            ),
-            DirectMessageItem(
-                id = "msg-j3",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "Looking forward to see you!!!",
-                timestamp = "Today 1.45 AM",
-                isEdited = true
-            ),
-            DirectMessageItem(
-                id = "msg-j4",
-                senderName = "System",
-                isMine = false,
-                text = "You unsent a message",
-                timestamp = "Today 9.20 AM",
-                isSystem = true
-            ),
-            DirectMessageItem(
-                id = "msg-j5",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "I'll bring cookies",
-                timestamp = "Today 9.23 AM"
-            ),
-            DirectMessageItem(
-                id = "msg-j6",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "See You!",
-                timestamp = "Today 9.24 AM",
-                isDelivered = true,
-                isHandwritten = true
-            )
-        ),
-        "thread_sarah" to listOf(
-            DirectMessageItem(
-                id = "msg-1",
-                senderName = "Sarah Nduta",
-                isMine = false,
-                text = "Hey! Finished the IEEE LaTeX formatting for your proposal chapters 1-3.",
-                timestamp = "10:05 AM"
-            ),
-            DirectMessageItem(
-                id = "msg-2",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "Awesome work, thanks for fixing the bibtex citations so fast!",
-                timestamp = "10:08 AM"
-            ),
-            DirectMessageItem(
-                id = "msg-3",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "Sending safe payment for the gig.",
-                timestamp = "10:09 AM",
-                settlementPayload = PeerTransactionPayload(
-                    transactionId = "tx-9921",
-                    senderName = "Lincoln Kiprotich",
-                    recipientName = "Sarah Nduta",
-                    amount = 1500.0,
-                    currency = "KES",
-                    purpose = "LaTeX Thesis Formatting Gig",
-                    status = SettlementStatus.ESCROW_LOCKED,
-                    timestampMs = System.currentTimeMillis() - (10 * 60 * 1000),
-                    referenceCode = "CAMPUS-ESCROW-9921"
-                )
-            )
-        ),
-        "thread_mwangi" to listOf(
-            DirectMessageItem(
-                id = "msg-m1",
-                senderName = "Prof. Mwangi",
-                isMine = false,
-                text = "Lincoln, your methodology section draft is promising. Please incorporate the experimental telemetry data.",
-                timestamp = "09:30 AM"
-            ),
-            DirectMessageItem(
-                id = "msg-m2",
-                senderName = "Prof. Mwangi",
-                isMine = false,
-                text = "Please review chapter 4 citations before tomorrow's seminar.",
-                timestamp = "09:40 AM"
-            )
-        ),
-        "thread_brian" to listOf(
-            DirectMessageItem(
-                id = "msg-b1",
-                senderName = "Lincoln",
-                isMine = true,
-                text = "Hi Brian, is the scientific calculator still available for hire?",
-                timestamp = "Yesterday 03:15 PM"
-            ),
-            DirectMessageItem(
-                id = "msg-b2",
-                senderName = "Brian Ochieng",
-                isMine = false,
-                text = "Casio fx-991EX is ready for pickup at Science Complex.",
-                timestamp = "Yesterday 03:22 PM"
-            )
-        ),
-        "thread_guild" to listOf(
-            DirectMessageItem(
-                id = "msg-g1",
-                senderName = "Nairobi Tech Guild",
-                isMine = false,
-                text = "Hackathon registration closes at midnight!",
-                timestamp = "Yesterday 08:00 PM"
-            )
-        ),
-        "thread_faith" to listOf(
-            DirectMessageItem(
-                id = "msg-f1",
-                senderName = "Faith Wangari",
-                isMine = false,
-                text = "Can we do a quick video call regarding the lab presentation slides?",
-                timestamp = "Monday 04:12 PM"
-            )
-        )
-    )
+    private val threadMessagesMap = mutableMapOf<String, List<DirectMessageItem>>()
 
     private val _uiState = MutableStateFlow(
         MessagesUiState(
@@ -310,7 +96,7 @@ class MessagesViewModel(
         replyText: String,
         timestampLabel: String
     ) {
-        val currentUserFirstName = _currentProfile.value?.firstName ?: "Lincoln"
+        val currentUserFirstName = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You"
         val newMsg = DirectMessageItem(
             id = "msg_inline_${System.currentTimeMillis()}",
             senderName = currentUserFirstName,
@@ -453,7 +239,7 @@ class MessagesViewModel(
                 val activeThread = _uiState.value.selectedThread ?: return
                 val newMsg = DirectMessageItem(
                     id = "msg-${System.currentTimeMillis()}",
-                    senderName = _currentProfile.value?.firstName ?: "Lincoln",
+                    senderName = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You",
                     isMine = true,
                     text = event.text.trim(),
                     timestamp = "Just now",
@@ -499,7 +285,7 @@ class MessagesViewModel(
                 val activeThread = _uiState.value.selectedThread ?: return
                 val txPayload = PeerTransactionPayload(
                     transactionId = "tx-${System.currentTimeMillis()}",
-                    senderName = _currentProfile.value?.fullName ?: "Lincoln Kiprotich",
+                    senderName = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student",
                     recipientName = activeThread.peerName,
                     amount = event.amount,
                     currency = "KES",
@@ -510,7 +296,7 @@ class MessagesViewModel(
                 )
                 val newMsg = DirectMessageItem(
                     id = "msg-${System.currentTimeMillis()}",
-                    senderName = _currentProfile.value?.firstName ?: "Lincoln",
+                    senderName = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You",
                     isMine = true,
                     text = "Escrow initiated: KES ${event.amount} for ${event.purpose}",
                     timestamp = "Just now",
@@ -695,7 +481,7 @@ class MessagesViewModel(
                     event.peerIds.forEach { peerId ->
                         val newMsg = DirectMessageItem(
                             id = "msg-${System.currentTimeMillis()}-${peerId.hashCode()}",
-                            senderName = _currentProfile.value?.firstName ?: "Lincoln",
+                            senderName = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You",
                             isMine = true,
                             text = trimmedText,
                             timestamp = "Just now"

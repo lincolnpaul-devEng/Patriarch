@@ -929,7 +929,7 @@ fun CreateEventDrawerSheet(
                                 id = "evt_${UUID.randomUUID()}",
                                 title = title.trim(),
                                 hostName = hostName.ifBlank { "You (Verified Student)" },
-                                hostAvatarRes = R.drawable.avatar_andrew,
+                                hostAvatarRes = 0,
                                 artworkRes = selectedArtworkRes,
                                 dateTimeFormatted = resolvedTimingText,
                                 locationName = resolvedLocName,

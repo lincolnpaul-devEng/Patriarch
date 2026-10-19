@@ -147,7 +147,7 @@ fun MessagesScreen(
                 MessagesScreenMode.ADD_NOTE -> {
                     AddNoteScreen(
                         currentNote = uiState.currentUserNote,
-                        fullName = uiState.studentProfile?.fullName ?: "Lincoln Kiprotich",
+                        fullName = uiState.studentProfile?.fullName?.ifBlank { "Student" } ?: "Student",
                         avatarUrl = uiState.studentProfile?.avatarUrl,
                         onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) },
                         onShareNote = { note ->

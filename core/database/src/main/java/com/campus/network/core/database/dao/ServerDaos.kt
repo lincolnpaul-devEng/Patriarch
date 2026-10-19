@@ -37,6 +37,14 @@ interface ServerDao {
 
     @Query("DELETE FROM servers WHERE id = :serverId")
     suspend fun deleteServer(serverId: String)
+
+    @Query("""
+        SELECT DISTINCT s.* FROM servers s
+        LEFT JOIN server_members m ON s.id = m.serverId
+        WHERE s.ownerId = :userId OR (m.userId = :userId AND m.userId IS NOT NULL AND m.userId != '')
+        ORDER BY s.createdAtEpochMs ASC
+    """)
+    fun getJoinedServersForUser(userId: String): Flow<List<ServerEntity>>
 }
 
 @Dao
@@ -97,6 +105,18 @@ interface ServerMemberDao {
 
     @Query("DELETE FROM server_members WHERE serverId = :serverId AND userId = :userId")
     suspend fun removeMember(serverId: String, userId: String)
+
+    @Query("SELECT serverId FROM server_members WHERE userId = :userId")
+    fun getJoinedServerIdsForUser(userId: String): Flow<List<String>>
+
+    @Query("SELECT serverId FROM server_members WHERE userId = :userId")
+    suspend fun getJoinedServerIdsForUserSync(userId: String): List<String>
+
+    @Query("UPDATE server_members SET displayName = :displayName, handle = :handle, avatarUrl = :avatarUrl, avatarResName = :avatarResName WHERE userId = :userId")
+    suspend fun updateMemberProfileForUser(userId: String, displayName: String, handle: String, avatarUrl: String?, avatarResName: String)
+
+    @Query("UPDATE server_members SET displayName = :displayName, handle = :handle, avatarUrl = :avatarUrl, avatarResName = :avatarResName WHERE serverId = :serverId AND role = 'OWNER'")
+    suspend fun updateServerOwnerProfile(serverId: String, displayName: String, handle: String, avatarUrl: String?, avatarResName: String)
 }
 
 @Dao

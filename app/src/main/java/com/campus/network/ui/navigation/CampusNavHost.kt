@@ -44,6 +44,7 @@ import com.campus.network.ui.auth.AuthScreen
 import com.campus.network.ui.auth.OnboardingScreen
 import com.campus.network.ui.auth.OnboardingTransitionScreen
 import com.campus.network.ui.auth.SplashScreen
+import com.campus.network.ui.auth.VerifyScreen
 import com.campus.network.ui.onboarding.OnboardingSurveyScreen
 import kotlinx.coroutines.launch
 
@@ -59,7 +60,12 @@ fun CampusNavHost(
     modifier: Modifier = Modifier,
     messagesViewModel: MessagesViewModel = remember { MessagesViewModel(streamChatEngine) },
     channelsViewModel: ChannelsViewModel? = null,
-    studentProfileRepository: StudentProfileRepository = remember { StudentProfileRepository() },
+    studentProfileRepository: StudentProfileRepository = remember(database) {
+        StudentProfileRepository(
+            database = database,
+            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+        )
+    },
     onToggleBottomBar: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -75,6 +81,7 @@ fun CampusNavHost(
     // ViewModels with UDF patterns
     val mapViewModel = remember { MapViewModel(flashMeetRepository, placesRepository, studentProfileRepository) }
     val serverRepository = remember { com.campus.network.core.data.ServerRepository(database) }
+    val liveStreamRepository = remember { com.campus.network.core.data.LiveStreamRepository(database) }
     val resolvedChannelsViewModel = channelsViewModel ?: remember { ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository) }
     val hubViewModel = remember { HubViewModel(campusHubRepository, studentProfileRepository) }
     val profileViewModel = remember { ProfileViewModel(studentProfileRepository) }
@@ -123,9 +130,34 @@ fun CampusNavHost(
     ) {
         // Splash Screen (Brand navy blue canvas with Patriarch logo)
         composable(route = Screen.Splash.route) {
+            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             SplashScreen(
                 onSplashComplete = {
-                    navController.navigate(Screen.Onboarding.route) {
+                    val savedSession = authClient.getSavedSession()
+                    val profileSync = currentProfile
+                    val email = savedSession?.email ?: profileSync?.universityEmail.orEmpty()
+                    val hasAuth = (savedSession != null && savedSession.email.isNotBlank()) ||
+                        (profileSync != null && profileSync.universityEmail.isNotBlank())
+
+                    val isSurveyDone = authClient.isSurveyCompleted(email) ||
+                        (profileSync?.onboardingPreferences?.hasCompletedSurvey == true)
+
+                    val targetRoute = when {
+                        hasAuth && isSurveyDone -> {
+                            Screen.Hub.route
+                        }
+                        hasAuth && !isSurveyDone -> {
+                            Screen.OnboardingSurvey.route
+                        }
+                        authClient.hasSeenIntroOnboarding() -> {
+                            Screen.Auth.route
+                        }
+                        else -> {
+                            Screen.Onboarding.route
+                        }
+                    }
+
+                    navController.navigate(targetRoute) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
                     }
                 }
@@ -143,8 +175,10 @@ fun CampusNavHost(
 
         // Second Onboarding Screen: 3D Balloon Typography & Kinetic Rocket Launch
         composable(route = Screen.OnboardingTransition.route) {
+            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             OnboardingTransitionScreen(
                 onTransitionComplete = {
+                    authClient.setHasSeenIntroOnboarding(true)
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
@@ -152,8 +186,9 @@ fun CampusNavHost(
             )
         }
 
-        // Auth Screen (Log in / Continue as guest / Join Patriarch program)
+        // Auth Screen (Sign in with Google / Log in with Email / Join Patriarch program)
         composable(route = Screen.Auth.route) {
+            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             AuthScreen(
                 onLoginSuccess = { email, fullName, avatarUrl ->
                     coroutineScope.launch {
@@ -169,15 +204,77 @@ fun CampusNavHost(
                             countryName = countryEntry?.name,
                             currencyCode = countryEntry?.currencyCode
                         )
-                    }
-                    navController.navigate(Screen.OnboardingSurvey.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
+                        studentProfileRepository.syncProfileWithRemote(email)
+                        studentProfileRepository.setAvatarFallbackIfMissing(avatarUrl)
+
+                        val isSurveyDone = authClient.isSurveyCompleted(email) ||
+                            (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
+
+                        val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
+                        navController.navigate(nextDestination) {
+                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        }
                     }
                 },
-                onContinueAsGuest = {
-                    coroutineScope.launch { studentProfileRepository.applyGuestSession() }
-                    navController.navigate(Screen.OnboardingSurvey.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
+                onNavigateToVerify = { target, isPhone ->
+                    navController.navigate(Screen.Verify.createRoute(target, isPhone))
+                }
+            )
+        }
+
+        // Verification Screen (Matching reference layout, BrandBlueAuth background, custom 3x4 keypad)
+        composable(
+            route = Screen.Verify.route,
+            arguments = listOf(
+                navArgument("target") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument("isPhone") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val rawTarget = backStackEntry.arguments?.getString("target") ?: ""
+            val target = try {
+                java.net.URLDecoder.decode(rawTarget, "UTF-8")
+            } catch (e: Exception) {
+                rawTarget
+            }
+            val isPhone = backStackEntry.arguments?.getBoolean("isPhone") ?: false
+
+            VerifyScreen(
+                target = target,
+                isPhone = isPhone,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onVerificationSuccess = { sessionUser ->
+                    coroutineScope.launch {
+                        val matchedUni = directoryRepository.resolveUniversityFromEmail(sessionUser.email)
+                        val countryEntry = matchedUni?.let { u ->
+                            directoryRepository.getCountries().firstOrNull { it.code.equals(u.countryCode, ignoreCase = true) }
+                        }
+                        studentProfileRepository.applyAuthenticatedUser(
+                            fullName = sessionUser.fullName,
+                            email = sessionUser.email,
+                            avatarUrl = sessionUser.avatarUrl,
+                            matchedUniversity = matchedUni,
+                            countryName = countryEntry?.name,
+                            currencyCode = countryEntry?.currencyCode
+                        )
+                        studentProfileRepository.syncProfileWithRemote(sessionUser.email)
+                        studentProfileRepository.setAvatarFallbackIfMissing(sessionUser.avatarUrl)
+
+                        val authClient = com.campus.network.core.network.SupabaseGoogleAuthClient(context)
+                        val isSurveyDone = authClient.isSurveyCompleted(sessionUser.email) ||
+                            (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
+
+                        val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
+                        navController.navigate(nextDestination) {
+                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -185,10 +282,13 @@ fun CampusNavHost(
 
         // First-Time User Onboarding Survey Flow (Steps A - K)
         composable(route = Screen.OnboardingSurvey.route) {
+            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             OnboardingSurveyScreen(
                 studentProfileRepository = studentProfileRepository,
                 directoryRepository = directoryRepository,
                 onSurveyCompleted = {
+                    val email = currentProfile?.universityEmail ?: authClient.getSavedSession()?.email
+                    authClient.setSurveyCompleted(email, true)
                     navController.navigate(Screen.Hub.route) {
                         popUpTo(Screen.OnboardingSurvey.route) { inclusive = true }
                     }
@@ -224,6 +324,9 @@ fun CampusNavHost(
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
+                },
+                onNavigateToNotifications = {
+                    navController.navigate(Screen.Notifications.route)
                 },
                 onNavigateToDirectChat = { peerId, peerName, peerHandle, serverName, serverTag ->
                     messagesViewModel.onEvent(
@@ -379,12 +482,32 @@ fun CampusNavHost(
 
         // Tab 5: Profile (Gamified Persona)
         composable(route = Screen.Profile.route) {
-            ProfileScreen(viewModel = profileViewModel)
+            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
+            ProfileScreen(
+                viewModel = profileViewModel,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onSignOut = {
+                    coroutineScope.launch {
+                        authClient.signOut()
+                        profileViewModel.onEvent(com.campus.network.feature.profile.ProfileEvent.SignOut)
+                        navController.navigate(Screen.Auth.route) {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
         }
 
         // Go Live flow: permissions -> details -> countdown -> live -> summary
         composable(route = Screen.GoLive.route) {
-            GoLiveScreen(onExit = { navController.popBackStack() })
+            GoLiveScreen(
+                studentProfileRepository = studentProfileRepository,
+                liveStreamRepository = liveStreamRepository,
+                onExit = { navController.popBackStack() }
+            )
         }
 
         // Dedicated Fullscreen Live Feed Screen (TikTok / Instagram Live Style)
@@ -400,6 +523,9 @@ fun CampusNavHost(
             val storyId = backStackEntry.arguments?.getString("storyId") ?: "founders"
             CampusLiveFeedScreen(
                 initialStoryId = storyId,
+                studentProfileRepository = studentProfileRepository,
+                liveStreamRepository = liveStreamRepository,
+                serverRepository = serverRepository,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

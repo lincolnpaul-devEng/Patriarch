@@ -58,10 +58,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.campus.network.core.ui.R
+import com.campus.network.feature.channels.ServerItem
 
 /**
  * Data model for server creation templates.
@@ -102,6 +104,7 @@ data class FeaturedCommunity(
  */
 @Composable
 fun DiscoverServersPanel(
+    discoverableServers: List<ServerItem> = emptyList(),
     onCreateServerSubmit: (name: String, category: String) -> Unit,
     onJoinInviteSubmit: (inviteCode: String) -> Unit,
     onPreviewCommunitySubmit: (serverName: String) -> Unit,
@@ -147,53 +150,6 @@ fun DiscoverServersPanel(
                 secondaryColor = Color(0xFFDB2777),
                 icon = Icons.Default.Groups,
                 templateCategory = "Social"
-            )
-        )
-    }
-
-    val featuredCommunities = remember {
-        listOf(
-            FeaturedCommunity(
-                id = "comm_heartopia",
-                name = "Heartopia",
-                isVerified = true,
-                verifiedBadgeColor = Color(0xFF23A55A),
-                description = "Heartopia Official patriarch where you can contact official group and communicate with other players here",
-                onlineCountText = "90,935 Online",
-                membersCountText = "811,139 Members",
-                bannerGradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF2D1B4E), Color(0xFF1E293B), Color(0xFF475569))
-                ),
-                avatarBgColor = Color(0xFFFFD1DC),
-                avatarDrawableRes = R.drawable.server_curly
-            ),
-            FeaturedCommunity(
-                id = "comm_coc",
-                name = "Clash of Clans",
-                isVerified = true,
-                verifiedBadgeColor = Color(0xFF5865F2),
-                description = "Official patriarch server for Clash of Clans. Join the biggest server dedicated to Clash of Clans!",
-                onlineCountText = "30,449 Online",
-                membersCountText = "458,299 Members",
-                bannerGradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF7F1D1D), Color(0xFF431407), Color(0xFF1C1917))
-                ),
-                avatarBgColor = Color(0xFF1C1917),
-                avatarDrawableRes = R.drawable.server_dragon
-            ),
-            FeaturedCommunity(
-                id = "comm_ai_guild",
-                name = "Campus Tech & AI Guild",
-                isVerified = true,
-                verifiedBadgeColor = Color(0xFF23A55A),
-                description = "Connect with student software engineers, machine learning researchers, and open-source contributors.",
-                onlineCountText = "14,820 Online",
-                membersCountText = "92,400 Members",
-                bannerGradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF0F172A), Color(0xFF0369A1), Color(0xFF0284C7))
-                ),
-                avatarBgColor = Color(0xFF0F172A),
-                avatarDrawableRes = R.drawable.server_ai_brain
             )
         )
     }
@@ -314,13 +270,51 @@ fun DiscoverServersPanel(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // List of Featured Community Cards
-        featuredCommunities.forEach { community ->
-            CommunityFeaturedCard(
-                community = community,
-                onPreviewClick = { onPreviewCommunitySubmit(community.name) }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+        if (discoverableServers.isNotEmpty()) {
+            discoverableServers.forEach { server ->
+                ServerFeaturedCard(
+                    server = server,
+                    onPreviewClick = { onPreviewCommunitySubmit(server.name) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        } else {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFF8FAFC)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Groups,
+                        contentDescription = null,
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "No Public Servers Found",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF1E1F22)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "No servers have been created yet. Be the first to build a campus guild or join via an invite code.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
 
         // Bottom space so content scrolls past floating user profile bar comfortably
@@ -531,8 +525,8 @@ private fun GamingBadgeIllustration() {
  * - Solid blurple "Preview" button
  */
 @Composable
-private fun CommunityFeaturedCard(
-    community: FeaturedCommunity,
+private fun ServerFeaturedCard(
+    server: ServerItem,
     onPreviewClick: () -> Unit
 ) {
     Surface(
@@ -553,47 +547,73 @@ private fun CommunityFeaturedCard(
                     .height(132.dp)
             ) {
                 // Background Banner Artwork
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(108.dp)
-                        .background(community.bannerGradient)
-                ) {
-                    // Subtle background geometric art elements
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.08f),
-                            radius = size.width * 0.4f,
-                            center = Offset(size.width * 0.85f, size.height * 0.2f)
-                        )
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.05f),
-                            radius = size.width * 0.25f,
-                            center = Offset(size.width * 0.2f, size.height * 0.8f)
-                        )
-                    }
+                val bannerResId: Int? = when (server.bannerResName) {
+                    "server_banner_clash" -> com.campus.network.core.ui.R.drawable.server_banner_clash
+                    "server_banner_basi" -> com.campus.network.core.ui.R.drawable.server_banner_basi
+                    "banner_gradient_cyber" -> com.campus.network.core.ui.R.drawable.banner_gradient_cyber
+                    "banner_campus_quad" -> com.campus.network.core.ui.R.drawable.banner_campus_quad
+                    "banner_tech_neon" -> com.campus.network.core.ui.R.drawable.banner_tech_neon
+                    "banner_welcome_perk" -> com.campus.network.core.ui.R.drawable.banner_welcome_perk
+                    else -> null
+                }
+                val isBannerUrl = server.bannerResName?.startsWith("http") == true || server.bannerResName?.startsWith("content:") == true
 
-                    // Top-right three-dots menu button
+                if (isBannerUrl) {
+                    coil.compose.AsyncImage(
+                        model = server.bannerResName,
+                        contentDescription = "Server Banner",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(108.dp)
+                    )
+                } else if (bannerResId != null) {
+                    Image(
+                        painter = painterResource(id = bannerResId),
+                        contentDescription = "Server Banner",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(108.dp)
+                    )
+                } else {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(10.dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.35f))
-                            .clickable { /* options menu */ },
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .height(108.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF0F172A), Color(0xFF003B68), Color(0xFF007AFF))
+                                )
+                            )
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreHoriz,
-                            contentDescription = "Community options",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.08f),
+                                radius = size.width * 0.4f,
+                                center = Offset(size.width * 0.85f, size.height * 0.2f)
+                            )
+                        }
                     }
                 }
 
-                // Overlapping Avatar Squircle (with 3.dp white border)
+                // Overlapping Avatar Squircle
+                val isIconUrl = server.iconResName?.startsWith("http") == true || server.iconResName?.startsWith("content:") == true
+                val iconResId: Int? = when (server.iconResName) {
+                    "server_codesistency" -> com.campus.network.core.ui.R.drawable.server_codesistency
+                    "server_avatar2" -> com.campus.network.core.ui.R.drawable.server_avatar2
+                    "server_ai_brain" -> com.campus.network.core.ui.R.drawable.server_ai_brain
+                    "server_logo2" -> com.campus.network.core.ui.R.drawable.server_logo2
+                    "server_dragon" -> com.campus.network.core.ui.R.drawable.server_dragon
+                    "server_curly" -> com.campus.network.core.ui.R.drawable.server_curly
+                    "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
+                    "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
+                    "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
+                    "server_gradient" -> com.campus.network.core.ui.R.drawable.server_gradient
+                    "server_w_red" -> com.campus.network.core.ui.R.drawable.server_w_red
+                    else -> null
+                }
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -604,10 +624,19 @@ private fun CommunityFeaturedCard(
                         .border(3.dp, Color.White, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (community.avatarDrawableRes != null) {
+                    if (isIconUrl) {
+                        coil.compose.AsyncImage(
+                            model = server.iconResName,
+                            contentDescription = server.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(13.dp))
+                        )
+                    } else if (iconResId != null) {
                         Image(
-                            painter = painterResource(community.avatarDrawableRes),
-                            contentDescription = community.name,
+                            painter = painterResource(id = iconResId),
+                            contentDescription = server.name,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -618,13 +647,13 @@ private fun CommunityFeaturedCard(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(13.dp))
-                                .background(community.avatarBgColor),
+                                .background(Color(0xFF003B68)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = community.avatarLetter,
+                                text = server.name.take(2).uppercase().ifBlank { "CS" },
                                 color = Color.White,
-                                fontSize = 22.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -643,19 +672,17 @@ private fun CommunityFeaturedCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = if (community.verifiedBadgeColor == Color(0xFF23A55A)) {
-                            Icons.Default.CheckCircle
-                        } else {
-                            Icons.Default.Verified
-                        },
-                        contentDescription = "Verified community",
-                        tint = community.verifiedBadgeColor,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    if (server.isVerified) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Verified community",
+                            tint = Color(0xFF23A55A),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
                     Text(
-                        text = community.name,
+                        text = server.name,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1E1F22),
@@ -663,11 +690,10 @@ private fun CommunityFeaturedCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                // Description
                 Text(
-                    text = community.description,
+                    text = server.categoryText.ifBlank { "Campus Community" },
                     fontSize = 13.5.sp,
                     color = Color(0xFF4E5058),
                     lineHeight = 18.5.sp
@@ -680,7 +706,6 @@ private fun CommunityFeaturedCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Online Indicator Dot
                     Box(
                         modifier = Modifier
                             .size(8.dp)
@@ -688,23 +713,7 @@ private fun CommunityFeaturedCard(
                             .background(Color(0xFF23A55A))
                     )
                     Text(
-                        text = community.onlineCountText,
-                        fontSize = 12.sp,
-                        color = Color(0xFF5C5E66),
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    // Total Members Indicator Dot
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF5C5E66))
-                    )
-                    Text(
-                        text = community.membersCountText,
+                        text = server.memberCountText.ifBlank { "Active" },
                         fontSize = 12.sp,
                         color = Color(0xFF5C5E66),
                         fontWeight = FontWeight.Medium
@@ -713,7 +722,7 @@ private fun CommunityFeaturedCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // "Preview" Button (Solid blurple)
+                // "Preview" Button
                 Button(
                     onClick = onPreviewClick,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),

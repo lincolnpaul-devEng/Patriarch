@@ -1,11 +1,3 @@
-int drawable avatar_andrew 0x0
-int drawable avatar_ath 0x0
-int drawable avatar_clin 0x0
-int drawable avatar_deleted_user 0x0
-int drawable avatar_eliza 0x0
-int drawable avatar_junebog 0x0
-int drawable avatar_lincoln 0x0
-int drawable avatar_me 0x0
 int drawable banner_campus_quad 0x0
 int drawable banner_gradient_cyber 0x0
 int drawable banner_tech_neon 0x0
@@ -76,4 +68,5 @@ int drawable student_eliza 0x0
 int drawable student_june 0x0
 int drawable student_rk 0x0
 int raw no_internet 0x0
+int raw worldcup_2026_football_animation 0x0
 int style Theme_Patriarch 0x0

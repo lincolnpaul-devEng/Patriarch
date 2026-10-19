@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -64,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -107,13 +109,15 @@ data class CampusLiveFeedStory(
     val id: String,
     val broadcasterName: String,
     val broadcasterHandle: String,
-    val broadcasterAvatarRes: Int,
-    val viewerCount: String,
+    val broadcasterAvatarRes: Int = 0,
+    val broadcasterAvatarUrl: String? = null,
+    val viewerCount: String = "1",
     val isLive: Boolean = true,
     val title: String,
     val description: String,
-    val backdropImageRes: Int,
-    val initialComments: List<LiveStoryComment>,
+    val backdropImageRes: Int = 0,
+    val backdropImageUrl: String? = null,
+    val initialComments: List<LiveStoryComment> = emptyList(),
     // Streamer profile details
     val location: String = "Nairobi, KE",
     val joinedDate: String = "",
@@ -125,7 +129,8 @@ data class CampusLiveFeedStory(
     /** 8 weeks x 7 days of streaming activity, levels 0..3 (56 values). */
     val weeklyActivity: List<Int> = List(56) { 0 },
     val pastStreams: List<PastStream> = emptyList(),
-    val servers: List<StreamerServer> = emptyList()
+    val servers: List<StreamerServer> = emptyList(),
+    val isMe: Boolean = false
 )
 
 enum class StreamTopic { TECH, ACADEMICS, MARKET, POLITICS, MUSIC }
@@ -143,7 +148,7 @@ data class StreamerServer(
     val members: String,
     val category: String,
     val description: String,
-    val avatarRes: Int
+    val avatarRes: Int = 0
 )
 
 /** Deterministic 8-week activity grid (levels 0..3) for a streamer. */
@@ -163,9 +168,10 @@ private fun activityGrid(seed: Int, busy: Float): List<Int> {
 data class LiveStoryComment(
     val id: String,
     val userName: String,
-    val userAvatarRes: Int,
+    val userAvatarRes: Int = 0,
     val commentText: String,
-    val gifUrl: String? = null
+    val gifUrl: String? = null,
+    val avatarUrl: String? = null
 )
 
 /**
@@ -187,142 +193,92 @@ val defaultCampusLiveStories = listOf(
         id = "founders",
         broadcasterName = "Sara.HM",
         broadcasterHandle = "sara.hm",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_eliza,
-        viewerCount = "1250",
+        broadcasterAvatarRes = 0,
+        viewerCount = "1",
         isLive = true,
         title = "Celebrating Student Founders Demo Day",
         description = "Live pitch: Building peer solar charging stations across student hostels. Ask questions in comments!",
         backdropImageRes = R.drawable.card_student_founder,
         location = "Strathmore University, Nairobi",
-        joinedDate = "12th Jan 2025",
-        hoursLive = 76,
-        followers = "4,057",
+        joinedDate = "Jan 2025",
+        hoursLive = 0,
+        followers = "0",
         topTopics = listOf(StreamTopic.TECH, StreamTopic.ACADEMICS, StreamTopic.MARKET),
         bestDay = "Friday",
-        streamsPerWeek = 6,
-        weeklyActivity = activityGrid(11, 0.7f),
-        pastStreams = listOf(
-            PastStream("Founders Demo Day: Solar Charging Pitch", "Live now", "1.2k watching", "Live"),
-            PastStream("How we validated hostel solar demand", "3 days ago", "2.1k views", "48 min"),
-            PastStream("Pitch deck teardown with mentors", "1 week ago", "1.6k views", "1 h 05 min"),
-            PastStream("Campus startup funding Q&A", "2 weeks ago", "980 views", "36 min")
-        ),
-        servers = listOf(
-            StreamerServer("Strathmore Founders Guild", "Owner", "2,140 members", "Entrepreneurship", "Student founders sharing pitches, co-founder searches and demo-day prep.", com.campus.network.core.ui.R.drawable.avatar_eliza),
-            StreamerServer("Solar Hostels Collective", "Admin", "380 members", "Sustainability", "Planning peer-run solar charging stations across student hostels.", com.campus.network.core.ui.R.drawable.server_avatar2)
-        ),
-        initialComments = listOf(
-            LiveStoryComment("c1", "Davidsom.198041", com.campus.network.core.ui.R.drawable.avatar_andrew, "You have a gift that fills the air with joy and harmony. Keep sharing your incredible talent!"),
-            LiveStoryComment("c2", "Samansky", com.campus.network.core.ui.R.drawable.avatar_clin, "Can u sing a track of Adel?"),
-            LiveStoryComment("c3", "Hossein.nd", com.campus.network.core.ui.R.drawable.student_june, "Amazing! singing our hart out"),
-            LiveStoryComment("c4", "Sadaf_Sk", com.campus.network.core.ui.R.drawable.avatar_me, "Very nice voice"),
-            LiveStoryComment("c5", "Brian_Tech", com.campus.network.core.ui.R.drawable.student_andrew, "Where can we get the demo slides?")
-        )
+        streamsPerWeek = 0,
+        weeklyActivity = List(56) { 0 },
+        pastStreams = emptyList(),
+        servers = emptyList(),
+        initialComments = emptyList()
     ),
     // 2. Guild Presidential Debate 2026
     CampusLiveFeedStory(
         id = "guild_debate",
         broadcasterName = "UoN.Guild",
         broadcasterHandle = "uon.guild",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_junebog,
-        viewerCount = "1840",
+        broadcasterAvatarRes = 0,
+        viewerCount = "1",
         isLive = true,
         title = "Guild Presidential Debate 2026",
         description = "Live from Taifa Hall Auditorium. Real-time candidate cross-examinations and student policy polling.",
         backdropImageRes = R.drawable.hero_campus_scenic,
         location = "University of Nairobi",
-        joinedDate = "3rd Sep 2024",
-        hoursLive = 120,
-        followers = "12.8k",
+        joinedDate = "Sep 2024",
+        hoursLive = 0,
+        followers = "0",
         topTopics = listOf(StreamTopic.POLITICS, StreamTopic.ACADEMICS),
         bestDay = "Wednesday",
-        streamsPerWeek = 4,
-        weeklyActivity = activityGrid(22, 0.55f),
-        pastStreams = listOf(
-            PastStream("Guild Presidential Debate 2026", "Live now", "1.8k watching", "Live"),
-            PastStream("Candidate Q&A: Hostels & Fees", "4 days ago", "5.4k views", "1 h 20 min"),
-            PastStream("Guild budget town hall", "2 weeks ago", "3.2k views", "55 min")
-        ),
-        servers = listOf(
-            StreamerServer("UoN Student Guild", "Official", "9,600 members", "Student Government", "Official announcements, polls and election coverage for UoN students.", com.campus.network.core.ui.R.drawable.avatar_junebog),
-            StreamerServer("Taifa Hall Debates", "Moderator", "1,250 members", "Debate", "Weekly debate nights and policy discussions.", com.campus.network.core.ui.R.drawable.server_avatar2)
-        ),
-        initialComments = listOf(
-            LiveStoryComment("g1", "Kevin.Dev", com.campus.network.core.ui.R.drawable.student_clin, "What about 24-hour library power backup?"),
-            LiveStoryComment("g2", "Amina_M", com.campus.network.core.ui.R.drawable.avatar_eliza, "Taifa hall is completely full! Audio is crystal clear"),
-            LiveStoryComment("g3", "Cherono_Law", com.campus.network.core.ui.R.drawable.avatar_ath, "The rebuttal on campus health facilities was sharp"),
-            LiveStoryComment("g4", "Waweru_CS", com.campus.network.core.ui.R.drawable.student_rk, "Voting opens midnight on the guild portal")
-        )
+        streamsPerWeek = 0,
+        weeklyActivity = List(56) { 0 },
+        pastStreams = emptyList(),
+        servers = emptyList(),
+        initialComments = emptyList()
     ),
     // 3. GDSC AI Hackathon: Final Pitches
     CampusLiveFeedStory(
         id = "gdsc_hackathon",
         broadcasterName = "GDSC.Build",
         broadcasterHandle = "gdsc.build",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_ath,
-        viewerCount = "890",
+        broadcasterAvatarRes = 0,
+        viewerCount = "1",
         isLive = true,
         title = "GDSC AI Hackathon: Final Pitches",
         description = "Top 6 finalist student teams showcase live on-device Android AI models. Voting is now live!",
         backdropImageRes = R.drawable.event_hero_trees,
         location = "Strathmore University, Nairobi",
-        joinedDate = "8th Feb 2025",
-        hoursLive = 58,
-        followers = "3,920",
+        joinedDate = "Feb 2025",
+        hoursLive = 0,
+        followers = "0",
         topTopics = listOf(StreamTopic.TECH, StreamTopic.ACADEMICS),
         bestDay = "Saturday",
-        streamsPerWeek = 3,
-        weeklyActivity = activityGrid(33, 0.5f),
-        pastStreams = listOf(
-            PastStream("GDSC AI Hackathon: Final Pitches", "Live now", "890 watching", "Live"),
-            PastStream("Intro to on-device Android AI", "5 days ago", "2.4k views", "1 h 10 min"),
-            PastStream("Compose workshop: building a feed", "3 weeks ago", "1.9k views", "50 min")
-        ),
-        servers = listOf(
-            StreamerServer("GDSC Strathmore", "Lead", "1,780 members", "Technology", "Workshops, hackathons and study jams for student developers.", com.campus.network.core.ui.R.drawable.avatar_ath),
-            StreamerServer("Android Builders", "Admin", "640 members", "Mobile Dev", "Kotlin and Compose help, code reviews and project showcases.", com.campus.network.core.ui.R.drawable.server_avatar2)
-        ),
-        initialComments = listOf(
-            LiveStoryComment("h1", "Techie_99", com.campus.network.core.ui.R.drawable.student_rk, "That on-device LLM latency is incredible!"),
-            LiveStoryComment("h2", "Wanjiku.Codes", com.campus.network.core.ui.R.drawable.avatar_me, "Team Strathmore has my vote!"),
-            LiveStoryComment("h3", "Alex.AI", com.campus.network.core.ui.R.drawable.avatar_andrew, "Repo link pinned in discord channel"),
-            LiveStoryComment("h4", "Mutiso_Eng", com.campus.network.core.ui.R.drawable.student_clin, "How is the local cache indexed?")
-        )
+        streamsPerWeek = 0,
+        weeklyActivity = List(56) { 0 },
+        pastStreams = emptyList(),
+        servers = emptyList(),
+        initialComments = emptyList()
     ),
     // 4. SafeTrade Quad Rendezvous & Flea Market
     CampusLiveFeedStory(
         id = "safetrade_quad",
         broadcasterName = "SafeTrade.Hub",
         broadcasterHandle = "safetrade.hub",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_clin,
-        viewerCount = "620",
+        broadcasterAvatarRes = 0,
+        viewerCount = "1",
         isLive = true,
         title = "SafeTrade Quad Meetup & Market",
         description = "Streaming live from the Student Center Quad. Free item checkups, textbook drop-offs, and safe payments.",
         backdropImageRes = R.drawable.card_campus_landmark,
         location = "Student Center Quad, UoN",
-        joinedDate = "21st Mar 2025",
-        hoursLive = 92,
-        followers = "2,310",
+        joinedDate = "Mar 2025",
+        hoursLive = 0,
+        followers = "0",
         topTopics = listOf(StreamTopic.MARKET, StreamTopic.ACADEMICS),
         bestDay = "Monday",
-        streamsPerWeek = 5,
-        weeklyActivity = activityGrid(44, 0.65f),
-        pastStreams = listOf(
-            PastStream("SafeTrade Quad Meetup & Market", "Live now", "620 watching", "Live"),
-            PastStream("Textbook swap day highlights", "2 days ago", "1.3k views", "40 min"),
-            PastStream("How SafePay protects your money", "1 week ago", "2.0k views", "25 min")
-        ),
-        servers = listOf(
-            StreamerServer("SafeTrade Campus Market", "Owner", "3,050 members", "Marketplace", "Verified student buy/sell listings with protected payments.", com.campus.network.core.ui.R.drawable.avatar_clin),
-            StreamerServer("Textbook Exchange", "Admin", "1,120 members", "Study Resources", "Swap and donate textbooks, calculators and class notes.", com.campus.network.core.ui.R.drawable.server_avatar2)
-        ),
-        initialComments = listOf(
-            LiveStoryComment("s1", "Chris_Mech", com.campus.network.core.ui.R.drawable.student_andrew, "Are there still scientific calculators available?"),
-            LiveStoryComment("s2", "Grace_N", com.campus.network.core.ui.R.drawable.avatar_eliza, "Just traded my engineering mechanics book in 5 mins!"),
-            LiveStoryComment("s3", "Dan_Finance", com.campus.network.core.ui.R.drawable.avatar_junebog, "SafePay released payment immediately on handoff"),
-            LiveStoryComment("s4", "Esther_B", com.campus.network.core.ui.R.drawable.student_june, "Canopy open until 6:00 PM today")
-        )
+        streamsPerWeek = 0,
+        weeklyActivity = List(56) { 0 },
+        pastStreams = emptyList(),
+        servers = emptyList(),
+        initialComments = emptyList()
     )
 )
 
@@ -336,12 +292,44 @@ val defaultCampusLiveStories = listOf(
 fun CampusLiveFeedScreen(
     initialStoryId: String = "founders",
     stories: List<CampusLiveFeedStory> = defaultCampusLiveStories,
+    studentProfileRepository: com.campus.network.core.data.StudentProfileRepository? = null,
+    liveStreamRepository: com.campus.network.core.data.LiveStreamRepository? = null,
+    serverRepository: com.campus.network.core.data.ServerRepository? = null,
     onNavigateBack: () -> Unit
 ) {
-    val initialIndex = stories.indexOfFirst { it.id.equals(initialStoryId, ignoreCase = true) }.coerceAtLeast(0)
+    val activeProfile by (studentProfileRepository?.studentProfile?.collectAsState(initial = null) ?: remember { mutableStateOf<com.campus.network.core.model.StudentProfile?>(null) })
+    val realActiveStreams by (liveStreamRepository?.getActiveStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
+    val realAllStreams by (liveStreamRepository?.getAllStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
+    val realServers by (serverRepository?.getServers()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
+
+    val combinedStories = remember(stories, realActiveStreams, activeProfile) {
+        val streamStories = realActiveStreams.map { s ->
+            val isMyStream = s.broadcasterId == (activeProfile?.studentId ?: "") ||
+                    (activeProfile != null && activeProfile?.fullName?.isNotBlank() == true && s.broadcasterName == activeProfile?.fullName)
+            CampusLiveFeedStory(
+                id = s.id,
+                broadcasterName = s.broadcasterName,
+                broadcasterHandle = s.broadcasterHandle,
+                broadcasterAvatarUrl = s.broadcasterAvatarUrl ?: (if (isMyStream) activeProfile?.avatarUrl else null),
+                viewerCount = s.viewerCount.coerceAtLeast(1).toString(),
+                isLive = s.isLive,
+                title = s.title,
+                description = s.description,
+                backdropImageRes = if (s.backdropImageRes != 0) s.backdropImageRes else R.drawable.card_student_founder,
+                backdropImageUrl = s.backdropImageUrl,
+                initialComments = emptyList(),
+                location = if (isMyStream) (activeProfile?.universityName?.ifBlank { "Kenya" } ?: "Kenya") else "Kenya",
+                isMe = isMyStream
+            )
+        }
+        val remainingDefaults = stories.filter { def -> realActiveStreams.none { it.id == def.id } }
+        streamStories + remainingDefaults
+    }
+
+    val initialIndex = combinedStories.indexOfFirst { it.id.equals(initialStoryId, ignoreCase = true) }.coerceAtLeast(0)
     val pagerState = rememberPagerState(
         initialPage = initialIndex,
-        pageCount = { stories.size }
+        pageCount = { combinedStories.size }
     )
     var profileStory by remember { mutableStateOf<CampusLiveFeedStory?>(null) }
 
@@ -354,9 +342,11 @@ fun CampusLiveFeedScreen(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
-            val story = stories[pageIndex]
+            val story = combinedStories[pageIndex]
             SingleLiveFeedPage(
                 story = story,
+                activeProfile = activeProfile,
+                liveStreamRepository = liveStreamRepository,
                 onClose = onNavigateBack,
                 onBroadcasterClick = { profileStory = story }
             )
@@ -365,6 +355,9 @@ fun CampusLiveFeedScreen(
         profileStory?.let { story ->
             StreamerProfileScreen(
                 story = story,
+                activeProfile = activeProfile,
+                userServers = realServers,
+                userStreams = realAllStreams,
                 onBack = { profileStory = null }
             )
         }
@@ -377,12 +370,14 @@ fun CampusLiveFeedScreen(
 @Composable
 private fun SingleLiveFeedPage(
     story: CampusLiveFeedStory,
+    activeProfile: com.campus.network.core.model.StudentProfile? = null,
+    liveStreamRepository: com.campus.network.core.data.LiveStreamRepository? = null,
     onClose: () -> Unit,
     onBroadcasterClick: () -> Unit
 ) {
     val comments = remember(story.id) { mutableStateListOf<LiveStoryComment>().apply { addAll(story.initialComments) } }
     var commentText by remember { mutableStateOf("") }
-    var likeCount by remember { mutableIntStateOf(342) }
+    var likeCount by remember { mutableIntStateOf(0) }
     var isLiked by remember { mutableStateOf(false) }
     var isEmojiDrawerOpen by remember { mutableStateOf(false) }
 
@@ -396,6 +391,26 @@ private fun SingleLiveFeedPage(
 
     BackHandler(enabled = isEmojiDrawerOpen) {
         isEmojiDrawerOpen = false
+    }
+
+    if (liveStreamRepository != null) {
+        LaunchedEffect(story.id) {
+            liveStreamRepository.getCommentsForStream(story.id).collect { list ->
+                list.forEach { c ->
+                    if (comments.none { it.id == c.id }) {
+                        comments.add(
+                            LiveStoryComment(
+                                id = c.id,
+                                userName = c.senderName,
+                                userAvatarRes = 0,
+                                commentText = c.commentText,
+                                avatarUrl = c.senderAvatarUrl
+                            )
+                        )
+                    }
+                }
+            }
+        }
     }
 
     LaunchedEffect(interactionSource) {
@@ -414,6 +429,11 @@ private fun SingleLiveFeedPage(
     fun spawnHeart() {
         likeCount++
         isLiked = true
+        if (liveStreamRepository != null) {
+            coroutineScope.launch {
+                liveStreamRepository.incrementLikes(story.id)
+            }
+        }
         val randomX = Random.nextFloat() * 80f - 40f
         val randomScale = 0.8f + Random.nextFloat() * 0.5f
         val heartColors = listOf(
@@ -433,14 +453,31 @@ private fun SingleLiveFeedPage(
 
     fun submitComment() {
         if (commentText.isNotBlank()) {
+            val authorName = activeProfile?.fullName?.ifBlank { "You" } ?: "You"
+            val authorAvatar = activeProfile?.avatarUrl
+            val trimmed = commentText.trim()
+            val commentId = "user_${System.currentTimeMillis()}"
             comments.add(
                 LiveStoryComment(
-                    id = "user_${System.currentTimeMillis()}",
-                    userName = "You",
-                    userAvatarRes = com.campus.network.core.ui.R.drawable.avatar_me,
-                    commentText = commentText.trim()
+                    id = commentId,
+                    userName = authorName,
+                    userAvatarRes = 0,
+                    commentText = trimmed,
+                    avatarUrl = authorAvatar
                 )
             )
+            if (liveStreamRepository != null) {
+                coroutineScope.launch {
+                    liveStreamRepository.postComment(
+                        streamId = story.id,
+                        senderId = activeProfile?.studentId ?: "user_self",
+                        senderName = authorName,
+                        senderAvatarRes = 0,
+                        commentText = trimmed,
+                        senderAvatarUrl = authorAvatar
+                    )
+                }
+            }
             commentText = ""
             focusManager.clearFocus()
             keyboardController?.hide()
@@ -558,10 +595,10 @@ private fun SingleLiveFeedPage(
                         .clip(RoundedCornerShape(28.dp))
                         .clickable(onClick = onBroadcasterClick)
                 ) {
-                    Image(
-                        painter = painterResource(story.broadcasterAvatarRes),
-                        contentDescription = story.broadcasterName,
-                        contentScale = ContentScale.Crop,
+                    CampusStudentAvatar(
+                        avatarUrl = story.broadcasterAvatarUrl,
+                        fullName = story.broadcasterName,
+                        fontSize = 14.sp,
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
@@ -845,13 +882,16 @@ private fun SingleLiveFeedPage(
                             commentText += emoji
                         },
                         onGifPicked = { gif ->
+                            val authorName = activeProfile?.fullName?.ifBlank { "You" } ?: "You"
+                            val authorAvatar = activeProfile?.avatarUrl
                             comments.add(
                                 LiveStoryComment(
                                     id = "user_${System.currentTimeMillis()}",
-                                    userName = "You",
-                                    userAvatarRes = com.campus.network.core.ui.R.drawable.avatar_me,
+                                    userName = authorName,
+                                    userAvatarRes = 0,
                                     commentText = "",
-                                    gifUrl = gif.originalUrl
+                                    gifUrl = gif.originalUrl,
+                                    avatarUrl = authorAvatar
                                 )
                             )
                             isEmojiDrawerOpen = false
@@ -881,10 +921,10 @@ private fun LiveCommentRow(comment: LiveStoryComment) {
             .background(Color.Black.copy(alpha = 0.35f))
             .padding(horizontal = 8.dp, vertical = 5.dp)
     ) {
-        Image(
-            painter = painterResource(comment.userAvatarRes),
-            contentDescription = comment.userName,
-            contentScale = ContentScale.Crop,
+        CampusStudentAvatar(
+            avatarUrl = comment.avatarUrl,
+            fullName = comment.userName,
+            fontSize = 10.sp,
             modifier = Modifier
                 .size(26.dp)
                 .clip(CircleShape)

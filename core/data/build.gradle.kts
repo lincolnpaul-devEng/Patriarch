@@ -24,8 +24,8 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:security"))
-    implementation(project(":core:database"))
-    implementation(project(":core:network"))
+    api(project(":core:database"))
+    api(project(":core:network"))
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

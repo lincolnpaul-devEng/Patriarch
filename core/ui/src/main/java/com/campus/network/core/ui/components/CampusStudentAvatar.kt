@@ -12,11 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.campus.network.core.ui.R
+import coil.compose.SubcomposeAsyncImage
 
 /**
  * Universal Student Avatar Composable that stays reactive to the user's profile identity.
@@ -30,7 +28,8 @@ fun CampusStudentAvatar(
     fullName: String,
     modifier: Modifier = Modifier,
     initialsColor: Color = Color(0xFFF1F5F9),
-    backgroundColor: Color = Color(0xFF1E293B)
+    backgroundColor: Color = Color(0xFF1E293B),
+    fontSize: androidx.compose.ui.unit.TextUnit = 14.sp
 ) {
     val initials = fullName.trim()
         .split("\\s+".toRegex())
@@ -39,46 +38,46 @@ fun CampusStudentAvatar(
         .joinToString("")
         .ifEmpty { "ME" }
 
+    val isRemoteOrLocalUri = !avatarUrl.isNullOrBlank() && (
+        avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") ||
+        avatarUrl.startsWith("content://") || avatarUrl.startsWith("file://")
+    )
+
     Box(
         modifier = modifier
             .clip(CircleShape)
             .background(backgroundColor),
         contentAlignment = Alignment.Center
     ) {
-        when {
-            avatarUrl.isNullOrBlank() || avatarUrl == "avatar_lincoln" -> {
-                Image(
-                    painter = painterResource(R.drawable.avatar_lincoln),
-                    contentDescription = fullName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://") ||
-                    avatarUrl.startsWith("content://") || avatarUrl.startsWith("file://") -> {
-                AsyncImage(
-                    model = avatarUrl,
-                    contentDescription = fullName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            avatarUrl == "none" -> {
-                Text(
-                    text = initials,
-                    color = initialsColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            else -> {
-                Image(
-                    painter = painterResource(R.drawable.avatar_lincoln),
-                    contentDescription = fullName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+        if (isRemoteOrLocalUri) {
+            SubcomposeAsyncImage(
+                model = avatarUrl,
+                contentDescription = fullName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                error = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(backgroundColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initials,
+                            color = initialsColor,
+                            fontSize = fontSize,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            )
+        } else {
+            Text(
+                text = initials,
+                color = initialsColor,
+                fontSize = fontSize,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

@@ -605,22 +605,13 @@ private fun getCategoryColor(category: PlaceCategory): Color {
     }
 }
 
-fun getAvatarDrawable(name: String): Int {
-    return when (name) {
-        "avatar_eliza" -> R.drawable.avatar_eliza
-        "avatar_clin" -> R.drawable.avatar_clin
-        "avatar_junebog" -> R.drawable.avatar_junebog
-        "avatar_andrew" -> R.drawable.avatar_andrew
-        "avatar_me" -> R.drawable.avatar_me
-        else -> R.drawable.avatar_eliza
-    }
-}
+
 
 fun getPhotoDrawable(name: String): Int {
     return when (name) {
-        "place_photo_1" -> R.drawable.place_photo_1
-        "place_photo_2" -> R.drawable.place_photo_2
-        "place_photo_3" -> R.drawable.place_photo_3
-        else -> R.drawable.place_photo_1
+        "place_photo_1" -> com.campus.network.core.ui.R.drawable.place_photo_1
+        "place_photo_2" -> com.campus.network.core.ui.R.drawable.place_photo_2
+        "place_photo_3" -> com.campus.network.core.ui.R.drawable.place_photo_3
+        else -> com.campus.network.core.ui.R.drawable.place_photo_1
     }
 }

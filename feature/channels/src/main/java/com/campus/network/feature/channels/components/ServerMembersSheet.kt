@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -283,30 +284,14 @@ fun ServerMemberRow(
     ) {
         // Avatar with Presence indicator
         Box(modifier = Modifier.size(38.dp)) {
-            Box(
+            val resolvedUrl = member.avatarUrl ?: member.avatarResName?.takeIf { it.startsWith("http") || it.startsWith("content:") }
+            CampusStudentAvatar(
+                avatarUrl = resolvedUrl,
+                fullName = member.serverNickname ?: member.name,
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFE3E5E8)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (member.avatarUrl?.startsWith("http") == true) {
-                    AsyncImage(
-                        model = member.avatarUrl,
-                        contentDescription = member.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    val resId = resolveMemberRowAvatarDrawable(member.avatarResName)
-                    Image(
-                        painter = painterResource(id = resId),
-                        contentDescription = member.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
+            )
 
             // Status Indicator
             Box(
@@ -387,40 +372,56 @@ fun ServerMemberRow(
             )
         }
 
-        // Friend Status badge
-        when (member.friendStatus) {
-            FriendRequestStatus.FRIENDS -> {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Friends",
-                    tint = Color(0xFF23A55A),
-                    modifier = Modifier.size(16.dp)
+        // Self Badge or Friend Status badge
+        if (member.isSelf) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = Color(0xFF5865F2).copy(alpha = 0.12f)
+            ) {
+                Text(
+                    text = "YOU",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5865F2),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
-            FriendRequestStatus.REQUEST_SENT -> {
-                Icon(
-                    imageVector = Icons.Default.Schedule,
-                    contentDescription = "Request Sent",
-                    tint = Color(0xFF5865F2),
-                    modifier = Modifier.size(16.dp)
-                )
+        } else {
+            when (member.friendStatus) {
+                FriendRequestStatus.FRIENDS -> {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Friends",
+                        tint = Color(0xFF23A55A),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                FriendRequestStatus.REQUEST_SENT -> {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = "Request Sent",
+                        tint = Color(0xFF5865F2),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                FriendRequestStatus.REQUEST_RECEIVED -> {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFF23A55A).copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "RESPOND",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF23A55A),
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                else -> Unit
             }
-            else -> Unit
         }
     }
 }
 
-private fun resolveMemberRowAvatarDrawable(name: String?): Int {
-    return when (name) {
-        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
-        "avatar_ath" -> com.campus.network.core.ui.R.drawable.avatar_ath
-        "server_avatar2" -> com.campus.network.core.ui.R.drawable.server_avatar2
-        "server_dragon" -> com.campus.network.core.ui.R.drawable.server_dragon
-        "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
-        "server_curly" -> com.campus.network.core.ui.R.drawable.server_curly
-        "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
-        "server_codesistency" -> com.campus.network.core.ui.R.drawable.server_codesistency
-        "avatar_deleted_user" -> com.campus.network.core.ui.R.drawable.avatar_deleted_user
-        else -> com.campus.network.core.ui.R.drawable.server_avatar2
-    }
-}
+

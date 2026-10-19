@@ -48,10 +48,10 @@ import com.campus.network.core.model.VerifiedSkillBadge
 
 @Composable
 fun AcademicPortfolioScreen(
-    studentName: String = "Lincoln Kiprotich",
-    studentId: String = "ST-2024-8842",
-    degreeProgram: String = "B.Sc. Informatics & Computer Science",
-    academicYear: String = "3rd Year (Semester 1)",
+    studentName: String = "Student",
+    studentId: String = "",
+    degreeProgram: String = "",
+    academicYear: String = "",
     badges: List<VerifiedSkillBadge>,
     onBackClick: () -> Unit,
     onShowFeedback: (String) -> Unit = {}

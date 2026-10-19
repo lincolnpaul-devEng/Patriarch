@@ -167,7 +167,7 @@ data class ServerMemberEntity(
             roleTitle = member.roleTitle,
             roleColorHex = member.roleColorHex,
             avatarUrl = member.avatarUrl,
-            avatarResName = member.avatarResName,
+            avatarResName = member.avatarResName ?: "",
             isOnline = member.isOnline,
             customStatus = member.customStatus,
             joinedAtEpochMs = member.joinedAtEpochMs,
@@ -207,7 +207,7 @@ data class FriendEntity(
             friendUserId = rel.friendUserId,
             friendDisplayName = rel.friendDisplayName,
             friendHandle = rel.friendHandle,
-            friendAvatarResName = rel.friendAvatarResName,
+            friendAvatarResName = rel.friendAvatarResName ?: "",
             status = rel.status.name,
             lastInteractionEpochMs = rel.lastInteractionEpochMs,
             dmChannelId = rel.dmChannelId

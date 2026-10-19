@@ -50,6 +50,19 @@ class ServerRepository(
             .flowOn(ioDispatcher)
     }
 
+    fun getJoinedServers(userId: String): Flow<List<Server>> {
+        if (userId.isBlank()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        return serverDao.getJoinedServersForUser(userId)
+            .map { list -> list.map { it.toDomain() } }
+            .flowOn(ioDispatcher)
+    }
+
+    fun getJoinedServerIds(userId: String): Flow<List<String>> {
+        if (userId.isBlank()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        return memberDao.getJoinedServerIdsForUser(userId)
+            .flowOn(ioDispatcher)
+    }
+
     fun getServerById(serverId: String): Flow<Server?> {
         return serverDao.getServerById(serverId)
             .map { it?.toDomain() }
@@ -60,9 +73,10 @@ class ServerRepository(
         name: String,
         category: String,
         description: String = "",
-        ownerId: String = "user_lincoln",
-        ownerDisplayName: String = "Lincoln Kiprotich",
-        ownerHandle: String = "@lincoln_lead",
+        ownerId: String = "user_student",
+        ownerDisplayName: String = "Student",
+        ownerHandle: String = "@student",
+        ownerAvatarUrl: String? = null,
         avatarResName: String = "server_codesistency",
         bannerResName: String? = null,
         customServerId: String? = null
@@ -90,7 +104,7 @@ class ServerRepository(
         // 1. Save Server
         serverDao.insertServer(ServerEntity.fromDomain(server))
 
-        // 2. Add Owner Member
+        // 2. Add Owner Member with real student profile details
         val ownerMember = ServerMember(
             userId = ownerId,
             serverId = serverId,
@@ -99,8 +113,8 @@ class ServerRepository(
             role = ServerMemberRole.OWNER,
             roleTitle = "Server Owner",
             roleColorHex = 0xFF003B68,
-            avatarUrl = null,
-            avatarResName = "avatar_lincoln",
+            avatarUrl = ownerAvatarUrl,
+            avatarResName = ownerAvatarUrl ?: "",
             isOnline = true,
             customStatus = "Server Founder",
             joinedAtEpochMs = now,
@@ -345,8 +359,8 @@ class ServerRepository(
 
     suspend fun createInvite(
         serverId: String,
-        inviterId: String = "user_lincoln",
-        inviterName: String = "Lincoln Kiprotich",
+        inviterId: String = "user_student",
+        inviterName: String = "Student",
         maxUses: Int = 0
     ): ServerInvite = withContext(ioDispatcher) {
         val server = serverDao.getServerByIdSync(serverId) ?: throw IllegalArgumentException("Server not found")
@@ -371,10 +385,11 @@ class ServerRepository(
 
     suspend fun joinServerByInvite(
         inviteCode: String,
-        userId: String = "user_lincoln",
-        displayName: String = "Lincoln Kiprotich",
-        handle: String = "@lincoln_lead",
-        avatarResName: String = "avatar_lincoln"
+        userId: String = "user_student",
+        displayName: String = "Student",
+        handle: String = "@student",
+        avatarUrl: String? = null,
+        avatarResName: String = ""
     ): Result<Server> = withContext(ioDispatcher) {
         val code = inviteCode.trim().uppercase()
         val inviteEntity = inviteDao.getInviteByCodeSync(code)
@@ -406,7 +421,7 @@ class ServerRepository(
                 role = ServerMemberRole.MEMBER,
                 roleTitle = "Member",
                 roleColorHex = 0xFF5C6470,
-                avatarUrl = null,
+                avatarUrl = avatarUrl,
                 avatarResName = avatarResName,
                 isOnline = true,
                 customStatus = null,
@@ -419,6 +434,64 @@ class ServerRepository(
         }
 
         Result.success(server)
+    }
+
+    suspend fun joinServerDirectly(
+        serverId: String,
+        userId: String = "user_student",
+        displayName: String = "Student",
+        handle: String = "@student",
+        avatarUrl: String? = null,
+        avatarResName: String = ""
+    ): Result<Server> = withContext(ioDispatcher) {
+        val serverEntity = serverDao.getServerByIdSync(serverId)
+            ?: return@withContext Result.failure(IllegalArgumentException("Server not found"))
+
+        val existingMember = memberDao.getMemberSync(serverId, userId)
+        if (existingMember == null) {
+            val newMember = ServerMember(
+                userId = userId,
+                serverId = serverId,
+                displayName = displayName.ifBlank { "Campus Student" },
+                handle = handle.ifBlank { "@student" },
+                role = ServerMemberRole.MEMBER,
+                roleTitle = "Member",
+                roleColorHex = 0xFF5C6470,
+                avatarUrl = avatarUrl,
+                avatarResName = avatarResName,
+                isOnline = true,
+                customStatus = "Campus Member",
+                joinedAtEpochMs = System.currentTimeMillis(),
+                badge = null
+            )
+            memberDao.insertMember(ServerMemberEntity.fromDomain(newMember))
+            serverDao.incrementMemberCount(serverId)
+        }
+        Result.success(serverEntity.toDomain())
+    }
+
+    suspend fun updateMemberProfileForUser(
+        userId: String,
+        displayName: String,
+        handle: String,
+        avatarUrl: String?,
+        avatarResName: String = ""
+    ) = withContext(ioDispatcher) {
+        if (userId.isNotBlank()) {
+            memberDao.updateMemberProfileForUser(userId, displayName, handle, avatarUrl, avatarResName)
+        }
+    }
+
+    suspend fun updateServerOwnerProfile(
+        serverId: String,
+        displayName: String,
+        handle: String,
+        avatarUrl: String?,
+        avatarResName: String = ""
+    ) = withContext(ioDispatcher) {
+        if (serverId.isNotBlank() && displayName.isNotBlank()) {
+            memberDao.updateServerOwnerProfile(serverId, displayName, handle, avatarUrl, avatarResName)
+        }
     }
 
     // ==========================================
@@ -442,7 +515,7 @@ class ServerRepository(
         friendUserId: String,
         friendDisplayName: String,
         friendHandle: String,
-        friendAvatarResName: String = "avatar_lincoln"
+        friendAvatarResName: String = ""
     ) = withContext(ioDispatcher) {
         val id = "$userId:$friendUserId"
         val existing = friendDao.getFriendRelationshipSync(userId, friendUserId)

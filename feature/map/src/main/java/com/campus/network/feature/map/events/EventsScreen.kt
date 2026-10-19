@@ -3,6 +3,7 @@ package com.campus.network.feature.map.events
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -375,13 +376,10 @@ private fun EventCardRow(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f, fill = false)
                     ) {
-                        Image(
-                            painter = painterResource(id = event.hostAvatarRes),
-                            contentDescription = event.hostName,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop
+                        CampusStudentAvatar(
+                            avatarUrl = null,
+                            fullName = event.hostName,
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(

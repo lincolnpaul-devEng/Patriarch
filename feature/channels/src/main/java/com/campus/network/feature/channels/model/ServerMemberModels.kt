@@ -51,7 +51,8 @@ data class ServerMemberItem(
     val joinedDate: String = "Joined Oct 2026",
     val bio: String = "Campus developer & active community peer.",
     val friendStatus: FriendRequestStatus = FriendRequestStatus.NONE,
-    val channels: List<String> = emptyList()
+    val channels: List<String> = emptyList(),
+    val isSelf: Boolean = false
 )
 
 /**

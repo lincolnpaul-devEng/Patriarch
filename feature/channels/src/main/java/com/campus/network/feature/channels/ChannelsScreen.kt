@@ -134,6 +134,7 @@ fun ChannelsScreen(
     onNavigateToChannelChat: (String) -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     onBackClick: () -> Unit = {},
     onNavigateToDirectChat: ((peerId: String, peerName: String, peerHandle: String?, serverName: String?, serverTag: String?) -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -173,7 +174,8 @@ fun ChannelsScreen(
                         viewModel = viewModel,
                         onNavigateToChannelChat = onNavigateToChannelChat,
                         onNavigateToMessages = onNavigateToMessages,
-                        onProfileClick = onNavigateToProfile
+                        onProfileClick = onNavigateToProfile,
+                        onNotificationClick = onNavigateToNotifications
                     )
                 }
 
@@ -300,9 +302,10 @@ private fun patriarchServersHubContent(
     onNavigateToChannelChat: (String) -> Unit,
     onNavigateToMessages: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val currentServer = uiState.selectedServer ?: uiState.servers.firstOrNull()
+    val currentServer = uiState.selectedServer ?: uiState.joinedServers.firstOrNull()
 
     Box(
         modifier = modifier
@@ -316,9 +319,9 @@ private fun patriarchServersHubContent(
         ) {
             // LEFT RAIL (Server Column - Width 72.dp)
             ServerRail(
-                servers = uiState.servers,
-                selectedServerId = uiState.selectedServerId,
-                isAddServerSelected = uiState.isAddServerSelected,
+                servers = uiState.joinedServers,
+                selectedServerId = if (uiState.previewServer != null) "" else uiState.selectedServerId,
+                isAddServerSelected = uiState.isAddServerSelected || (uiState.joinedServers.isEmpty() && uiState.previewServer == null),
                 onNavigateToMessages = onNavigateToMessages,
                 onSelectServer = { serverId ->
                     viewModel.onEvent(ChannelsEvent.SelectServer(serverId))
@@ -339,8 +342,9 @@ private fun patriarchServersHubContent(
                 shape = RoundedCornerShape(topStart = 20.dp),
                 color = Color.White
             ) {
-                if (uiState.isAddServerSelected) {
+                if (uiState.isAddServerSelected || currentServer == null) {
                     DiscoverServersPanel(
+                        discoverableServers = uiState.discoverableServers,
                         onCreateServerSubmit = { name, category ->
                             viewModel.onEvent(ChannelsEvent.CreateServer(name, category))
                         },
@@ -354,7 +358,7 @@ private fun patriarchServersHubContent(
                             viewModel.onEvent(ChannelsEvent.PreviewCommunityServer(serverName))
                         }
                     )
-                } else if (currentServer != null) {
+                } else {
                     ServerDetailsPanel(
                         server = currentServer,
                         selectedChannelId = uiState.selectedChannelId,
@@ -386,10 +390,17 @@ private fun patriarchServersHubContent(
 
         // SERVER PROFILE BOTTOM SHEET DRAWER
         if (currentServer != null) {
+            val currentMembers = uiState.serverMembers[currentServer.id].orEmpty()
+            val currentStudentId = uiState.studentProfile?.studentId
+            val isCurrentOwner = (currentStudentId != null && currentServer.ownerId == currentStudentId) ||
+                    currentServer.ownerId == "user_student" ||
+                    currentServer.ownerId.isEmpty()
             ServerProfileDrawer(
                 isOpen = uiState.isServerProfileDrawerOpen,
                 server = currentServer,
                 userProfile = uiState.perServerProfiles[currentServer.id],
+                members = currentMembers,
+                isOwner = isCurrentOwner,
                 onDismiss = {
                     viewModel.onEvent(ChannelsEvent.CloseServerProfileDrawer)
                 },
@@ -415,7 +426,13 @@ private fun patriarchServersHubContent(
                     viewModel.onEvent(ChannelsEvent.OpenServerMembersSheet(currentServer.id))
                 },
                 onLeaveServerClick = {
-                    viewModel.onEvent(ChannelsEvent.ClearFeedback("Leave server confirmation"))
+                    viewModel.onEvent(ChannelsEvent.LeaveServer(currentServer.id))
+                },
+                onDeleteServerClick = {
+                    viewModel.onEvent(ChannelsEvent.DeleteServer(currentServer.id))
+                },
+                onNotificationSettingChange = { setting ->
+                    viewModel.onEvent(ChannelsEvent.UpdateServerNotificationSetting(currentServer.id, setting))
                 }
             )
         }
@@ -597,6 +614,7 @@ private fun patriarchServersHubContent(
                 status = uiState.activeUserStatus,
                 unreadCount = uiState.activeUserUnreadCount,
                 onProfileClick = onProfileClick,
+                onNotificationClick = onNotificationClick,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -697,7 +715,7 @@ private fun ServerRail(
                         modifier = Modifier.size(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (server.iconResName.startsWith("http")) {
+                        if (server.iconResName.startsWith("http") || server.iconResName.startsWith("content:")) {
                             coil.compose.AsyncImage(
                                 model = server.iconResName,
                                 contentDescription = server.name,
@@ -1006,31 +1024,33 @@ private fun ServerDetailsPanel(
                     }
                 }
 
-                // Add Member / Invite Button
-                Box(
-                    modifier = Modifier
-                        .size(width = 44.dp, height = 38.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFF2F3F5))
-                        .clickable(onClick = onInviteClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PersonAdd,
-                        contentDescription = "Invite Members",
-                        tint = Color(0xFF4E5058),
-                        modifier = Modifier.size(20.dp)
-                    )
+                // Add Member / Invite Button (only if not previewing)
+                if (!server.isPreview) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 44.dp, height = 38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF2F3F5))
+                            .clickable(onClick = onInviteClick),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = "Invite Members",
+                            tint = Color(0xFF4E5058),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
-            // Preview Mode: Solid blurple "Join Server" button (Matching Image 1)
+            // Preview Mode: Solid blurple "Join Server" button (Exact match to Preview button)
             if (server.isPreview) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onJoinServerClick,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
@@ -1204,16 +1224,18 @@ private fun ServerDetailsPanel(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { onAddChannelClick(categoryName) },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Channel",
-                                tint = Color(0xFF5C6470),
-                                modifier = Modifier.size(18.dp)
-                            )
+                        if (!server.isPreview) {
+                            IconButton(
+                                onClick = { onAddChannelClick(categoryName) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Channel",
+                                    tint = Color(0xFF5C6470),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1228,7 +1250,13 @@ private fun ServerDetailsPanel(
                             .padding(horizontal = 8.dp, vertical = 1.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isCurrentSelected) Color(0xFFE3E5E8) else Color.Transparent)
-                            .clickable { onChannelClick(channel) }
+                            .clickable {
+                                if (!server.isPreview) {
+                                    onChannelClick(channel)
+                                } else {
+                                    onJoinServerClick()
+                                }
+                            }
                             .padding(horizontal = 10.dp, vertical = 7.dp)
                     ) {
                         Row(
@@ -1326,6 +1354,7 @@ private fun UserProfileFloatingBar(
     status: String,
     unreadCount: Int,
     onProfileClick: () -> Unit,
+    onNotificationClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -1424,7 +1453,10 @@ private fun UserProfileFloatingBar(
 
             // Bell Notification Icon with Badge
             Box(
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onNotificationClick),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -1471,9 +1503,6 @@ private fun getServerDrawableRes(name: String): Int {
         "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
         "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
         "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
-        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
-        "avatar_deleted_user" -> com.campus.network.core.ui.R.drawable.avatar_deleted_user
-        "avatar_ath" -> com.campus.network.core.ui.R.drawable.avatar_ath
         else -> com.campus.network.core.ui.R.drawable.server_codesistency
     }
 }

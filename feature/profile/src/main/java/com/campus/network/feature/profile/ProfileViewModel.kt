@@ -31,7 +31,8 @@ sealed interface ProfileEvent {
         val campusResidence: String,
         val phoneNumber: String,
         val bio: String,
-        val interests: List<String>
+        val interests: List<String>,
+        val avatarUrl: String? = null
     ) : ProfileEvent
     data class UpdateAvatar(val avatarUrl: String) : ProfileEvent
     data class AddProfile(val profile: StudentProfile) : ProfileEvent
@@ -49,6 +50,10 @@ sealed interface ProfileEvent {
     data object ClearCache : ProfileEvent
     data object UpgradeStorage : ProfileEvent
     data class DeleteAccount(val reason: String) : ProfileEvent
+    data class DepositWallet(val amount: Double) : ProfileEvent
+    data class WithdrawWallet(val amount: Double) : ProfileEvent
+    data class ReleaseVault(val amount: Double) : ProfileEvent
+    data object SignOut : ProfileEvent
 }
 
 class ProfileViewModel(
@@ -82,7 +87,7 @@ class ProfileViewModel(
                     _userMessage.emit("Status note cleared")
                 }
                 is ProfileEvent.UpdateProfile -> {
-                    repository.updateProfile(
+                    val result = repository.updateProfile(
                         fullName = event.fullName,
                         universityName = event.universityName,
                         degreeProgram = event.degreeProgram,
@@ -90,9 +95,18 @@ class ProfileViewModel(
                         campusResidence = event.campusResidence,
                         phoneNumber = event.phoneNumber,
                         bio = event.bio,
-                        interests = event.interests
+                        interests = event.interests,
+                        avatarUrl = event.avatarUrl
                     )
-                    _userMessage.emit("Profile details saved successfully")
+                    result.fold(
+                        onSuccess = { _userMessage.emit("Profile details and image saved successfully") },
+                        onFailure = { error ->
+                            _userMessage.emit(
+                                "Profile saved on this device, but cloud save failed: " +
+                                    (error.localizedMessage ?: "Check your connection and Supabase profile policy.")
+                            )
+                        }
+                    )
                 }
                 is ProfileEvent.UpdateAvatar -> {
                     repository.updateAvatar(event.avatarUrl)
@@ -134,6 +148,34 @@ class ProfileViewModel(
                 is ProfileEvent.DeleteAccount -> {
                     repository.deleteAccount(event.reason)
                     _userMessage.emit("Account has been permanently scheduled for deletion.")
+                }
+                is ProfileEvent.DepositWallet -> {
+                    val success = repository.depositToWallet(event.amount)
+                    if (success) {
+                        _userMessage.emit("Successfully deposited KES ${String.format("%.2f", event.amount)} to wallet")
+                    } else {
+                        _userMessage.emit("Deposit failed: invalid amount")
+                    }
+                }
+                is ProfileEvent.WithdrawWallet -> {
+                    val success = repository.withdrawFromWallet(event.amount)
+                    if (success) {
+                        _userMessage.emit("Successfully withdrawn KES ${String.format("%.2f", event.amount)} to M-Pesa")
+                    } else {
+                        _userMessage.emit("Withdrawal failed: insufficient available balance")
+                    }
+                }
+                is ProfileEvent.ReleaseVault -> {
+                    val success = repository.releaseVaultAmount(event.amount)
+                    if (success) {
+                        _userMessage.emit("Released KES ${String.format("%.2f", event.amount)} from SafePay Vault to wallet")
+                    } else {
+                        _userMessage.emit("Failed to release vault funds")
+                    }
+                }
+                is ProfileEvent.SignOut -> {
+                    repository.signOut()
+                    _userMessage.emit("Signed out of Patriarch")
                 }
             }
         }

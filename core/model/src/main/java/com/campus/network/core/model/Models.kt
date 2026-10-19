@@ -136,16 +136,17 @@ enum class GigUrgency {
  * Tab 5 Domain: Gamified Persona (Student identity, verified skill tags, private Quest Deck).
  */
 data class StudentProfile(
-    val studentId: String,
-    val fullName: String,
-    val universityEmail: String,
-    val universityName: String,
-    val degreeProgram: String,
-    val academicYear: String,
-    val consistencyStreakDays: Int,
-    val behavioralTrustScore: Int, // 0 - 100
-    val verifiedSkillBadges: List<VerifiedSkillBadge>,
-    val privateQuestDeck: List<ConsistencyQuest>,
+    val studentId: String = "",
+    val fullName: String = "",
+    val universityEmail: String = "",
+    val universityName: String = "",
+    val degreeProgram: String = "",
+    val academicYear: String = "",
+    val consistencyStreakDays: Int = 0,
+    val behavioralTrustScore: Int = 50, // 0 - 100
+    val campusMeritPoints: Int = 0,
+    val verifiedSkillBadges: List<VerifiedSkillBadge> = emptyList(),
+    val privateQuestDeck: List<ConsistencyQuest> = emptyList(),
     val statusNote: String? = null,
     val statusNoteEmoji: String? = null,
     val statusNoteExpiry: String? = null,
@@ -154,6 +155,9 @@ data class StudentProfile(
     val campusResidence: String = "",
     val phoneNumber: String = "",
     val interests: List<String> = emptyList(),
+    val savedListingIds: List<String> = emptyList(),
+    val watchlistIds: List<String> = emptyList(),
+    val preferredRendezvousPoint: String = "",
     val storageUsedBytes: Long = 0L,
     val storageQuotaBytes: Long = 1_073_741_824L,
     val notificationsEnabled: Boolean = true,
@@ -163,8 +167,31 @@ data class StudentProfile(
     val isOnlineStatusVisible: Boolean = true,
     val activityLedgerVisibility: String = "Public to Campus",
     val personaRole: String = "Undergraduate Student",
+    val locationPrivacyScope: LocationPrivacyScope = LocationPrivacyScope.VERIFIED_CAMPUS_PEERS,
+    val walletBalance: Double = 0.0,
+    val vaultProtectedBalance: Double = 0.0,
     val alternateProfiles: List<StudentProfile> = emptyList(),
     val onboardingPreferences: OnboardingPreferences = OnboardingPreferences()
+)
+
+data class SafePayHold(
+    val id: String,
+    val itemTitle: String,
+    val amount: String,
+    val role: String,
+    val counterparty: String,
+    val status: String,
+    val canRelease: Boolean
+)
+
+data class WalletTransaction(
+    val id: String,
+    val title: String,
+    val timestamp: String,
+    val amount: String,
+    val isCredit: Boolean,
+    val status: String,
+    val note: String
 )
 
 data class OnboardingPreferences(

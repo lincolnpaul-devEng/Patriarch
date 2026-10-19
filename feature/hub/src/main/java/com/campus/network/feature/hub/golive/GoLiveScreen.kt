@@ -62,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -152,7 +153,9 @@ private fun rememberDraftState() = DraftState(
 @Composable
 fun GoLiveScreen(
     onExit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    studentProfileRepository: com.campus.network.core.data.StudentProfileRepository? = null,
+    liveStreamRepository: com.campus.network.core.data.LiveStreamRepository? = null
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -196,6 +199,25 @@ fun GoLiveScreen(
     var micOn by rememberSaveable { mutableStateOf(true) }
     var cameraUnavailable by remember { mutableStateOf(false) }
     var summary by remember { mutableStateOf<StreamSummary?>(null) }
+    val activeProfile by (studentProfileRepository?.studentProfile?.collectAsState(initial = null) ?: remember { mutableStateOf<com.campus.network.core.model.StudentProfile?>(null) })
+    val streamId = rememberSaveable { "stream_${System.currentTimeMillis()}" }
+
+    LaunchedEffect(phase) {
+        if (phase == Phase.LIVE && liveStreamRepository != null) {
+            val profile = activeProfile
+            liveStreamRepository.createLiveStream(
+                id = streamId,
+                broadcasterId = profile?.studentId?.ifBlank { "user_self" } ?: "user_self",
+                broadcasterName = profile?.fullName?.ifBlank { "You" } ?: "You",
+                broadcasterHandle = if (profile != null && profile.universityEmail.contains("@")) profile.universityEmail.substringBefore("@") else "you",
+                broadcasterAvatarRes = 0,
+                title = draft.title.ifBlank { "Campus Live Stream" },
+                description = draft.description,
+                category = draft.category,
+                audience = draft.audience.name
+            )
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF08080B))) {
         if (hasPermission && phase != Phase.SUMMARY) {
@@ -231,11 +253,13 @@ fun GoLiveScreen(
             )
 
             phase == Phase.LIVE -> LivePhase(
+                streamId = streamId,
                 title = draft.title,
                 commentsEnabled = draft.commentsOn,
                 micOn = micOn,
                 onToggleMic = { micOn = !micOn },
                 onFlip = { useFrontCamera = !useFrontCamera },
+                liveStreamRepository = liveStreamRepository,
                 onEnded = {
                     summary = it
                     phase = Phase.SUMMARY
@@ -540,24 +564,18 @@ private fun CountdownPhase(onCancel: () -> Unit, onFinished: () -> Unit) {
     }
 }
 
-// ============================================================================
-// Phase 3: Live host view
-// ============================================================================
-private val simulatedViewers = listOf("Amina_M", "Kevin.Dev", "Wanjiku.Codes", "Brian_Tech", "Grace_N", "Dan_Finance", "Esther_B", "Chris_Mech")
-private val simulatedComments = listOf(
-    "Loving this!", "Can you hear me clearly?", "Hi from the library \uD83D\uDC4B", "Great topic",
-    "Drop the link please", "First time here, so good", "Audio is crisp", "Can you go over that again?"
-)
-
 @Composable
 private fun LivePhase(
+    streamId: String,
     title: String,
     commentsEnabled: Boolean,
     micOn: Boolean,
     onToggleMic: () -> Unit,
     onFlip: () -> Unit,
+    liveStreamRepository: com.campus.network.core.data.LiveStreamRepository?,
     onEnded: (StreamSummary) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var seconds by remember { mutableIntStateOf(0) }
     var viewers by remember { mutableIntStateOf(1) }
     var peak by remember { mutableIntStateOf(1) }
@@ -573,20 +591,26 @@ private fun LivePhase(
             seconds++
         }
     }
-    // Simulated engagement until a real broadcast backend exists.
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(2200)
-            viewers = (viewers + Random.nextInt(-1, 6)).coerceAtLeast(1)
-            peak = maxOf(peak, viewers)
-            likes += Random.nextInt(0, 4)
+
+    if (liveStreamRepository != null) {
+        LaunchedEffect(streamId) {
+            liveStreamRepository.getStreamById(streamId).collect { stream ->
+                if (stream != null) {
+                    viewers = stream.viewerCount.coerceAtLeast(1)
+                    peak = maxOf(peak, stream.peakViewers.coerceAtLeast(1))
+                    likes = stream.likeCount
+                }
+            }
         }
-    }
-    LaunchedEffect(commentsEnabled) {
-        while (commentsEnabled) {
-            delay(Random.nextLong(1800, 4200))
-            comments.add(simulatedViewers.random() to simulatedComments.random())
-            if (comments.size > 30) comments.removeAt(0)
+        LaunchedEffect(streamId, commentsEnabled) {
+            if (commentsEnabled) {
+                liveStreamRepository.getCommentsForStream(streamId).collect { list ->
+                    comments.clear()
+                    list.forEach { c ->
+                        comments.add(c.senderName to c.commentText)
+                    }
+                }
+            }
         }
     }
 
@@ -665,7 +689,10 @@ private fun LivePhase(
             confirmButton = {
                 TextButton(onClick = {
                     showEndDialog = false
-                    onEnded(StreamSummary(seconds, peak, likes, newFollowers = peak / 5))
+                    coroutineScope.launch {
+                        liveStreamRepository?.endStream(streamId, seconds, peak, likes)
+                    }
+                    onEnded(StreamSummary(seconds, peak, likes, newFollowers = 0))
                 }) { Text("End stream", color = Color(0xFFFF5A5F), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {

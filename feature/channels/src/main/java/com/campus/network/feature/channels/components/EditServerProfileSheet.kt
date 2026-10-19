@@ -62,7 +62,7 @@ fun EditServerProfileSheet(
     serverId: String,
     serverName: String,
     initialProfile: PerServerProfile?,
-    defaultNickname: String = "Lincoln Kiprotich",
+    defaultNickname: String = "Student",
     avatarUrl: String? = null,
     onDismiss: () -> Unit,
     onSaveProfile: (nickname: String, tag: String, tagColorHex: Long) -> Unit,

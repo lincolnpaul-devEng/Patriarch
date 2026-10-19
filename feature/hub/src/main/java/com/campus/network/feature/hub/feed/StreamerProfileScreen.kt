@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -97,11 +98,53 @@ private val GrayscaleFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setT
 fun StreamerProfileScreen(
     story: CampusLiveFeedStory,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    activeProfile: com.campus.network.core.model.StudentProfile? = null,
+    userServers: List<com.campus.network.core.model.Server> = emptyList(),
+    userStreams: List<com.campus.network.core.model.LiveStream> = emptyList()
 ) {
     BackHandler(onBack = onBack)
     var selectedTab by remember { mutableIntStateOf(1) }
     val tabs = listOf("Streams", "Statistic", "Servers")
+
+    val isMe = story.isMe || (activeProfile != null && (
+        story.broadcasterName.equals(activeProfile.fullName, ignoreCase = true) ||
+        (activeProfile.fullName.isNotBlank() && story.broadcasterName.equals("You", ignoreCase = true)) ||
+        (activeProfile.universityEmail.isNotBlank() && story.broadcasterHandle.equals(activeProfile.universityEmail.substringBefore("@"), ignoreCase = true))
+    ))
+
+    val displayName = if (isMe && activeProfile != null && activeProfile.fullName.isNotBlank()) activeProfile.fullName else story.broadcasterName
+    val displayAvatarUrl = if (isMe) activeProfile?.avatarUrl else story.broadcasterAvatarUrl
+    val displayLocation = if (isMe && activeProfile != null && activeProfile.universityName.isNotBlank()) activeProfile.universityName else story.location.ifBlank { "Kenya" }
+    val displayJoinedDate = if (isMe && activeProfile != null && activeProfile.academicYear.isNotBlank()) activeProfile.academicYear else story.joinedDate.ifBlank { "Oct 2026" }
+    val displayBio = if (isMe) "Campus Verified Scholar" else if (story.description.isNotBlank()) story.description else "Campus Verified Scholar"
+    val displayFollowers = if (isMe) "0" else story.followers
+    val displayHoursLive = if (isMe) (userStreams.sumOf { it.durationSeconds } / 3600) else story.hoursLive
+    val displayViewers = story.viewerCount
+
+    val displayPastStreams = if (isMe) {
+        userStreams.map { s ->
+            PastStream(
+                title = s.title,
+                whenLabel = "Recorded",
+                viewers = "${s.peakViewers} peak",
+                duration = if (s.isLive) "Live" else "${(s.durationSeconds / 60).coerceAtLeast(1)} min"
+            )
+        }
+    } else story.pastStreams
+
+    val displayServers = if (isMe) {
+        userServers.map { s ->
+            StreamerServer(
+                name = s.name,
+                role = if (s.ownerId == activeProfile?.studentId) "Owner" else "Member",
+                members = "${s.memberCount} ${if (s.memberCount == 1) "member" else "members"}",
+                category = s.category,
+                description = s.description,
+                avatarRes = 0
+            )
+        }
+    } else story.servers
 
     Column(
         modifier = modifier
@@ -171,11 +214,10 @@ fun StreamerProfileScreen(
                     )
                     .padding(8.dp)
             ) {
-                Image(
-                    painter = painterResource(story.broadcasterAvatarRes),
-                    contentDescription = story.broadcasterName,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = GrayscaleFilter,
+                CampusStudentAvatar(
+                    avatarUrl = displayAvatarUrl,
+                    fullName = displayName,
+                    fontSize = 32.sp,
                     modifier = Modifier.fillMaxSize().clip(CircleShape)
                 )
             }
@@ -183,7 +225,7 @@ fun StreamerProfileScreen(
 
         // ===== Name =====
         Text(
-            text = story.broadcasterName,
+            text = displayName,
             color = Color.White,
             fontSize = 24.sp,
             lineHeight = 30.sp,
@@ -199,14 +241,14 @@ fun StreamerProfileScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            InfoChip(Icons.Default.LocationOn, Color(0xFF6B7CFF), story.location)
+            InfoChip(Icons.Default.LocationOn, Color(0xFF6B7CFF), displayLocation)
             Spacer(Modifier.width(26.dp))
-            InfoChip(Icons.Default.AccessTime, Color(0xFFFFD84A), "Joined ${story.joinedDate}")
+            InfoChip(Icons.Default.AccessTime, Color(0xFFFFD84A), "Joined $displayJoinedDate")
         }
 
         // ===== Bio (12sp / 17sp, centered, ~300dp wide) =====
         Text(
-            text = story.description,
+            text = displayBio,
             color = BioText,
             fontSize = 12.sp,
             lineHeight = 17.sp,
@@ -252,8 +294,8 @@ fun StreamerProfileScreen(
         }
 
         when (selectedTab) {
-            0 -> StreamsTab(story)
-            2 -> ServersTab(story)
+            0 -> StreamsTab(displayPastStreams)
+            2 -> ServersTab(displayServers)
             else -> {
             // ===== Ring stats (100dp rings, space-between) =====
             Row(
@@ -265,13 +307,13 @@ fun StreamerProfileScreen(
                 verticalAlignment = Alignment.Top
             ) {
                 RingStat(label = "Hours Live", icon = Icons.Default.Videocam) {
-                    TickDialRing(value = story.hoursLive.toString(), unit = "h")
+                    TickDialRing(value = displayHoursLive.toString(), unit = "h")
                 }
                 RingStat(label = "Viewers", icon = Icons.Default.Visibility) {
-                    WaveRing(value = story.viewerCount.toIntOrNull()?.let(::compactCount) ?: story.viewerCount)
+                    WaveRing(value = displayViewers.toIntOrNull()?.let(::compactCount) ?: displayViewers)
                 }
                 RingStat(label = "Followers", icon = Icons.Default.Group) {
-                    ArcRing(value = story.followers)
+                    ArcRing(value = displayFollowers)
                 }
             }
 
@@ -537,7 +579,7 @@ private fun StreamTopic.icon() = when (this) {
 
 /** Streams tab: the streamer's live broadcast and recent streams. */
 @Composable
-private fun StreamsTab(story: CampusLiveFeedStory) {
+private fun StreamsTab(pastStreams: List<PastStream>) {
     Column(
         modifier = Modifier
             .padding(top = 25.dp, bottom = 24.dp)
@@ -546,10 +588,10 @@ private fun StreamsTab(story: CampusLiveFeedStory) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("Streams", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        if (story.pastStreams.isEmpty()) {
+        if (pastStreams.isEmpty()) {
             Text("No streams yet", color = MutedText, fontSize = 12.5.sp)
         }
-        story.pastStreams.forEach { stream ->
+        pastStreams.forEach { stream ->
             val live = stream.duration == "Live"
             Row(
                 modifier = Modifier
@@ -583,7 +625,7 @@ private fun StreamsTab(story: CampusLiveFeedStory) {
 
 /** Servers tab: campus servers the streamer belongs to, with role and details. */
 @Composable
-private fun ServersTab(story: CampusLiveFeedStory) {
+private fun ServersTab(servers: List<StreamerServer>) {
     Column(
         modifier = Modifier
             .padding(top = 25.dp, bottom = 24.dp)
@@ -591,11 +633,11 @@ private fun ServersTab(story: CampusLiveFeedStory) {
             .fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Member of ${story.servers.size} servers", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        if (story.servers.isEmpty()) {
+        Text("Member of ${servers.size} ${if (servers.size == 1) "server" else "servers"}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        if (servers.isEmpty()) {
             Text("Not in any servers yet", color = MutedText, fontSize = 12.5.sp)
         }
-        story.servers.forEach { server ->
+        servers.forEach { server ->
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -604,12 +646,20 @@ private fun ServersTab(story: CampusLiveFeedStory) {
                     .padding(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(server.avatarRes),
-                        contentDescription = server.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
-                    )
+                    if (server.avatarRes != 0) {
+                        Image(
+                            painter = painterResource(server.avatarRes),
+                            contentDescription = server.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+                        )
+                    } else {
+                        CampusStudentAvatar(
+                            avatarUrl = null,
+                            fullName = server.name,
+                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+                        )
+                    }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(server.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)

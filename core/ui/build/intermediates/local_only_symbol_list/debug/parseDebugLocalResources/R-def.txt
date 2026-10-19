@@ -1,13 +1,5 @@
 R_DEF: Internal format may change without notice
 local
-drawable avatar_andrew
-drawable avatar_ath
-drawable avatar_clin
-drawable avatar_deleted_user
-drawable avatar_eliza
-drawable avatar_junebog
-drawable avatar_lincoln
-drawable avatar_me
 drawable banner_campus_quad
 drawable banner_gradient_cyber
 drawable banner_tech_neon
@@ -78,4 +70,5 @@ drawable student_eliza
 drawable student_june
 drawable student_rk
 raw no_internet
+raw worldcup_2026_football_animation
 style Theme.Patriarch

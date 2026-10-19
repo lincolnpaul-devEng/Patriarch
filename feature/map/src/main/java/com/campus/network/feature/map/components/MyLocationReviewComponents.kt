@@ -806,7 +806,7 @@ fun FlashMeetPerspectivePill(
     isFriendPerspective: Boolean,
     onPerspectiveChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    friendPerspectiveName: String = "Lincoln Kiprotich"
+    friendPerspectiveName: String = "Campus Peer"
 ) {
     Surface(
         shape = RoundedCornerShape(22.dp),

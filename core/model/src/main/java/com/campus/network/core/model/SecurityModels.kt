@@ -111,6 +111,7 @@ object CampusSecurityPolicy {
         "onboarding",
         "onboarding_transition",
         "auth",
+        "verify",
         "onboarding_survey"
     )
 
@@ -133,24 +134,26 @@ object CampusSecurityPolicy {
         val isGuildExec = profile.studentId.startsWith("EXEC-", ignoreCase = true) ||
             profile.personaRole.contains("Executive", ignoreCase = true) ||
             profile.personaRole.contains("Guild", ignoreCase = true)
-        if (isGuildExec) {
-            return CampusAccessTier.GUILD_EXECUTIVE
-        }
-        val email = profile.universityEmail.trim().lowercase()
-        val hasValidUniversityDomain = email.endsWith(".ac.ke") ||
-            email.endsWith("strathmore.edu") ||
-            profile.onboardingPreferences.isVerifiedStudentEmail
-        return if (hasValidUniversityDomain && profile.behavioralTrustScore >= 40) {
-            CampusAccessTier.VERIFIED_STUDENT
+        return if (isGuildExec) {
+            CampusAccessTier.GUILD_EXECUTIVE
         } else {
-            CampusAccessTier.GUEST_READ_ONLY
+            val email = profile.universityEmail.trim().lowercase()
+            val hasValidUniversityDomain = email.endsWith(".ac.ke") ||
+                email.endsWith("strathmore.edu") ||
+                profile.onboardingPreferences.isVerifiedStudentEmail
+            if (hasValidUniversityDomain && profile.behavioralTrustScore >= 40) {
+                CampusAccessTier.VERIFIED_STUDENT
+            } else {
+                CampusAccessTier.GUEST_READ_ONLY
+            }
         }
     }
 
     fun canAccessRoute(route: String?, accessTier: CampusAccessTier): Boolean {
         if (route.isNullOrBlank()) return false
-        val baseRoute = route.substringBefore("/")
+        val baseRoute = route.substringBefore("?").substringBefore("/")
         if (baseRoute in PUBLIC_AUTH_ROUTES) return true
+
         if (accessTier == CampusAccessTier.UNAUTHENTICATED) return false
         if (baseRoute in PRIVILEGED_WRITE_ROUTES && accessTier == CampusAccessTier.GUEST_READ_ONLY) {
             return false

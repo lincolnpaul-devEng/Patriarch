@@ -88,7 +88,7 @@ data class ServerMember(
     val roleTitle: String = "Member",
     val roleColorHex: Long = 0xFF5C6470,
     val avatarUrl: String? = null,
-    val avatarResName: String = "avatar_lincoln",
+    val avatarResName: String? = null,
     val isOnline: Boolean = false,
     val customStatus: String? = null,
     val joinedAtEpochMs: Long = System.currentTimeMillis(),
@@ -104,7 +104,7 @@ data class FriendRelationship(
     val friendUserId: String,
     val friendDisplayName: String,
     val friendHandle: String,
-    val friendAvatarResName: String = "avatar_lincoln",
+    val friendAvatarResName: String? = null,
     val status: FriendStatus = FriendStatus.NONE,
     val lastInteractionEpochMs: Long = System.currentTimeMillis(),
     val dmChannelId: String? = null

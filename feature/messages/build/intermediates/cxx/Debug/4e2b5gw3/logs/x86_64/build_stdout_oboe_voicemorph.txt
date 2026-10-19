@@ -1,3 +1,2 @@
 ninja: Entering directory `/home/lincoln/patreon/feature/messages/.cxx/Debug/4e2b5gw3/x86_64'
-[1/2] Building CXX object CMakeFiles/oboe_voicemorph.dir/OboeVoiceTransformerStream.cpp.o
-[2/2] Linking CXX shared library /home/lincoln/patreon/feature/messages/build/intermediates/cxx/Debug/4e2b5gw3/obj/x86_64/liboboe_voicemorph.so
+ninja: no work to do.

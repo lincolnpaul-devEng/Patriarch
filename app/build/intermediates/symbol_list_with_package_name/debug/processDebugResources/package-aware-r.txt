@@ -3083,14 +3083,6 @@ drawable abc_textfield_search_activated_mtrl_alpha
 drawable abc_textfield_search_default_mtrl_alpha
 drawable abc_textfield_search_material
 drawable abc_vector_test
-drawable avatar_andrew
-drawable avatar_ath
-drawable avatar_clin
-drawable avatar_deleted_user
-drawable avatar_eliza
-drawable avatar_junebog
-drawable avatar_lincoln
-drawable avatar_me
 drawable avd_hide_password
 drawable avd_show_password
 drawable banner_campus_quad
@@ -4207,6 +4199,7 @@ raw emoji_category_symbols
 raw emoji_category_travel_places
 raw firebase_common_keep
 raw no_internet
+raw worldcup_2026_football_animation
 string abc_action_bar_home_description
 string abc_action_bar_up_description
 string abc_action_menu_overflow_description

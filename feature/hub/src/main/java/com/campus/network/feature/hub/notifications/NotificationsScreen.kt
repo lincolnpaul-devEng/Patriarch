@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,65 +95,9 @@ fun NotificationsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showTooltip by remember { mutableStateOf(true) }
 
-    // Campus tailored notifications matching the reference card style
+    // Real campus notifications list (empty by default, loaded from backend/repository)
     val notifications = remember {
-        mutableStateListOf(
-            CampusNotification(
-                id = "1",
-                initial = "S.",
-                avatarBgColor = Color(0xFFFFD1DC), // Soft pastel matching reference badge
-                initialTextColor = Color(0xFF14171A),
-                title = "SafePay payment: KES 2,500",
-                date = "Dec 16, 2023",
-                description = "KES 2,500 released for your TI-84 Plus Calculator. Buyer confirmed handoff pickup at North Quad.",
-                isUnread = true,
-                destination = NotificationDestination.Marketplace
-            ),
-            CampusNotification(
-                id = "2",
-                initial = "G.",
-                avatarBgColor = Color(0xFFFFD1DC),
-                initialTextColor = Color(0xFF14171A),
-                title = "Campus Gig claimed",
-                date = "Dec 12, 2023",
-                description = "Sarah N. accepted your notes digitization gig. Chat room is ready to coordinate task delivery.",
-                isUnread = true,
-                destination = NotificationDestination.DirectChat(peerId = "user_sarah_n", peerName = "Sarah Nduta")
-            ),
-            CampusNotification(
-                id = "3",
-                initial = "K.",
-                avatarBgColor = Color(0xFFFFD1DC),
-                initialTextColor = Color(0xFF14171A),
-                title = "Strathmore Tech & AI Guild",
-                date = "Dec 8, 2023",
-                description = "Now you are an active member of Strathmore AI Guild, start earning peer reputation points with every shared solution.",
-                isUnread = true,
-                destination = NotificationDestination.GuildChannel
-            ),
-            CampusNotification(
-                id = "4",
-                initial = "M.",
-                avatarBgColor = Color(0xFFFFD1DC),
-                initialTextColor = Color(0xFF14171A),
-                title = "Flash Meet starting soon",
-                date = "Dec 5, 2023",
-                description = "Campus Hackathon Pitch Huddle is starting at Innovation Hub Lab 3. 14 students are already checked in.",
-                isUnread = false,
-                destination = NotificationDestination.FlashMeet(latitude = -1.3078, longitude = 36.8121)
-            ),
-            CampusNotification(
-                id = "5",
-                initial = "F.",
-                avatarBgColor = Color(0xFFFFD1DC),
-                initialTextColor = Color(0xFF14171A),
-                title = "CS Finals Study Sprint in 5 min",
-                date = "Now",
-                description = "Flash Meet CS Finals Study Sprint at Central Quad Pod #4. Tap to view location pin and join now!",
-                isUnread = true,
-                destination = NotificationDestination.FlashMeet(latitude = -1.3094, longitude = 36.8122)
-            )
-        )
+        mutableStateListOf<CampusNotification>()
     }
 
     Surface(
@@ -276,267 +221,56 @@ fun NotificationsScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item {
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        var pendingPushAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-                        val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                            contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-                        ) { granted ->
-                            if (granted) {
-                                com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.setPushEnabled(context, true)
-                                pendingPushAction?.invoke()
-                            } else {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Allow notification permission to receive push alerts")
-                                }
-                            }
-                            pendingPushAction = null
-                        }
-
-                        val runWithNotificationPermission: (() -> Unit) -> Unit = { action ->
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                val hasPerm = androidx.core.content.ContextCompat.checkSelfPermission(
-                                    context,
-                                    android.Manifest.permission.POST_NOTIFICATIONS
-                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                                if (!hasPerm) {
-                                    pendingPushAction = action
-                                    permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                } else {
-                                    action()
-                                }
-                            } else {
-                                action()
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Live Device Notification Shade Trigger Strip (Polling + FCM Preview)
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color.White,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                    if (notifications.isEmpty()) {
+                        item {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                                    .padding(vertical = 56.dp, horizontal = 24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(
-                                    text = "Device Push & Inline Reply Channels",
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A)
-                                )
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = "Tap any channel below to dispatch a live OS notification to your phone shade (includes WhatsApp-style inline reply for messages).",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF64748B),
-                                    lineHeight = 16.sp
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                androidx.compose.foundation.lazy.LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFE2E8F0)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    item {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFF014784),
-                                            modifier = Modifier.clickable {
-                                                runWithNotificationPermission {
-                                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.showDirectMessageNotification(
-                                                        context = context,
-                                                        threadId = "thread_mwangi",
-                                                        senderName = "Prof. Mwangi (Supervisor)",
-                                                        senderHandle = "@prof_mwangi",
-                                                        messageText = "Please review chapter 4 citations before tomorrow's seminar. Reply directly from your notification shade!",
-                                                        avatarColorArgb = 0xFF014784.toInt()
-                                                    )
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Sent Message Push • Pull down shade to Reply inline!")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Text(
-                                                text = "Message (Inline Reply)",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                            )
-                                        }
-                                    }
-
-                                    item {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFF059669),
-                                            modifier = Modifier.clickable {
-                                                runWithNotificationPermission {
-                                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.showIncomingCallNotification(
-                                                        context = context,
-                                                        peerId = "thread_faith",
-                                                        callerName = "Faith Wangari",
-                                                        callerRoleOrHandle = "Lab Partner • Video Call",
-                                                        isVideoCall = true
-                                                    )
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Sent Incoming Call Push to device shade")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Text(
-                                                text = "Incoming Call",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                            )
-                                        }
-                                    }
-
-                                    item {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFF0284C7),
-                                            modifier = Modifier.clickable {
-                                                runWithNotificationPermission {
-                                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.showFlashMeetNotification(
-                                                        context = context,
-                                                        meetId = "meet_cs_finals",
-                                                        title = "CS Finals Study Sprint",
-                                                        locationName = "Central Quad Pod #4",
-                                                        attendeeCount = 14,
-                                                        timeRemainingLabel = "Starting in 5 min",
-                                                        latitude = -1.3094,
-                                                        longitude = 36.8122
-                                                    )
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Sent Map Flash-Meet Push to device shade")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Text(
-                                                text = "Map Flash-Meet",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                            )
-                                        }
-                                    }
-
-                                    item {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFF0F172A),
-                                            modifier = Modifier.clickable {
-                                                runWithNotificationPermission {
-                                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.showSafePayOrderNotification(
-                                                        context = context,
-                                                        orderRef = "ORD-8492",
-                                                        itemTitle = "TI-84 Plus Calculator",
-                                                        amountFormatted = "KES 2,500",
-                                                        pickupSpotName = "North Quad SafeZone",
-                                                        sellerName = "Brian Ochieng"
-                                                    )
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Sent SafePay Escrow Push to device shade")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Text(
-                                                text = "SafePay Escrow",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                            )
-                                        }
-                                    }
-
-                                    item {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFFE11D48),
-                                            modifier = Modifier.clickable {
-                                                runWithNotificationPermission {
-                                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.showLiveStreamNotification(
-                                                        context = context,
-                                                        streamId = "live_robotics",
-                                                        hostName = "Strathmore Robotics Lab",
-                                                        streamTitle = "Autonomous Drone Quad Flight Test",
-                                                        viewerCount = 214
-                                                    )
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Sent Live Stream Push to device shade")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Text(
-                                                text = "Live Stream",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                            )
-                                        }
-                                    }
-
-                                    item {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color(0xFF7C3AED),
-                                            modifier = Modifier.clickable {
-                                                runWithNotificationPermission {
-                                                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.showCampusUpdateNotification(
-                                                        context = context,
-                                                        updateId = "upd_guild",
-                                                        guildName = "Strathmore Tech & AI Guild",
-                                                        headline = "3 New Guild Activity Updates",
-                                                        digestLines = listOf(
-                                                            "Sarah N. accepted your notes digitization gig",
-                                                            "Hackathon Pitch Huddle check-in opened at Lab 3",
-                                                            "You earned +25 peer reputation points"
-                                                        )
-                                                    )
-                                                    scope.launch {
-                                                        snackbarHostState.showSnackbar("Sent Guild Digest Push to device shade")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Text(
-                                                text = "Guild Digest",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                            )
-                                        }
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Outlined.Notifications,
+                                        contentDescription = null,
+                                        tint = Color(0xFF64748B),
+                                        modifier = Modifier.size(36.dp)
+                                    )
                                 }
+                                Spacer(modifier = Modifier.height(18.dp))
+                                Text(
+                                    text = "No notifications yet",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "When you receive peer messages, study alerts, or marketplace updates, they'll show up here.",
+                                    fontSize = 13.5.sp,
+                                    color = Color(0xFF64748B),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Section Header: "Previously"
-                        Text(
-                            text = "Previously",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF14171A),
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-                        )
+                    } else {
+                        item {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Previously",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF14171A),
+                                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            )
+                        }
                     }
 
                     // Notification Cards

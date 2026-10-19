@@ -212,7 +212,7 @@ class HubViewModel(
             is HubEvent.PostItem -> {
                 viewModelScope.launch {
                     val profile = uiState.value.studentProfile
-                    val authorName = profile?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
+                    val authorName = profile?.fullName?.ifBlank { "Student Peer" } ?: "Student Peer"
                     repository.postMarketItem(
                         title = event.title,
                         price = event.price,
@@ -238,7 +238,7 @@ class HubViewModel(
             is HubEvent.PostGig -> {
                 viewModelScope.launch {
                     val profile = uiState.value.studentProfile
-                    val authorName = profile?.fullName?.ifBlank { "Lincoln Kiprotich" } ?: "Lincoln Kiprotich"
+                    val authorName = profile?.fullName?.ifBlank { "Student Peer" } ?: "Student Peer"
                     repository.postMicroGig(
                         title = event.title,
                         description = event.description,

@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:network"))
 
+    implementation(libs.lottie.compose)
     implementation(libs.coil.compose)
 
     implementation(libs.camerax.core)

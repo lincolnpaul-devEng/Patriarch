@@ -58,6 +58,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.ui.text.style.TextAlign
+import com.campus.network.core.model.StudentProfile
+
 data class SafePayHold(
     val id: String,
     val itemTitle: String,
@@ -80,93 +83,27 @@ data class WalletTransaction(
 
 @Composable
 fun CampusWalletScreen(
+    profile: StudentProfile? = null,
+    onDeposit: (Double) -> Unit = {},
+    onWithdraw: (Double) -> Unit = {},
+    onReleaseVault: (Double) -> Unit = {},
     onBackClick: () -> Unit,
     onShowFeedback: (String) -> Unit = {}
 ) {
-    var availableBalance by remember { mutableStateOf(9200.0) }
-    var vaultProtectedBalance by remember { mutableStateOf(5650.0) }
+    val currency = profile?.onboardingPreferences?.currencyCode?.ifBlank { "KES" } ?: "KES"
+    val availableBalance = profile?.walletBalance ?: 0.0
+    val vaultProtectedBalance = profile?.vaultProtectedBalance ?: 0.0
+
     var showDepositDialog by remember { mutableStateOf(false) }
     var showWithdrawDialog by remember { mutableStateOf(false) }
     var showSafePayInfoDialog by remember { mutableStateOf(false) }
 
     var depositAmountText by remember { mutableStateOf("") }
-    var withdrawPhoneText by remember { mutableStateOf("+254 712 345678") }
+    var withdrawPhoneText by remember(profile?.phoneNumber) { mutableStateOf(profile?.phoneNumber?.ifBlank { "" } ?: "") }
     var withdrawAmountText by remember { mutableStateOf("") }
 
-    var activeHolds by remember {
-        mutableStateOf(
-            listOf(
-                SafePayHold(
-                    id = "hold-1",
-                    itemTitle = "Calculus Early Transcendentals (Stewart)",
-                    amount = "KES 2,400.00",
-                    role = "Buyer",
-                    counterparty = "Sarah K. (Math Dept)",
-                    status = "Protected in Vault — Awaiting Meetup Confirmation",
-                    canRelease = true
-                ),
-                SafePayHold(
-                    id = "hold-2",
-                    itemTitle = "Organic Chemistry Lab Coat & Splash Goggles",
-                    amount = "KES 1,250.00",
-                    role = "Seller",
-                    counterparty = "Brian M. (Biochem Dept)",
-                    status = "Protected in Vault — Buyer Confirming Delivery",
-                    canRelease = false
-                ),
-                SafePayHold(
-                    id = "hold-3",
-                    itemTitle = "Python Lab Assignment Peer Tutoring Session",
-                    amount = "KES 2,000.00",
-                    role = "Buyer",
-                    counterparty = "Faith Chebet (TA)",
-                    status = "Protected in Vault — In Progress",
-                    canRelease = true
-                )
-            )
-        )
-    }
-
-    val transactions = remember {
-        listOf(
-            WalletTransaction(
-                id = "tx-1",
-                title = "SafeTrade Settled: TI-84 Plus CE Calculator",
-                timestamp = "Today, 2:15 PM",
-                amount = "+KES 8,500.00",
-                isCredit = true,
-                status = "Completed",
-                note = "Buyer confirmed inspection & release"
-            ),
-            WalletTransaction(
-                id = "tx-2",
-                title = "M-Pesa Instant Top-Up",
-                timestamp = "Yesterday, 9:40 AM",
-                amount = "+KES 5,000.00",
-                isCredit = true,
-                status = "Completed",
-                note = "Ref: QK782390MP"
-            ),
-            WalletTransaction(
-                id = "tx-3",
-                title = "SafeTrade SafePay Protection Lock",
-                timestamp = "14 Oct, 4:20 PM",
-                amount = "-KES 2,400.00",
-                isCredit = false,
-                status = "Protected in Vault",
-                note = "Held safely until Calculus book handover"
-            ),
-            WalletTransaction(
-                id = "tx-4",
-                title = "Withdrawal to M-Pesa",
-                timestamp = "10 Oct, 6:10 PM",
-                amount = "-KES 4,500.00",
-                isCredit = false,
-                status = "Completed",
-                note = "Disbursed to +254 712 345678"
-            )
-        )
-    }
+    var activeHolds by remember { mutableStateOf<List<SafePayHold>>(emptyList()) }
+    var transactions by remember { mutableStateOf<List<WalletTransaction>>(emptyList()) }
 
     Column(
         modifier = Modifier
@@ -294,7 +231,7 @@ fun CampusWalletScreen(
                         // Large Numeric Balance
                         val totalBalance = availableBalance + vaultProtectedBalance
                         Text(
-                            text = "KES ${String.format("%,.2f", totalBalance)}",
+                            text = "$currency ${String.format("%,.2f", totalBalance)}",
                             fontSize = 32.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
@@ -319,7 +256,7 @@ fun CampusWalletScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "KES ${String.format("%,.2f", availableBalance)}",
+                                    text = "$currency ${String.format("%,.2f", availableBalance)}",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF38BDF8)
@@ -350,7 +287,7 @@ fun CampusWalletScreen(
                                 }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "KES ${String.format("%,.2f", vaultProtectedBalance)}",
+                                    text = "$currency ${String.format("%,.2f", vaultProtectedBalance)}",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFFBBF24)
@@ -478,111 +415,162 @@ fun CampusWalletScreen(
                 }
             }
 
-            items(activeHolds, key = { it.id }) { hold ->
-                Card(
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            if (activeHolds.isEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFFFEF3C7))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No Active SafePay Holds",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "When you buy or sell items using SafeTrade escrow, funds are locked here safely until in-person verification.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B),
+                                textAlign = TextAlign.Center,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(activeHolds, key = { it.id }) { hold ->
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFFEF3C7))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = hold.role,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF92400E),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
                                 Text(
-                                    text = hold.role,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF92400E),
+                                    text = hold.amount,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF0F172A),
                                     maxLines = 1,
                                     softWrap = false
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Text(
-                                text = hold.amount,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A),
-                                maxLines = 1,
-                                softWrap = false
+                                text = hold.itemTitle,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF0F172A)
                             )
-                        }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
 
-                        Text(
-                            text = hold.itemTitle,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A)
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = "Counterparty: ${hold.counterparty}",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFFF8FAFC))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = Color(0xFFF59E0B),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = hold.status,
-                                fontSize = 11.5.sp,
-                                color = Color(0xFF475569)
+                                text = "Counterparty: ${hold.counterparty}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B)
                             )
-                        }
 
-                        if (hold.canRelease) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = {
-                                    activeHolds = activeHolds.filterNot { it.id == hold.id }
-                                    vaultProtectedBalance -= 2400.0
-                                    onShowFeedback("Confirmed handover! Payment successfully disbursed to peer.")
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF16A34A),
-                                    contentColor = Color.White
-                                ),
-                                modifier = Modifier.fillMaxWidth()
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFF8FAFC))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = Icons.Default.Lock,
                                     contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
+                                    tint = Color(0xFFF59E0B),
+                                    modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Confirm Receipt & Release Payment", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color.White)
+                                Text(
+                                    text = hold.status,
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF475569)
+                                )
+                            }
+
+                            if (hold.canRelease) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = {
+                                        activeHolds = activeHolds.filterNot { it.id == hold.id }
+                                        val releasedAmt = hold.amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
+                                        if (releasedAmt > 0.0) {
+                                            onReleaseVault(releasedAmt)
+                                        }
+                                        onShowFeedback("Confirmed handover! Payment successfully disbursed to peer.")
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF16A34A),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Confirm Receipt & Release Payment", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color.White)
+                                }
                             }
                         }
                     }
@@ -600,65 +588,113 @@ fun CampusWalletScreen(
                 )
             }
 
-            items(transactions, key = { it.id }) { tx ->
-                Card(
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            if (transactions.isEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(if (tx.isCredit) Color(0xFFDCFCE7) else Color(0xFFF1F5F9)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = if (tx.isCredit) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.AccountBalance,
-                                contentDescription = null,
-                                tint = if (tx.isCredit) Color(0xFF16A34A) else Color(0xFF64748B),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = tx.title,
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF0F172A),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "No Transactions Yet",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${tx.timestamp} • ${tx.note}",
-                                fontSize = 11.5.sp,
+                                text = "Your deposits, withdrawals, and completed SafeTrades will appear here in real-time.",
+                                fontSize = 12.sp,
                                 color = Color(0xFF64748B),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                textAlign = TextAlign.Center,
+                                lineHeight = 16.sp
                             )
                         }
+                    }
+                }
+            } else {
+                items(transactions, key = { it.id }) { tx ->
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(if (tx.isCredit) Color(0xFFDCFCE7) else Color(0xFFF1F5F9)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (tx.isCredit) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = if (tx.isCredit) Color(0xFF16A34A) else Color(0xFF64748B),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
 
-                        Text(
-                            text = tx.amount,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (tx.isCredit) Color(0xFF16A34A) else Color(0xFF0F172A),
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = tx.title,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${tx.timestamp} • ${tx.note}",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Text(
+                                text = tx.amount,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (tx.isCredit) Color(0xFF16A34A) else Color(0xFF0F172A),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }
@@ -669,11 +705,11 @@ fun CampusWalletScreen(
     if (showDepositDialog) {
         AlertDialog(
             onDismissRequest = { showDepositDialog = false },
-            title = { Text("Top Up via M-Pesa", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("Top Up via Mobile Money", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Enter amount to deposit into your student wallet. You will receive an instant STK push prompt on your registered phone.",
+                        "Enter amount to deposit into your student wallet. You will receive an instant payment prompt on your registered phone.",
                         fontSize = 13.sp,
                         color = Color(0xFF64748B)
                     )
@@ -681,7 +717,7 @@ fun CampusWalletScreen(
                         value = depositAmountText,
                         onValueChange = { depositAmountText = it },
                         placeholder = { Text("e.g. 1500") },
-                        prefix = { Text("KES ") },
+                        prefix = { Text("$currency ") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -690,18 +726,33 @@ fun CampusWalletScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amount = depositAmountText.toDoubleOrNull() ?: 1000.0
-                        availableBalance += amount
-                        showDepositDialog = false
-                        depositAmountText = ""
-                        onShowFeedback("M-Pesa STK push completed! +KES $amount added to wallet.")
+                        val amount = depositAmountText.toDoubleOrNull() ?: 0.0
+                        if (amount > 0) {
+                            onDeposit(amount)
+                            transactions = listOf(
+                                WalletTransaction(
+                                    id = "tx-${System.currentTimeMillis()}",
+                                    title = "Wallet Top Up",
+                                    timestamp = "Just now",
+                                    amount = "+$currency ${String.format("%,.2f", amount)}",
+                                    isCredit = true,
+                                    status = "Completed",
+                                    note = "Mobile Money Deposit"
+                                )
+                            ) + transactions
+                            showDepositDialog = false
+                            depositAmountText = ""
+                            onShowFeedback("Deposit initiated! +$currency ${String.format("%,.2f", amount)} added to wallet.")
+                        } else {
+                            onShowFeedback("Please enter a valid amount.")
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF007AFF),
                         contentColor = Color.White
                     )
                 ) {
-                    Text("Pay with M-Pesa", color = Color.White)
+                    Text("Top Up Wallet", color = Color.White)
                 }
             },
             dismissButton = {
@@ -714,7 +765,7 @@ fun CampusWalletScreen(
     if (showWithdrawDialog) {
         AlertDialog(
             onDismissRequest = { showWithdrawDialog = false },
-            title = { Text("Withdraw to M-Pesa", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("Withdraw to Mobile Money", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
@@ -725,15 +776,15 @@ fun CampusWalletScreen(
                     OutlinedTextField(
                         value = withdrawPhoneText,
                         onValueChange = { withdrawPhoneText = it },
-                        label = { Text("M-Pesa Phone Number") },
+                        label = { Text("Phone Number") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = withdrawAmountText,
                         onValueChange = { withdrawAmountText = it },
-                        label = { Text("Amount (KES)") },
-                        placeholder = { Text("Max KES ${String.format("%,.2f", availableBalance)}") },
+                        label = { Text("Amount ($currency)") },
+                        placeholder = { Text("Max $currency ${String.format("%,.2f", availableBalance)}") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -742,12 +793,25 @@ fun CampusWalletScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amount = withdrawAmountText.toDoubleOrNull() ?: 500.0
-                        if (amount <= availableBalance) {
-                            availableBalance -= amount
+                        val amount = withdrawAmountText.toDoubleOrNull() ?: 0.0
+                        if (amount <= 0) {
+                            onShowFeedback("Please enter a valid amount.")
+                        } else if (amount <= availableBalance) {
+                            onWithdraw(amount)
+                            transactions = listOf(
+                                WalletTransaction(
+                                    id = "tx-${System.currentTimeMillis()}",
+                                    title = "Disbursement",
+                                    timestamp = "Just now",
+                                    amount = "-$currency ${String.format("%,.2f", amount)}",
+                                    isCredit = false,
+                                    status = "Completed",
+                                    note = "Payout to $withdrawPhoneText"
+                                )
+                            ) + transactions
                             showWithdrawDialog = false
                             withdrawAmountText = ""
-                            onShowFeedback("Withdrawal initiated! KES $amount sent to $withdrawPhoneText.")
+                            onShowFeedback("Withdrawal initiated! $currency ${String.format("%,.2f", amount)} sent to $withdrawPhoneText.")
                         } else {
                             onShowFeedback("Insufficient available balance.")
                         }

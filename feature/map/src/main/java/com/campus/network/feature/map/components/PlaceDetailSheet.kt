@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -446,7 +447,7 @@ fun PlaceDetailSheet(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Image(
-                                painter = painterResource(R.drawable.place_photo_1),
+                                painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_1),
                                 contentDescription = "Campus Facility",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -456,7 +457,7 @@ fun PlaceDetailSheet(
                             )
 
                             Image(
-                                painter = painterResource(R.drawable.place_photo_2),
+                                painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_2),
                                 contentDescription = "Study Area",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -466,7 +467,7 @@ fun PlaceDetailSheet(
                             )
 
                             Image(
-                                painter = painterResource(R.drawable.place_photo_3),
+                                painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_3),
                                 contentDescription = "Atmosphere",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -556,13 +557,10 @@ fun PlaceDetailSheet(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.avatar_me),
-                            contentDescription = "My profile",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
+                        CampusStudentAvatar(
+                            avatarUrl = null,
+                            fullName = "Student",
+                            modifier = Modifier.size(36.dp)
                         )
 
                         Spacer(modifier = Modifier.width(10.dp))
@@ -665,17 +663,14 @@ fun PlaceDetailSheet(
  */
 @Composable
 private fun UserAvatarItem(user: SavedByUser) {
-    val avatarRes = getAvatarDrawable(user.avatarResName)
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(52.dp)
     ) {
         Box(contentAlignment = Alignment.BottomEnd) {
-            Image(
-                painter = painterResource(avatarRes),
-                contentDescription = user.username,
-                contentScale = ContentScale.Crop,
+            CampusStudentAvatar(
+                avatarUrl = null,
+                fullName = user.username,
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)

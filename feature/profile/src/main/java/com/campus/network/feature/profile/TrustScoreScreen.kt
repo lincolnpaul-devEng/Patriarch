@@ -38,15 +38,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.campus.network.core.model.StudentProfile
 
 @Composable
 fun TrustScoreScreen(
-    score: Int = 96,
+    profile: StudentProfile? = null,
+    score: Int = profile?.behavioralTrustScore ?: 50,
     onBackClick: () -> Unit
 ) {
+    val uniName = profile?.universityName?.takeIf { it.isNotBlank() } ?: "Campus"
+    val tierTitle = when {
+        score >= 85 -> "Tier 1: Campus Exemplar"
+        score >= 65 -> "Tier 2: Verified Scholar"
+        else -> "Tier 3: Standard Member"
+    }
+    val tierDesc = when {
+        score >= 85 -> "Exemplary integrity standing at $uniName. Full privileges for instant escrow release, campus commerce, and verified channels."
+        score >= 65 -> "Verified student in good standing at $uniName. Standard privileges for campus marketplace and academic channels."
+        else -> "Welcome to $uniName. Complete verified study room check-ins, skill tests, and dispute-free peer trades to increase your trust score."
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -149,7 +163,7 @@ fun TrustScoreScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Tier 1: Campus Exemplar",
+                                    text = tierTitle,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFFDE047)
@@ -160,11 +174,11 @@ fun TrustScoreScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Top 4% of Strathmore University Students. Full access to student market trades, instant payments, and campus leadership channels.",
+                            text = tierDesc,
                             fontSize = 12.5.sp,
                             color = Color(0xFF94A3B8),
                             lineHeight = 17.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -194,33 +208,33 @@ fun TrustScoreScreen(
                         ScoreFactorRow(
                             icon = Icons.Default.Security,
                             title = "SafeTrade Dispute-Free Rate",
-                            valueText = "100%",
-                            progress = 1.0f,
-                            description = "48 of 48 transactions completed without disputes."
+                            valueText = if (score > 50) "${score}%" else "No trades yet",
+                            progress = if (score > 50) (score / 100f) else 0f,
+                            description = if (score > 50) "Transactions completed with zero escrow disputes." else "Complete SafeTrades to establish a peer dispute record."
                         )
 
                         ScoreFactorRow(
                             icon = Icons.Default.Speed,
                             title = "Rendezvous Punctuality",
-                            valueText = "98%",
-                            progress = 0.98f,
-                            description = "Arrived on time for physical meetups and book exchanges."
+                            valueText = if (score > 50) "${score}%" else "Pending meetups",
+                            progress = if (score > 50) (score / 100f) else 0f,
+                            description = if (score > 50) "Punctuality record for safe physical trade handoffs." else "Arrive on time to rendezvous points to earn punctuality points."
                         )
 
                         ScoreFactorRow(
                             icon = Icons.Default.CheckCircle,
                             title = "Faculty & Academic Verification",
-                            valueText = "95%",
-                            progress = 0.95f,
-                            description = "3 verified academic faculty badge endorsements."
+                            valueText = "${profile?.verifiedSkillBadges?.size ?: 0} Verified",
+                            progress = ((profile?.verifiedSkillBadges?.size ?: 0) * 0.25f).coerceAtMost(1.0f),
+                            description = "${profile?.verifiedSkillBadges?.size ?: 0} academic faculty badge endorsements registered."
                         )
 
                         ScoreFactorRow(
                             icon = Icons.Default.ThumbUp,
                             title = "Community Peer Reviews",
-                            valueText = "92%",
-                            progress = 0.92f,
-                            description = "Positive ratings from fellow classmates in course groups."
+                            valueText = if (score > 50) "${String.format("%.1f", (score * 5.0 / 100.0))} / 5.0" else "No reviews yet",
+                            progress = if (score > 50) (score / 100f) else 0f,
+                            description = if (score > 50) "Peer rating average from verified campus course groups." else "Peer ratings will appear after completing group projects or trades."
                         )
                     }
                 }
@@ -248,16 +262,24 @@ fun TrustScoreScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         PrivilegeRow(
-                            title = "Instant SafePay Release",
-                            description = "Funds clear immediately upon buyer QR scan at pickup."
+                            title = "SafeTrade Peer Escrow",
+                            status = if (score >= 50) "Unlocked" else "Locked",
+                            isUnlocked = score >= 50
                         )
                         PrivilegeRow(
-                            title = "Verified Seller Gold Badge",
-                            description = "Automatic trust badge displayed across marketplace listings."
+                            title = "Instant Vault Payouts",
+                            status = if (score >= 70) "Unlocked" else "Locked (Requires 70+)",
+                            isUnlocked = score >= 70
                         )
                         PrivilegeRow(
-                            title = "Guild Arbitrator Eligibility",
-                            description = "Eligible to vote in peer trade dispute arbitrations."
+                            title = "Study Group Moderator Rights",
+                            status = if (score >= 80) "Unlocked" else "Locked (Requires 80+)",
+                            isUnlocked = score >= 80
+                        )
+                        PrivilegeRow(
+                            title = "Campus Guild Leadership Eligibility",
+                            status = if (score >= 85) "Unlocked" else "Locked (Requires 85+)",
+                            isUnlocked = score >= 85
                         )
                     }
                 }
@@ -277,59 +299,46 @@ private fun ScoreFactorRow(
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = false)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Color(0xFF007AFF),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0F172A),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF0F172A),
+                modifier = Modifier.size(18.dp)
+            )
             Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A),
+                modifier = Modifier.weight(1f)
+            )
             Text(
                 text = valueText,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF16A34A),
-                maxLines = 1,
-                softWrap = false
+                color = Color(0xFF16A34A)
             )
         }
-
         Spacer(modifier = Modifier.height(6.dp))
-
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
-            color = Color(0xFF007AFF),
+                .clip(CircleShape),
+            color = Color(0xFF16A34A),
             trackColor = Color(0xFFE2E8F0),
             strokeCap = StrokeCap.Round
         )
-
         Spacer(modifier = Modifier.height(4.dp))
-
         Text(
             text = description,
-            fontSize = 11.5.sp,
-            color = Color(0xFF64748B)
+            fontSize = 12.sp,
+            color = Color(0xFF64748B),
+            lineHeight = 16.sp
         )
     }
 }
@@ -337,36 +346,34 @@ private fun ScoreFactorRow(
 @Composable
 private fun PrivilegeRow(
     title: String,
-    description: String
+    status: String,
+    isUnlocked: Boolean
 ) {
-    Row(verticalAlignment = Alignment.Top) {
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFDCFCE7)),
-            contentAlignment = Alignment.Center
-        ) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Default.LockOpen,
+                imageVector = if (isUnlocked) Icons.Default.CheckCircle else Icons.Default.LockOpen,
                 contentDescription = null,
-                tint = Color(0xFF16A34A),
-                modifier = Modifier.size(13.dp)
+                tint = if (isUnlocked) Color(0xFF16A34A) else Color(0xFF94A3B8),
+                modifier = Modifier.size(16.dp)
             )
-        }
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = title,
                 fontSize = 13.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF0F172A)
-            )
-            Text(
-                text = description,
-                fontSize = 11.5.sp,
-                color = Color(0xFF64748B)
+                color = Color(0xFF0F172A),
+                fontWeight = FontWeight.Medium
             )
         }
+        Text(
+            text = status,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isUnlocked) Color(0xFF16A34A) else Color(0xFF94A3B8)
+        )
     }
 }

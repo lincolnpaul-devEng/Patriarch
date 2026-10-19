@@ -72,10 +72,6 @@
         "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/mipmap-xxhdpi/ic_launcher.png"
     },
     {
-        "merged": "com.campus.network.app-debug-98:/xml_network_security_config.xml.flat",
-        "source": "com.campus.network.app-main-100:/xml/network_security_config.xml"
-    },
-    {
         "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/drawable_avatar_me.jpg.flat",
         "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/drawable/avatar_me.jpg"
     },
@@ -98,6 +94,10 @@
     {
         "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/drawable_server_codesistency.png.flat",
         "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/drawable/server_codesistency.png"
+    },
+    {
+        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/xml_network_security_config.xml.flat",
+        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/xml/network_security_config.xml"
     },
     {
         "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/drawable_pin_chilli.png.flat",
@@ -276,10 +276,6 @@
         "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/mipmap-xhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "com.campus.network.app-debug-98:/xml_data_extraction_rules.xml.flat",
-        "source": "com.campus.network.app-main-100:/xml/data_extraction_rules.xml"
-    },
-    {
         "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/mipmap-mdpi_ic_launcher_foreground.png.flat",
         "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/mipmap-mdpi/ic_launcher_foreground.png"
     },
@@ -342,5 +338,9 @@
     {
         "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/drawable_hero_campus_scenic.jpg.flat",
         "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/drawable/hero_campus_scenic.jpg"
+    },
+    {
+        "merged": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-debug-98:/xml_data_extraction_rules.xml.flat",
+        "source": "/home/lincoln/.gradle/daemon/8.7/com.campus.network.app-main-100:/xml/data_extraction_rules.xml"
     }
 ]

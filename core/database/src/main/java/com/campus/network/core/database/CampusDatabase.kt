@@ -27,6 +27,8 @@ import com.campus.network.core.database.entity.LiveStreamEntity
 import com.campus.network.core.database.entity.StreamerProfileEntity
 import com.campus.network.core.database.entity.StreamCommentEntity
 import com.campus.network.core.database.entity.ServerEntity
+import com.campus.network.core.database.dao.StudentProfileDao
+import com.campus.network.core.database.entity.StudentProfileEntity
 import com.campus.network.core.database.entity.ServerChannelEntity
 import com.campus.network.core.database.entity.ServerRuleEntity
 import com.campus.network.core.database.entity.ServerMemberEntity
@@ -48,9 +50,10 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         ServerRuleEntity::class,
         ServerMemberEntity::class,
         FriendEntity::class,
-        ServerInviteEntity::class
+        ServerInviteEntity::class,
+        StudentProfileEntity::class
     ],
-    version = 9,
+    version = 11,
     exportSchema = false
 )
 abstract class CampusDatabase : RoomDatabase() {
@@ -68,6 +71,7 @@ abstract class CampusDatabase : RoomDatabase() {
     abstract fun serverMemberDao(): ServerMemberDao
     abstract fun friendDao(): FriendDao
     abstract fun serverInviteDao(): ServerInviteDao
+    abstract fun studentProfileDao(): StudentProfileDao
 
     companion object {
         @Volatile

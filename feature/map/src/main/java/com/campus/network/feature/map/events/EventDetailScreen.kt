@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -413,7 +414,7 @@ fun EventDetailScreen(
                         Box(modifier = Modifier.fillMaxSize()) {
                             // Stylized Map Background
                             Image(
-                                painter = painterResource(id = R.drawable.place_photo_1),
+                                painter = painterResource(id = com.campus.network.core.ui.R.drawable.place_photo_1),
                                 contentDescription = "Map Preview",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop,
@@ -515,13 +516,12 @@ fun EventDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f, fill = false)
                             ) {
-                                Image(
-                                    painter = painterResource(id = event.hostAvatarRes),
-                                    contentDescription = event.hostName,
+                                CampusStudentAvatar(
+                                    avatarUrl = null,
+                                    fullName = event.hostName,
                                     modifier = Modifier
                                         .size(44.dp)
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
+                                        .clip(CircleShape)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
@@ -602,33 +602,16 @@ fun EventDetailScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
-                            Image(
-                                painter = painterResource(id = R.drawable.avatar_eliza),
-                                contentDescription = "Guest",
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, Color(0xFF0F172A), CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                            Image(
-                                painter = painterResource(id = R.drawable.avatar_andrew),
-                                contentDescription = "Guest",
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, Color(0xFF0F172A), CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                            Image(
-                                painter = painterResource(id = R.drawable.avatar_clin),
-                                contentDescription = "Guest",
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, Color(0xFF0F172A), CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
+                            listOf("Sarah M.", "Alex K.", "David O.").forEach { guestName ->
+                                CampusStudentAvatar(
+                                    avatarUrl = null,
+                                    fullName = guestName,
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .border(2.dp, Color(0xFF0F172A), CircleShape)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(14.dp))

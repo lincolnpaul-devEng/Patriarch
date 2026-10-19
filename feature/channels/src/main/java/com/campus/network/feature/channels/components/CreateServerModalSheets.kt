@@ -97,7 +97,7 @@ fun CreateServerModalSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var currentMode by remember(mode) { mutableStateOf(mode) }
-    var selectedTemplateTitle by remember { mutableStateOf("Lincoln's") }
+    var selectedTemplateTitle by remember { mutableStateOf("My") }
     var selectedCategory by remember { mutableStateOf("Community") }
 
     ModalBottomSheet(
@@ -122,7 +122,7 @@ fun CreateServerModalSheet(
             }
             ServerSheetMode.CUSTOMIZE_SERVER -> {
                 CustomizeServerContent(
-                    initialName = if (selectedTemplateTitle.contains("Lincoln")) "Lincoln's server" else "$selectedTemplateTitle Server",
+                    initialName = if (selectedTemplateTitle.contains("My")) "My Server" else "$selectedTemplateTitle Server",
                     initialCategory = selectedCategory,
                     onBackClick = { currentMode = ServerSheetMode.CREATE_SERVER },
                     onDismiss = onDismiss,
@@ -216,7 +216,7 @@ fun CreateYourServerContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .clickable { onSelectTemplate("Lincoln's", "Custom") },
+                .clickable { onSelectTemplate("My", "Custom") },
             shape = RoundedCornerShape(16.dp),
             color = Color(0xFFF2F3F5)
         ) {

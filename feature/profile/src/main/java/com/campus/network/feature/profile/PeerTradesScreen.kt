@@ -68,69 +68,15 @@ data class PeerTradeOrder(
 
 @Composable
 fun PeerTradesScreen(
+    initialOrders: List<PeerTradeOrder> = emptyList(),
     onBackClick: () -> Unit,
     onShowFeedback: (String) -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf("Active") }
     val tabs = listOf("Active", "Completed", "Disputes")
 
-    var orders by remember {
-        mutableStateOf(
-            listOf(
-                PeerTradeOrder(
-                    orderId = "ST-9024",
-                    itemTitle = "Apple USB-C Digital AV Multiport Adapter",
-                    price = "KES 3,200",
-                    peerName = "David Kipruto",
-                    peerRole = "Seller",
-                    peerTrust = 97,
-                    rendezvousSpot = "Strathmore Quad B, Bench 4",
-                    rendezvousTime = "Today, 4:00 PM",
-                    status = "SafePay Vault Active",
-                    isActive = true,
-                    isBuyer = true
-                ),
-                PeerTradeOrder(
-                    orderId = "ST-8819",
-                    itemTitle = "Stewart Calculus Early Transcendentals 9th Ed",
-                    price = "KES 2,400",
-                    peerName = "Sarah K.",
-                    peerRole = "Seller",
-                    peerTrust = 96,
-                    rendezvousSpot = "Library Study Lockers (Ground Floor)",
-                    rendezvousTime = "Tomorrow, 10:30 AM",
-                    status = "SafePay Vault Active",
-                    isActive = true,
-                    isBuyer = true
-                ),
-                PeerTradeOrder(
-                    orderId = "ST-7612",
-                    itemTitle = "TI-84 Plus CE Color Graphing Calculator",
-                    price = "KES 8,500",
-                    peerName = "Kevin Cheruiyot",
-                    peerRole = "Buyer",
-                    peerTrust = 98,
-                    rendezvousSpot = "Student Guild Hub Table 4",
-                    rendezvousTime = "12 Oct, 2:15 PM",
-                    status = "Settled & Completed",
-                    isActive = false,
-                    isBuyer = false
-                ),
-                PeerTradeOrder(
-                    orderId = "ST-6540",
-                    itemTitle = "Organic Chemistry Lab Coat & Splash Goggles",
-                    price = "KES 1,250",
-                    peerName = "Brian M.",
-                    peerRole = "Buyer",
-                    peerTrust = 95,
-                    rendezvousSpot = "Phase 1 Science Labs Entrance",
-                    rendezvousTime = "5 Oct, 11:00 AM",
-                    status = "Settled & Completed",
-                    isActive = false,
-                    isBuyer = false
-                )
-            )
-        )
+    var orders by remember(initialOrders) {
+        mutableStateOf(initialOrders)
     }
 
     val filteredOrders = orders.filter { order ->

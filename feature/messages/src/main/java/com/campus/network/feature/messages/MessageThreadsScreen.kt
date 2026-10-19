@@ -153,7 +153,7 @@ fun MessageThreadsScreen(
             // LEFT RAIL (People & Quick Presence Column - Width 72.dp)
             MessagePeopleRail(
                 currentUserNote = uiState.currentUserNote,
-                fullName = uiState.studentProfile?.fullName ?: "Lincoln Kiprotich",
+                fullName = uiState.studentProfile?.fullName?.ifBlank { "Student" } ?: "Student",
                 avatarUrl = uiState.studentProfile?.avatarUrl,
                 activeFriends = activeFriends,
                 onNavigateToServers = {
@@ -566,7 +566,7 @@ fun MessageThreadsScreen(
 @Composable
 private fun MessagePeopleRail(
     currentUserNote: String,
-    fullName: String = "Lincoln Kiprotich",
+    fullName: String = "Student",
     avatarUrl: String? = null,
     activeFriends: List<ConversationThread>,
     onNavigateToServers: () -> Unit,
@@ -1033,7 +1033,6 @@ private fun resolveServerDrawableRes(name: String): Int {
         "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
         "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
         "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
-        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
         else -> com.campus.network.core.ui.R.drawable.server_codesistency
     }
 }

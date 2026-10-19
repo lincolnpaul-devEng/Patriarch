@@ -41,7 +41,7 @@ data class MapUiState(
     val selectedMeet: FlashMeet? = null,
     val joinedMeetIds: Set<String> = emptySet(),
     val isCreateDialogVisible: Boolean = false,
-    val savedPlaceIds: Set<String> = setOf("strat_quad_b", "main_library"),
+    val savedPlaceIds: Set<String> = emptySet(),
     val beenPlaceIds: Set<String> = emptySet(),
     val feedbackMessage: String? = null,
     val navigationMode: MapNavigationMode = MapNavigationMode.MAP,
@@ -51,13 +51,13 @@ data class MapUiState(
     val studentProfile: StudentProfile? = null
 ) {
     val studentName: String
-        get() = studentProfile?.fullName ?: "Lincoln Kiprotich"
+        get() = studentProfile?.fullName?.ifBlank { "Student" } ?: "Student"
 
     val studentFirstName: String
-        get() = studentProfile?.firstName ?: "Lincoln"
+        get() = studentProfile?.firstName?.ifBlank { "Student" } ?: "Student"
 
     val studentInitials: String
-        get() = studentProfile?.initials ?: "LK"
+        get() = studentProfile?.initials ?: "S"
 
     val studentAvatarUrl: String?
         get() = studentProfile?.avatarUrl

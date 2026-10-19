@@ -103,13 +103,15 @@ class LiveStreamRepository(
         senderId: String,
         senderName: String,
         senderAvatarRes: Int,
-        commentText: String
+        commentText: String,
+        senderAvatarUrl: String? = null
     ) = withContext(ioDispatcher) {
         val comment = StreamCommentEntity(
             id = "c-${System.currentTimeMillis()}",
             streamId = streamId,
             senderId = senderId,
             senderName = senderName,
+            senderAvatarUrl = senderAvatarUrl,
             senderAvatarRes = senderAvatarRes,
             commentText = commentText,
             timestampEpochMs = System.currentTimeMillis()

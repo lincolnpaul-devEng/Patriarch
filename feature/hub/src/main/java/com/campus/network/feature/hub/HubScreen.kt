@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Videocam
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -54,10 +55,16 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import coil.compose.AsyncImage
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
@@ -294,7 +301,7 @@ fun HubScreen(
     }
 
     val rawCount = displayItems.size + displayGigs.size
-    val totalListingCount = if (rawCount < 10 && selectedPriceFilter == "Any" && selectedRatingFilter == "Any" && selectedCategory == "All") 68 else rawCount
+    val totalListingCount = rawCount
 
     Box(
         modifier = modifier
@@ -409,10 +416,10 @@ fun HubScreen(
             // -------------------------------------------------------------
             item {
                 val profile = uiState.studentProfile
-                val displayMemberName = profile?.fullName ?: "Lincoln Kiprotich"
-                val displayMaskedId = profile?.studentId?.takeLast(4)?.let { "•••• $it" } ?: "•••• 8842"
-                val displayMeritPoints = "${(profile?.behavioralTrustScore ?: 96) * 15} pts"
-                val displayTrustScore = "${profile?.behavioralTrustScore ?: 96} / 100"
+                val displayMemberName = profile?.fullName?.ifBlank { "Campus Member" } ?: "Campus Member"
+                val displayMaskedId = profile?.studentId?.takeLast(4)?.takeIf { it.isNotBlank() }?.let { "•••• $it" } ?: "•••• 0000"
+                val displayMeritPoints = "${profile?.campusMeritPoints ?: 0} pts"
+                val displayTrustScore = "${profile?.behavioralTrustScore ?: 50} / 100"
 
                 MemberLoyaltyCard(
                     memberName = displayMemberName,
@@ -837,6 +844,7 @@ fun HubScreen(
  * the floating location pill ("Nairobi, Kenya"), and the interactive in-place AI Search Bar
  * with typewriter animated suggestions, soft keyboard auto-popup, and live AI suggestions dropdown.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HeroScenicHeader(
     searchQuery: String,
@@ -897,13 +905,78 @@ private fun HeroScenicHeader(
             .fillMaxWidth()
             .height(headerHeight)
     ) {
-        // 1. Scenic Photography Backdrop
-        Image(
-            painter = painterResource(R.drawable.hero_campus_scenic),
-            contentDescription = "Scenic Campus Backdrop",
-            contentScale = ContentScale.Crop,
+        // 1. Scenic Photography & World Cup 2026 Lottie Animation Hero Slider
+        val heroPagerState = rememberPagerState(pageCount = { 2 })
+
+        // Auto-scroll slider periodically between scenic campus image and World Cup Lottie animation
+        LaunchedEffect(heroPagerState) {
+            while (isActive) {
+                delay(7000L)
+                val nextPage = (heroPagerState.currentPage + 1) % 2
+                heroPagerState.animateScrollToPage(nextPage)
+            }
+        }
+
+        HorizontalPager(
+            state = heroPagerState,
             modifier = Modifier.fillMaxSize()
-        )
+        ) { page ->
+            when (page) {
+                0 -> {
+                    Image(
+                        painter = painterResource(R.drawable.hero_campus_scenic),
+                        contentDescription = "Scenic Campus Backdrop",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                1 -> {
+                    val lottieComposition by rememberLottieComposition(
+                        LottieCompositionSpec.RawRes(com.campus.network.core.ui.R.raw.worldcup_2026_football_animation)
+                    )
+                    val lottieProgress by animateLottieCompositionAsState(
+                        composition = lottieComposition,
+                        iterations = LottieConstants.IterateForever,
+                        isPlaying = true
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF070D18))
+                    ) {
+                        LottieAnimation(
+                            composition = lottieComposition,
+                            progress = { lottieProgress },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            }
+        }
+
+        // Hero Slider Indicators (Scenic Backdrop vs World Cup 2026 Lottie)
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 22.dp, bottom = if (showSuggestions) 145.dp else 85.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.Black.copy(alpha = 0.38f))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(2) { index ->
+                val isSelected = heroPagerState.currentPage == index
+                Box(
+                    modifier = Modifier
+                        .height(3.5.dp)
+                        .width(if (isSelected) 14.dp else 4.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.45f))
+                )
+            }
+        }
 
         // 2. Distant Avian Silhouettes & Atmospheric Vignette (Custom Canvas)
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1434,97 +1507,20 @@ private data class CampusLiveUpdate(
     val isCreateStreamCard: Boolean = false
 )
 
-private val sampleLiveUpdates = listOf(
-    // 1. Celebrating Student Founders (First Item)
-    CampusLiveUpdate(
-        id = "founders",
-        title = "Celebrating student founders",
-        subtitle = "Earn 500 Patriarch Campus Merit Points for your project. Demo day registration open across faculties.",
-        tag = "SPOTLIGHT",
-        isLive = true,
-        liveViewerCount = "1.2k",
-        broadcasterName = "Sara.HM",
-        broadcasterHandle = "sara.hm",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_eliza,
-        imageRes = R.drawable.card_student_founder
-    ),
-    // 2. Empty Card with Gradient Color Layout: "create a stream"
-    CampusLiveUpdate(
-        id = "create_stream",
-        title = "create a stream",
-        subtitle = "Broadcast live to campus peers in real-time",
-        tag = "LIVE STUDIO",
-        isLive = false,
-        broadcasterName = "You",
-        broadcasterHandle = "host",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_eliza,
-        imageRes = null,
-        isCreateStreamCard = true
-    ),
-    // 3. Guild Presidential Debate 2026 (Live Stream)
-    CampusLiveUpdate(
-        id = "guild_debate",
-        title = "Guild Presidential Debate 2026",
-        subtitle = "Streaming live from Taifa Hall Auditorium. Real-time student question queue and policy polling open now.",
-        tag = "LIVE STREAM",
-        isLive = true,
-        liveViewerCount = "1.8k",
-        broadcasterName = "UoN.Guild",
-        broadcasterHandle = "uon.guild",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_junebog,
-        imageRes = R.drawable.hero_campus_scenic
-    ),
-    // 3. GDSC AI Hackathon: Final Pitches (Tech Sprint)
-    CampusLiveUpdate(
-        id = "gdsc_hackathon",
-        title = "GDSC AI Hackathon: Final Pitches",
-        subtitle = "Top 6 finalist student teams showcase live on-device AI demos. Vote for the KES 150,000 SafePay grand prize.",
-        tag = "TECH SPRINT",
-        isLive = true,
-        liveViewerCount = "890",
-        broadcasterName = "GDSC.Build",
-        broadcasterHandle = "gdsc.build",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_ath,
-        imageRes = R.drawable.event_hero_trees
-    ),
-    // 4. SafeTrade Quad Rendezvous & Flea Market
-    CampusLiveUpdate(
-        id = "safetrade_quad",
-        title = "SafeTrade Quad Meetup & Student Market",
-        subtitle = "Safe trade area at Main Quad. Free item inspection, textbook swaps, and secure payments.",
-        tag = "CAMPUS EXCHANGE",
-        isLive = true,
-        liveViewerCount = "620",
-        broadcasterName = "SafeTrade.Hub",
-        broadcasterHandle = "safetrade.hub",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_clin,
-        imageRes = R.drawable.card_campus_landmark
-    ),
-    // 5. Faculty Honors & Research Lab Grants
-    CampusLiveUpdate(
-        id = "research_grants",
-        title = "Faculty Honors & Research Lab Grants",
-        subtitle = "Undergraduate lab grants of up to KES 200,000. Verified research badges sponsored by departmental deans.",
-        tag = "ACADEMIC",
-        isLive = false,
-        broadcasterName = "Research.Dean",
-        broadcasterHandle = "research.dean",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.student_rk,
-        imageRes = R.drawable.place_photo_1
-    ),
-    // 6. Midnight Library Shuttle & SafeWalk Pool
-    CampusLiveUpdate(
-        id = "safe_walk",
-        title = "Midnight Library Shuttle & SafeWalk Pool",
-        subtitle = "Free student security escorts and electric shuttle departing from Library Loop every 15 mins during study season.",
-        tag = "STUDENT GUILD",
-        isLive = false,
-        broadcasterName = "Security.Guild",
-        broadcasterHandle = "guild.security",
-        broadcasterAvatarRes = com.campus.network.core.ui.R.drawable.avatar_andrew,
-        imageRes = R.drawable.place_photo_2
-    )
+private val createStreamLiveUpdate = CampusLiveUpdate(
+    id = "create_stream",
+    title = "create a stream",
+    subtitle = "Broadcast live to campus peers in real-time",
+    tag = "LIVE STUDIO",
+    isLive = false,
+    broadcasterName = "You",
+    broadcasterHandle = "host",
+    broadcasterAvatarRes = 0,
+    imageRes = null,
+    isCreateStreamCard = true
 )
+
+private val sampleLiveUpdates = listOf(createStreamLiveUpdate)
 
 /**
  * Featured Stories Carousel:
@@ -1534,13 +1530,14 @@ private val sampleLiveUpdates = listOf(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun FeaturedStoriesCarousel(onStoryClick: (String) -> Unit) {
+    if (sampleLiveUpdates.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { sampleLiveUpdates.size })
     var isAutoScrollPaused by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Auto-Scroll Loop: Smoothly advances every 4 seconds unless manually dragged or paused
+    // Auto-Scroll Loop: Smoothly advances every 4 seconds unless manually dragged or paused (only when multiple items exist)
     LaunchedEffect(pagerState, isAutoScrollPaused) {
-        if (!isAutoScrollPaused) {
+        if (!isAutoScrollPaused && sampleLiveUpdates.size > 1) {
             while (true) {
                 delay(4000L)
                 if (!pagerState.isScrollInProgress) {
@@ -1578,31 +1575,33 @@ private fun FeaturedStoriesCarousel(onStoryClick: (String) -> Unit) {
                 )
             }
 
-            // Auto-scroll pause/play and page counter
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFFF1F5F9),
-                modifier = Modifier.clickable { isAutoScrollPaused = !isAutoScrollPaused }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (sampleLiveUpdates.size > 1) {
+                // Auto-scroll pause/play and page counter
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.clickable { isAutoScrollPaused = !isAutoScrollPaused }
                 ) {
-                    Icon(
-                        imageVector = if (isAutoScrollPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        contentDescription = if (isAutoScrollPaused) "Resume Auto-scroll" else "Pause Auto-scroll",
-                        tint = Color(0xFF475569),
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${pagerState.currentPage + 1}/${sampleLiveUpdates.size}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF334155),
-                        maxLines = 1,
-                        softWrap = false
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isAutoScrollPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                            contentDescription = if (isAutoScrollPaused) "Resume Auto-scroll" else "Pause Auto-scroll",
+                            tint = Color(0xFF475569),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${pagerState.currentPage + 1}/${sampleLiveUpdates.size}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF334155),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
         }
@@ -1629,37 +1628,39 @@ private fun FeaturedStoriesCarousel(onStoryClick: (String) -> Unit) {
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        if (sampleLiveUpdates.size > 1) {
+            Spacer(modifier = Modifier.height(14.dp))
 
-        // Sleek Animated Progress Indicators Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            sampleLiveUpdates.indices.forEach { index ->
-                val isSelected = pagerState.currentPage == index
-                val width by animateDpAsState(
-                    targetValue = if (isSelected) 26.dp else 7.dp,
-                    label = "indicatorWidth"
-                )
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 3.dp)
-                        .height(6.dp)
-                        .width(width)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(
-                            if (isSelected) BrandBluePrimary else Color(0xFFCBD5E1)
-                        )
-                        .clickable {
-                            scope.launch {
-                                pagerState.animateScrollToPage(index)
+            // Sleek Animated Progress Indicators Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                sampleLiveUpdates.indices.forEach { index ->
+                    val isSelected = pagerState.currentPage == index
+                    val width by animateDpAsState(
+                        targetValue = if (isSelected) 26.dp else 7.dp,
+                        label = "indicatorWidth"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 3.dp)
+                            .height(6.dp)
+                            .width(width)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(
+                                if (isSelected) BrandBluePrimary else Color(0xFFCBD5E1)
+                            )
+                            .clickable {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(index)
+                                }
                             }
-                        }
-                )
+                    )
+                }
             }
         }
     }
@@ -1825,10 +1826,10 @@ private fun LiveUpdateStoryCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
-                        Image(
-                            painter = painterResource(update.broadcasterAvatarRes),
-                            contentDescription = update.broadcasterName,
-                            contentScale = ContentScale.Crop,
+                        CampusStudentAvatar(
+                            avatarUrl = null,
+                            fullName = update.broadcasterName,
+                            fontSize = 12.sp,
                             modifier = Modifier
                                 .size(28.dp)
                                 .clip(CircleShape)
@@ -2189,12 +2190,14 @@ private fun CampusMarketSectionHeader(
                 fontWeight = FontWeight.ExtraBold,
                 color = Color(0xFF0F172A)
             )
-            Text(
-                text = "$listingCount places",
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color(0xFF64748B)
-            )
+            if (listingCount > 0) {
+                Text(
+                    text = "$listingCount places",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFF64748B)
+                )
+            }
         }
 
         Row(
@@ -3374,15 +3377,15 @@ private fun CampusMarketFilterDrawerSheet(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             listOf(
-                                "Any" to "68",
-                                "Under 15 min" to "38",
-                                "Under 30 min" to "54",
-                                "Under 45 min" to "64"
-                            ).forEach { (label, count) ->
+                                "Any",
+                                "Under 15 min",
+                                "Under 30 min",
+                                "Under 45 min"
+                            ).forEach { label ->
                                 val isSelected = walkTimeFilter == label
                                 FilterPill(
                                     label = label,
-                                    count = count,
+                                    count = if (label == "Any" && totalCount > 0) totalCount.toString() else null,
                                     isSelected = isSelected,
                                     onClick = { onSelectWalkTime(label) }
                                 )
@@ -3397,14 +3400,14 @@ private fun CampusMarketFilterDrawerSheet(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             listOf(
-                                "Under KES 500" to "24",
-                                "KES 500-1,500" to "35",
-                                "KES 1,500+" to "9"
-                            ).forEach { (label, count) ->
+                                "Under KES 500",
+                                "KES 500-1,500",
+                                "KES 1,500+"
+                            ).forEach { label ->
                                 val isSelected = priceFilter == label
                                 FilterPill(
                                     label = label,
-                                    count = count,
+                                    count = null,
                                     isSelected = isSelected,
                                     onClick = { onSelectPrice(if (isSelected) "Any" else label) }
                                 )
@@ -3419,14 +3422,14 @@ private fun CampusMarketFilterDrawerSheet(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             listOf(
-                                "4.0 and up" to "58",
-                                "4.5 and up" to "41",
-                                "4.8 and up" to "26"
-                            ).forEach { (label, count) ->
+                                "4.0 and up",
+                                "4.5 and up",
+                                "4.8 and up"
+                            ).forEach { label ->
                                 val isSelected = ratingFilter == label
                                 FilterPill(
                                     label = label,
-                                    count = count,
+                                    count = null,
                                     isSelected = isSelected,
                                     onClick = { onSelectRating(if (isSelected) "Any" else label) }
                                 )
@@ -3441,17 +3444,17 @@ private fun CampusMarketFilterDrawerSheet(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             listOf(
-                                "Textbooks" to "22",
-                                "Tech & Gear" to "18",
-                                "Campus Gigs" to "14",
-                                "Dorm Living" to "12",
-                                "Tutoring" to "10",
-                                "Lab Ready" to "8"
-                            ).forEach { (label, count) ->
+                                "Textbooks",
+                                "Tech & Gear",
+                                "Campus Gigs",
+                                "Dorm Living",
+                                "Tutoring",
+                                "Lab Ready"
+                            ).forEach { label ->
                                 val isSelected = selectedCategory.contains(label, ignoreCase = true)
                                 FilterPill(
                                     label = label,
-                                    count = count,
+                                    count = null,
                                     isSelected = isSelected,
                                     onClick = {
                                         onSelectCategory(if (isSelected) "All" else label)
@@ -3467,12 +3470,10 @@ private fun CampusMarketFilterDrawerSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            listOf(
-                                "Free delivery" to "68"
-                            ).forEach { (label, count) ->
+                            listOf("Free delivery").forEach { label ->
                                 FilterPill(
                                     label = label,
-                                    count = count,
+                                    count = null,
                                     isSelected = isFreePickupOnly,
                                     onClick = { onToggleFreePickup() }
                                 )
@@ -3498,7 +3499,7 @@ private fun CampusMarketFilterDrawerSheet(
                         )
                     ) {
                         Text(
-                            text = "Show $totalCount places",
+                            text = if (totalCount > 0) "Show $totalCount places" else "Apply Filters",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -3537,7 +3538,7 @@ private fun FilterSection(
 @Composable
 private fun FilterPill(
     label: String,
-    count: String,
+    count: String? = null,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -3561,13 +3562,15 @@ private fun FilterPill(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 color = if (isSelected) Color.White else Color(0xFF1E293B)
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = count,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Normal,
-                color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color(0xFF64748B)
-            )
+            if (!count.isNullOrBlank()) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = count,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color(0xFF64748B)
+                )
+            }
         }
     }
 }

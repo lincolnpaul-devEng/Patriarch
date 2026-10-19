@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -144,31 +145,15 @@ fun ServerMemberProfileSheet(
                     modifier = Modifier.size(76.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
+                    val resolvedUrl = member.avatarUrl ?: member.avatarResName?.takeIf { it.startsWith("http") || it.startsWith("content:") }
+                    CampusStudentAvatar(
+                        avatarUrl = resolvedUrl,
+                        fullName = member.serverNickname ?: member.name,
                         modifier = Modifier
                             .size(76.dp)
                             .clip(RoundedCornerShape(22.dp))
-                            .background(Color(0xFFE3E5E8))
-                            .border(3.dp, Color.White, RoundedCornerShape(22.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (member.avatarUrl?.startsWith("http") == true) {
-                            AsyncImage(
-                                model = member.avatarUrl,
-                                contentDescription = member.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            val resId = resolveMemberAvatarDrawable(member.avatarResName)
-                            Image(
-                                painter = painterResource(id = resId),
-                                contentDescription = member.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
+                            .border(3.dp, Color.White, RoundedCornerShape(22.dp))
+                    )
 
                     // Online Status Dot
                     Box(
@@ -281,9 +266,38 @@ fun ServerMemberProfileSheet(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // ACTION BUTTONS ROW (Friend Request & Direct Message)
-                val isSelf = member.name.contains("Lincoln", ignoreCase = true)
-
-                if (!isSelf) {
+                if (member.isSelf) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF5865F2).copy(alpha = 0.08f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF5865F2).copy(alpha = 0.25f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF5865F2),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "This is your server profile",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF5865F2)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -411,13 +425,22 @@ fun ServerMemberProfileSheet(
                             }
                         }
 
-                        // Direct Message Button -> Routes directly into Direct Chat
+                        // Direct Message Button -> Greyed out / disabled until friend request accepted
+                        val canMessage = member.friendStatus == FriendRequestStatus.FRIENDS
                         Button(
                             onClick = {
-                                onDirectMessage(member)
-                                onDismiss()
+                                if (canMessage) {
+                                    onDirectMessage(member)
+                                    onDismiss()
+                                }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2F3F5)),
+                            enabled = canMessage,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (canMessage) Color(0xFF5865F2) else Color(0xFFF2F3F5),
+                                contentColor = if (canMessage) Color.White else Color(0xFF949BA4),
+                                disabledContainerColor = Color(0xFFF2F3F5),
+                                disabledContentColor = Color(0xFF949BA4)
+                            ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -426,13 +449,13 @@ fun ServerMemberProfileSheet(
                             Icon(
                                 imageVector = Icons.Default.Forum,
                                 contentDescription = null,
-                                tint = Color(0xFF1E1F22),
+                                tint = if (canMessage) Color.White else Color(0xFF949BA4),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Message",
-                                color = Color(0xFF1E1F22),
+                                color = if (canMessage) Color.White else Color(0xFF949BA4),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -489,17 +512,4 @@ fun ServerMemberProfileSheet(
     }
 }
 
-private fun resolveMemberAvatarDrawable(name: String?): Int {
-    return when (name) {
-        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
-        "avatar_ath" -> com.campus.network.core.ui.R.drawable.avatar_ath
-        "server_avatar2" -> com.campus.network.core.ui.R.drawable.server_avatar2
-        "server_dragon" -> com.campus.network.core.ui.R.drawable.server_dragon
-        "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
-        "server_curly" -> com.campus.network.core.ui.R.drawable.server_curly
-        "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
-        "server_codesistency" -> com.campus.network.core.ui.R.drawable.server_codesistency
-        "avatar_deleted_user" -> com.campus.network.core.ui.R.drawable.avatar_deleted_user
-        else -> com.campus.network.core.ui.R.drawable.server_avatar2
-    }
-}
+

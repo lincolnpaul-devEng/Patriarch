@@ -41,6 +41,16 @@ sealed class Screen(
         icon = Icons.Default.Home
     )
 
+    data object Verify : Screen(
+        route = "verify?target={target}&isPhone={isPhone}",
+        title = "Verify",
+        icon = Icons.Default.Home
+    ) {
+        fun createRoute(target: String, isPhone: Boolean = false): String =
+            "verify?target=${java.net.URLEncoder.encode(target, "UTF-8")}&isPhone=$isPhone"
+    }
+
+
     data object OnboardingSurvey : Screen(
         route = "onboarding_survey",
         title = "Onboarding Survey",

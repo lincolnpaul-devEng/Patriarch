@@ -1,0 +1,2 @@
+-- Baseline migration already applied on remote Supabase project
+-- Migration ID: 20260818163142

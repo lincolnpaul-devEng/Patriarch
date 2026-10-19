@@ -1,6 +1,9 @@
 package com.campus.network.feature.profile
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,8 +40,10 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleanHands
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
@@ -68,6 +74,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -144,6 +151,7 @@ private val ActionCircleBg = Color(0xFFF1F5F9)
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onBackClick: () -> Unit = {},
+    onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -174,6 +182,7 @@ fun ProfileScreen(
     when (activeSubScreen) {
         ProfileSubScreen.SAVED_BOOKMARKS -> {
             SavedBookmarksScreen(
+                initialItems = emptyList(),
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onOpenItem = { item ->
                     scope.launch {
@@ -185,6 +194,16 @@ fun ProfileScreen(
         }
         ProfileSubScreen.CAMPUS_WALLET -> {
             CampusWalletScreen(
+                profile = profile,
+                onDeposit = { amount ->
+                    viewModel.onEvent(ProfileEvent.DepositWallet(amount))
+                },
+                onWithdraw = { amount ->
+                    viewModel.onEvent(ProfileEvent.WithdrawWallet(amount))
+                },
+                onReleaseVault = { amount ->
+                    viewModel.onEvent(ProfileEvent.ReleaseVault(amount))
+                },
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onShowFeedback = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -203,13 +222,15 @@ fun ProfileScreen(
         }
         ProfileSubScreen.TRUST_SCORE -> {
             TrustScoreScreen(
-                score = profile?.behavioralTrustScore ?: 96,
+                profile = profile,
+                score = profile?.behavioralTrustScore ?: 50,
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE }
             )
             return
         }
         ProfileSubScreen.PEER_TRADES -> {
             PeerTradesScreen(
+                initialOrders = emptyList(),
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onShowFeedback = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -219,7 +240,7 @@ fun ProfileScreen(
         }
         ProfileSubScreen.STORAGE_MANAGER -> {
             StorageManagerScreen(
-                initialUsedBytes = profile?.storageUsedBytes ?: 270_000_000L,
+                initialUsedBytes = profile?.storageUsedBytes ?: 0L,
                 initialQuotaBytes = profile?.storageQuotaBytes ?: 1_073_741_824L,
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onShowFeedback = { msg ->
@@ -230,10 +251,10 @@ fun ProfileScreen(
         }
         ProfileSubScreen.ACADEMIC_PORTFOLIO -> {
             AcademicPortfolioScreen(
-                studentName = profile?.fullName ?: "Lincoln Kiprotich",
-                studentId = profile?.studentId ?: "ST-2024-8842",
-                degreeProgram = profile?.degreeProgram ?: "B.Sc. Informatics & Computer Science",
-                academicYear = profile?.academicYear ?: "3rd Year (Semester 1)",
+                studentName = profile?.fullName?.ifBlank { "Student" } ?: "Student",
+                studentId = profile?.studentId ?: "",
+                degreeProgram = profile?.degreeProgram ?: "",
+                academicYear = profile?.academicYear ?: "",
                 badges = profile?.verifiedSkillBadges ?: emptyList(),
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onShowFeedback = { msg ->
@@ -244,8 +265,25 @@ fun ProfileScreen(
         }
         ProfileSubScreen.RENDEZVOUS_POINTS -> {
             RendezvousPointsScreen(
-                currentResidence = profile?.campusResidence ?: "Strathmore Quad B, Hall 4",
+                profile = profile,
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
+                onSelectSpot = { spotName ->
+                    if (profile != null) {
+                        viewModel.onEvent(
+                            ProfileEvent.UpdateProfile(
+                                fullName = profile.fullName,
+                                universityName = profile.universityName,
+                                degreeProgram = profile.degreeProgram,
+                                academicYear = profile.academicYear,
+                                campusResidence = profile.campusResidence,
+                                phoneNumber = profile.phoneNumber,
+                                bio = profile.bio,
+                                interests = profile.interests,
+                                avatarUrl = profile.avatarUrl
+                            )
+                        )
+                    }
+                },
                 onShowFeedback = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -290,31 +328,53 @@ fun ProfileScreen(
                         )
                     }
 
-                    // Multi-Profile Switcher Button
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White)
-                            .border(1.dp, CardBorderLight, RoundedCornerShape(20.dp))
-                            .clickable { showMultiProfileSheet = true }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.SwapHoriz,
-                            contentDescription = null,
-                            tint = Color(0xFF007AFF),
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = profile?.personaRole ?: "Undergraduate Student",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        // Multi-Profile Switcher Button
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White)
+                                .border(1.dp, CardBorderLight, RoundedCornerShape(20.dp))
+                                .clickable { showMultiProfileSheet = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapHoriz,
+                                contentDescription = null,
+                                tint = Color(0xFF007AFF),
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = profile?.personaRole ?: "Undergraduate Student",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Quick Sign Out Button in Header
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFEE2E2))
+                                .clickable { showLogOutDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = "Sign Out",
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -372,12 +432,19 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column {
+                        val completenessScore = calculateProfileCompleteness(profile)
+                        val (completenessBg, completenessTextColor) = when {
+                            completenessScore >= 80 -> Pair(Color(0xFFDCFCE7), Color(0xFF16A34A))
+                            completenessScore >= 40 -> Pair(Color(0xFFFEF3C7), Color(0xFFD97706))
+                            else -> Pair(PillPinkBg, PillPinkText)
+                        }
+
                         ActionListRow(
                             icon = Icons.Default.Person,
                             title = "Edit Profile & Credentials",
-                            badgeText = "Complete 100%",
-                            badgeBg = PillPinkBg,
-                            badgeTextColor = PillPinkText,
+                            badgeText = "Complete $completenessScore%",
+                            badgeBg = completenessBg,
+                            badgeTextColor = completenessTextColor,
                             onClick = { showEditProfileDialog = true }
                         )
 
@@ -390,7 +457,7 @@ fun ProfileScreen(
                         ActionListRow(
                             icon = Icons.Default.School,
                             title = "Verified Academic Portfolio",
-                            badgeText = "${profile?.verifiedSkillBadges?.size ?: 3} Badges",
+                            badgeText = "${profile?.verifiedSkillBadges?.size ?: 0} Badges",
                             badgeBg = PillGreyBg,
                             badgeTextColor = PillGreyText,
                             onClick = { activeSubScreen = ProfileSubScreen.ACADEMIC_PORTFOLIO }
@@ -420,7 +487,7 @@ fun ProfileScreen(
                         ActionListRow(
                             icon = Icons.Default.StarOutline,
                             title = "Behavioral Trust Score",
-                            badgeText = "${profile?.behavioralTrustScore ?: 96} / 100",
+                            badgeText = "${profile?.behavioralTrustScore ?: 50} / 100",
                             badgeBg = PillGreyBg,
                             badgeTextColor = PillGreyText,
                             onClick = { activeSubScreen = ProfileSubScreen.TRUST_SCORE }
@@ -434,7 +501,7 @@ fun ProfileScreen(
             // -------------------------------------------------------------
             item {
                 ProfileStorageCard(
-                    usedBytes = profile?.storageUsedBytes ?: 348_000_000L,
+                    usedBytes = profile?.storageUsedBytes ?: 0L,
                     quotaBytes = profile?.storageQuotaBytes ?: 1_073_741_824L,
                     onClearCache = { viewModel.onEvent(ProfileEvent.ClearCache) },
                     onUpgradeStorage = { activeSubScreen = ProfileSubScreen.STORAGE_MANAGER }
@@ -557,6 +624,17 @@ fun ProfileScreen(
                                 }
                             }
                         )
+
+                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFF1F3F6))
+
+                        ActionListRow(
+                            icon = Icons.AutoMirrored.Filled.Logout,
+                            title = "Sign Out of Account",
+                            badgeText = "Sign out",
+                            badgeBg = PillPinkBg,
+                            badgeTextColor = PillPinkText,
+                            onClick = { showLogOutDialog = true }
+                        )
                     }
                 }
             }
@@ -580,7 +658,7 @@ fun ProfileScreen(
                         ActionListRow(
                             icon = Icons.Default.ShoppingBag,
                             title = "SafeTrades & Orders",
-                            badgeText = "2 Active",
+                            badgeText = "0 Active",
                             badgeBg = PillPinkBg,
                             badgeTextColor = PillPinkText,
                             onClick = { activeSubScreen = ProfileSubScreen.PEER_TRADES }
@@ -595,7 +673,7 @@ fun ProfileScreen(
                         ActionListRow(
                             icon = Icons.Default.FavoriteBorder,
                             title = "Saved Listings & Watchlist",
-                            badgeText = "5 Saved",
+                            badgeText = "${profile?.savedListingIds?.size ?: 0} Saved",
                             badgeBg = PillGreyBg,
                             badgeTextColor = PillGreyText,
                             onClick = { activeSubScreen = ProfileSubScreen.SAVED_BOOKMARKS }
@@ -610,7 +688,7 @@ fun ProfileScreen(
                         ActionListRow(
                             icon = Icons.Default.Home,
                             title = "Campus Rendezvous Points",
-                            badgeText = profile?.campusResidence ?: "Quad B, Hall 4",
+                            badgeText = profile?.preferredRendezvousPoint?.ifBlank { null } ?: profile?.campusResidence?.ifBlank { null } ?: "Set location",
                             badgeBg = PillGreyBg,
                             badgeTextColor = PillGreyText,
                             onClick = { activeSubScreen = ProfileSubScreen.RENDEZVOUS_POINTS }
@@ -727,12 +805,13 @@ fun ProfileScreen(
         )
     }
 
-    // 2. Edit Profile Modal
-    if (showEditProfileDialog && profile != null) {
-        EditProfileDialog(
-            profile = profile,
+    // 2. Edit Profile Drawer Sheet
+    if (showEditProfileDialog) {
+        val targetProfile = profile ?: com.campus.network.core.model.StudentProfile()
+        EditProfileDrawerSheet(
+            profile = targetProfile,
             onDismiss = { showEditProfileDialog = false },
-            onSave = { name, university, program, year, residence, phone, bio, interests ->
+            onSave = { name, university, program, year, residence, phone, bio, interests, avatarUrl ->
                 viewModel.onEvent(
                     ProfileEvent.UpdateProfile(
                         fullName = name,
@@ -742,7 +821,8 @@ fun ProfileScreen(
                         campusResidence = residence,
                         phoneNumber = phone,
                         bio = bio,
-                        interests = interests
+                        interests = interests,
+                        avatarUrl = avatarUrl
                     )
                 )
                 showEditProfileDialog = false
@@ -784,16 +864,14 @@ fun ProfileScreen(
                 Button(
                     onClick = {
                         showLogOutDialog = false
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Logged out successfully.")
-                        }
+                        onSignOut()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0F172A),
+                        containerColor = Color(0xFFDC2626),
                         contentColor = Color.White
                     )
                 ) {
-                    Text("Log Out", color = Color.White)
+                    Text("Sign Out", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -917,9 +995,9 @@ private fun LuxuryGoldProfileCard(
     onViewActivityClick: () -> Unit,
     onOfferClick: () -> Unit
 ) {
-    val studentName = profile?.fullName ?: "Lincoln Kiprotich"
-    val studentEmail = profile?.universityEmail ?: "l.kiprotich@strathmore.edu"
-    val initial = studentName.firstOrNull()?.toString() ?: "L"
+    val studentName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+    val studentEmail = profile?.universityEmail ?: ""
+    val initial = studentName.firstOrNull()?.toString()?.uppercase() ?: "S"
     val hasNote = !profile?.statusNote.isNullOrBlank()
 
     Card(
@@ -1550,11 +1628,12 @@ private fun SetStatusNoteDialog(
 }
 
 // =================================================================
-// 2. FULL PROFILE EDITOR DIALOG (Edit Profile)
+// 2. FULL PROFILE EDITOR DRAWER SHEET (Edit Profile & Avatar)
 // =================================================================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EditProfileDialog(
+private fun EditProfileDrawerSheet(
     profile: StudentProfile,
     onDismiss: () -> Unit,
     onSave: (
@@ -1565,10 +1644,12 @@ private fun EditProfileDialog(
         residence: String,
         phone: String,
         bio: String,
-        interests: List<String>
+        interests: List<String>,
+        avatarUrl: String?
     ) -> Unit
 ) {
     var fullName by remember { mutableStateOf(profile.fullName) }
+    var avatarUrl by remember { mutableStateOf(profile.avatarUrl ?: "") }
     var universityName by remember { mutableStateOf(profile.universityName) }
     var degreeProgram by remember { mutableStateOf(profile.degreeProgram) }
     var academicYear by remember { mutableStateOf(profile.academicYear) }
@@ -1578,23 +1659,207 @@ private fun EditProfileDialog(
     val interests = remember { mutableStateListOf(*profile.interests.toTypedArray()) }
     var newInterestInput by remember { mutableStateOf("") }
 
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Text("Edit Student Credentials & Profile", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        },
-        text = {
-            LazyColumn(
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(48.dp)
+                    .height(5.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFCBD5E1))
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+        ) {
+            // Header Row
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Column {
+                    Text(
+                        text = "Edit Profile & Credentials",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "Update your verified student persona and avatar",
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color(0xFF64748B)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Avatar Editor Section (Upload via gallery picker only - persisted to Cloudinary)
+                item {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val uploadScope = rememberCoroutineScope()
+                    var isUploadingAvatar by remember { mutableStateOf(false) }
+                    var avatarUploadError by remember { mutableStateOf<String?>(null) }
+
+                    val imagePickerLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.GetContent()
+                    ) { uri: Uri? ->
+                        if (uri != null) {
+                            isUploadingAvatar = true
+                            avatarUploadError = null
+                            uploadScope.launch {
+                                val result = com.campus.network.core.network.CloudinaryUploader().uploadFromUri(context, uri)
+                                isUploadingAvatar = false
+                                if (result.isSuccess) {
+                                    avatarUrl = result.getOrThrow()
+                                } else {
+                                    avatarUploadError = "Upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Network error"}"
+                                }
+                            }
+                        }
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, CardBorderLight),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { if (!isUploadingAvatar) imagePickerLauncher.launch("image/*") }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF1E293B))
+                                    .border(2.dp, GoldAccent, CircleShape)
+                                    .clickable { if (!isUploadingAvatar) imagePickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CampusStudentAvatar(
+                                    avatarUrl = avatarUrl.ifBlank { null },
+                                    fullName = fullName.ifBlank { "Student" },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                if (isUploadingAvatar) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0x99000000)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            color = GoldAccent,
+                                            strokeWidth = 2.5.dp,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0x4D000000)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CameraAlt,
+                                            contentDescription = "Upload Photo",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Profile Avatar Photo",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isUploadingAvatar) "Uploading to Cloud..." else "Tap avatar to select from gallery",
+                                    fontSize = 12.5.sp,
+                                    color = if (isUploadingAvatar) Color(0xFF007AFF) else Color(0xFF64748B)
+                                )
+                                if (avatarUploadError != null) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = avatarUploadError!!,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFDC2626)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = { if (!isUploadingAvatar) imagePickerLauncher.launch("image/*") },
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                    enabled = !isUploadingAvatar,
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudUpload,
+                                        contentDescription = null,
+                                        tint = Color(0xFF0F172A),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isUploadingAvatar) "Uploading..." else "Select Photo",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item {
                     OutlinedTextField(
                         value = fullName,
                         onValueChange = { fullName = it },
                         label = { Text("Full Name") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1605,7 +1870,7 @@ private fun EditProfileDialog(
                         label = { Text("Student ID (Verified)") },
                         enabled = false,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1615,7 +1880,7 @@ private fun EditProfileDialog(
                         onValueChange = { universityName = it },
                         label = { Text("University / Campus") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1625,7 +1890,7 @@ private fun EditProfileDialog(
                         onValueChange = { degreeProgram = it },
                         label = { Text("Degree / Program") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1635,7 +1900,7 @@ private fun EditProfileDialog(
                         onValueChange = { academicYear = it },
                         label = { Text("Academic Year / Semester") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1645,7 +1910,7 @@ private fun EditProfileDialog(
                         onValueChange = { campusResidence = it },
                         label = { Text("Campus Residence / Quad Hall") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1655,7 +1920,7 @@ private fun EditProfileDialog(
                         onValueChange = { phoneNumber = it },
                         label = { Text("Phone Number (Escrow SMS)") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
@@ -1663,9 +1928,9 @@ private fun EditProfileDialog(
                     OutlinedTextField(
                         value = bio,
                         onValueChange = { if (it.length <= 200) bio = it },
-                        label = { Text("Bio / Academic Summary") },
+                        label = { Text("Bio / Academic Focus") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         supportingText = { Text("${bio.length}/200") }
                     )
                 }
@@ -1682,22 +1947,25 @@ private fun EditProfileDialog(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(PillGreyBg)
                                     .clickable { interests.remove(skill) }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("$skill ✕", fontSize = 11.sp, color = Color(0xFF334155))
+                                Text("$skill ✕", fontSize = 12.sp, color = Color(0xFF334155), fontWeight = FontWeight.Medium)
                             }
                         }
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
                         OutlinedTextField(
                             value = newInterestInput,
                             onValueChange = { newInterestInput = it },
                             placeholder = { Text("Add skill tag...") },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(10.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
                                 if (newInterestInput.isNotBlank()) {
@@ -1705,46 +1973,65 @@ private fun EditProfileDialog(
                                     newInterestInput = ""
                                 }
                             },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF0F172A),
                                 contentColor = Color.White
                             )
                         ) {
-                            Text("Add", color = Color.White)
+                            Text("Add", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(
-                        fullName,
-                        universityName,
-                        degreeProgram,
-                        academicYear,
-                        campusResidence,
-                        phoneNumber,
-                        bio,
-                        interests.toList()
-                    )
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF007AFF),
-                    contentColor = Color.White
-                )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Actions Bottom Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Save Changes", color = Color.White)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                OutlinedButton(
+                    onClick = onDismiss,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                }
+
+                Button(
+                    onClick = {
+                        onSave(
+                            fullName,
+                            universityName,
+                            degreeProgram,
+                            academicYear,
+                            campusResidence,
+                            phoneNumber,
+                            bio,
+                            interests.toList(),
+                            avatarUrl.ifBlank { null }
+                        )
+                    },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DarkCardBg,
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .weight(1.5f)
+                        .height(52.dp)
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         }
-    )
+    }
 }
 
 // =================================================================
@@ -1892,7 +2179,7 @@ private fun MultiProfileSheet(
                     value = newName,
                     onValueChange = { newName = it },
                     label = { Text("Display Name") },
-                    placeholder = { Text("e.g. Lincoln (Guild Rep)") },
+                    placeholder = { Text("e.g. Student (Guild Rep)") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -2313,4 +2600,19 @@ private fun QuestDeckListRow(
             }
         }
     }
+}
+
+private fun calculateProfileCompleteness(profile: StudentProfile?): Int {
+    if (profile == null) return 0
+    var score = 0
+    if (profile.fullName.isNotBlank()) score += 15
+    if (profile.universityEmail.isNotBlank()) score += 10
+    if (profile.universityName.isNotBlank()) score += 15
+    if (profile.degreeProgram.isNotBlank()) score += 10
+    if (profile.academicYear.isNotBlank()) score += 10
+    if (profile.campusResidence.isNotBlank()) score += 10
+    if (profile.phoneNumber.isNotBlank()) score += 10
+    if (profile.bio.isNotBlank()) score += 10
+    if (!profile.avatarUrl.isNullOrBlank()) score += 10
+    return score.coerceIn(0, 100)
 }

@@ -39,6 +39,8 @@ import com.campus.network.core.database.dao.StreamCommentDao;
 import com.campus.network.core.database.dao.StreamCommentDao_Impl;
 import com.campus.network.core.database.dao.StreamerProfileDao;
 import com.campus.network.core.database.dao.StreamerProfileDao_Impl;
+import com.campus.network.core.database.dao.StudentProfileDao;
+import com.campus.network.core.database.dao.StudentProfileDao_Impl;
 import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
@@ -82,10 +84,12 @@ public final class CampusDatabase_Impl extends CampusDatabase {
 
   private volatile ServerInviteDao _serverInviteDao;
 
+  private volatile StudentProfileDao _studentProfileDao;
+
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(8) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(11) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `flash_meets` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL, `creatorAvatar` TEXT, `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL, PRIMARY KEY(`id`))");
@@ -102,8 +106,9 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         db.execSQL("CREATE TABLE IF NOT EXISTS `server_members` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `serverId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `handle` TEXT NOT NULL, `role` TEXT NOT NULL, `roleTitle` TEXT NOT NULL, `roleColorHex` INTEGER NOT NULL, `avatarUrl` TEXT, `avatarResName` TEXT NOT NULL, `isOnline` INTEGER NOT NULL, `customStatus` TEXT, `joinedAtEpochMs` INTEGER NOT NULL, `badge` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `friends` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `friendUserId` TEXT NOT NULL, `friendDisplayName` TEXT NOT NULL, `friendHandle` TEXT NOT NULL, `friendAvatarResName` TEXT NOT NULL, `status` TEXT NOT NULL, `lastInteractionEpochMs` INTEGER NOT NULL, `dmChannelId` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `server_invites` (`code` TEXT NOT NULL, `serverId` TEXT NOT NULL, `serverName` TEXT NOT NULL, `inviterId` TEXT NOT NULL, `inviterName` TEXT NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `maxUses` INTEGER NOT NULL, `usesCount` INTEGER NOT NULL, `isRevoked` INTEGER NOT NULL, PRIMARY KEY(`code`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `campusprofile` (`id` TEXT NOT NULL, `studentId` TEXT NOT NULL, `fullName` TEXT NOT NULL, `avatarUrl` TEXT, `universityEmail` TEXT NOT NULL, `universityName` TEXT NOT NULL, `degreeProgram` TEXT NOT NULL, `academicYear` TEXT NOT NULL, `campusResidence` TEXT NOT NULL, `phoneNumber` TEXT NOT NULL, `bio` TEXT NOT NULL, `consistencyStreakDays` INTEGER NOT NULL, `behavioralTrustScore` INTEGER NOT NULL, `campusMeritPoints` INTEGER NOT NULL, `preferredRendezvousPoint` TEXT NOT NULL, `personaRole` TEXT NOT NULL, `statusNote` TEXT, `statusNoteEmoji` TEXT, `statusNoteExpiry` TEXT, `storageUsedBytes` INTEGER NOT NULL, `storageQuotaBytes` INTEGER NOT NULL, `notificationsEnabled` INTEGER NOT NULL, `escrowAlertsEnabled` INTEGER NOT NULL, `questRemindersEnabled` INTEGER NOT NULL, `isTrustScorePublic` INTEGER NOT NULL, `isOnlineStatusVisible` INTEGER NOT NULL, `activityLedgerVisibility` TEXT NOT NULL, `locationPrivacyScope` TEXT NOT NULL, `walletBalance` REAL NOT NULL, `vaultProtectedBalance` REAL NOT NULL, `onboardingPreferencesJson` TEXT NOT NULL, `interestsCsv` TEXT NOT NULL, `savedListingIdsCsv` TEXT NOT NULL, `watchlistIdsCsv` TEXT NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '139ba08dfc8aea12c62092662f88fe8a')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '344a07209e8426894f685fd20822f30f')");
       }
 
       @Override
@@ -122,6 +127,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
         db.execSQL("DROP TABLE IF EXISTS `server_members`");
         db.execSQL("DROP TABLE IF EXISTS `friends`");
         db.execSQL("DROP TABLE IF EXISTS `server_invites`");
+        db.execSQL("DROP TABLE IF EXISTS `campusprofile`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -465,9 +471,53 @@ public final class CampusDatabase_Impl extends CampusDatabase {
                   + " Expected:\n" + _infoServerInvites + "\n"
                   + " Found:\n" + _existingServerInvites);
         }
+        final HashMap<String, TableInfo.Column> _columnsCampusprofile = new HashMap<String, TableInfo.Column>(34);
+        _columnsCampusprofile.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("studentId", new TableInfo.Column("studentId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("fullName", new TableInfo.Column("fullName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("avatarUrl", new TableInfo.Column("avatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("universityEmail", new TableInfo.Column("universityEmail", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("universityName", new TableInfo.Column("universityName", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("degreeProgram", new TableInfo.Column("degreeProgram", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("academicYear", new TableInfo.Column("academicYear", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("campusResidence", new TableInfo.Column("campusResidence", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("phoneNumber", new TableInfo.Column("phoneNumber", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("bio", new TableInfo.Column("bio", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("consistencyStreakDays", new TableInfo.Column("consistencyStreakDays", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("behavioralTrustScore", new TableInfo.Column("behavioralTrustScore", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("campusMeritPoints", new TableInfo.Column("campusMeritPoints", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("preferredRendezvousPoint", new TableInfo.Column("preferredRendezvousPoint", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("personaRole", new TableInfo.Column("personaRole", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("statusNote", new TableInfo.Column("statusNote", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("statusNoteEmoji", new TableInfo.Column("statusNoteEmoji", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("statusNoteExpiry", new TableInfo.Column("statusNoteExpiry", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("storageUsedBytes", new TableInfo.Column("storageUsedBytes", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("storageQuotaBytes", new TableInfo.Column("storageQuotaBytes", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("notificationsEnabled", new TableInfo.Column("notificationsEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("escrowAlertsEnabled", new TableInfo.Column("escrowAlertsEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("questRemindersEnabled", new TableInfo.Column("questRemindersEnabled", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("isTrustScorePublic", new TableInfo.Column("isTrustScorePublic", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("isOnlineStatusVisible", new TableInfo.Column("isOnlineStatusVisible", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("activityLedgerVisibility", new TableInfo.Column("activityLedgerVisibility", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("locationPrivacyScope", new TableInfo.Column("locationPrivacyScope", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("walletBalance", new TableInfo.Column("walletBalance", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("vaultProtectedBalance", new TableInfo.Column("vaultProtectedBalance", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("onboardingPreferencesJson", new TableInfo.Column("onboardingPreferencesJson", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("interestsCsv", new TableInfo.Column("interestsCsv", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("savedListingIdsCsv", new TableInfo.Column("savedListingIdsCsv", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCampusprofile.put("watchlistIdsCsv", new TableInfo.Column("watchlistIdsCsv", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysCampusprofile = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesCampusprofile = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoCampusprofile = new TableInfo("campusprofile", _columnsCampusprofile, _foreignKeysCampusprofile, _indicesCampusprofile);
+        final TableInfo _existingCampusprofile = TableInfo.read(db, "campusprofile");
+        if (!_infoCampusprofile.equals(_existingCampusprofile)) {
+          return new RoomOpenHelper.ValidationResult(false, "campusprofile(com.campus.network.core.database.entity.StudentProfileEntity).\n"
+                  + " Expected:\n" + _infoCampusprofile + "\n"
+                  + " Found:\n" + _existingCampusprofile);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "139ba08dfc8aea12c62092662f88fe8a", "8fda3614023702258b0a788604693b3f");
+    }, "344a07209e8426894f685fd20822f30f", "2c8e5be6d8b71cf30fc7aa35284ba6c3");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -478,7 +528,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "flash_meets","academic_channels","chat_messages","market_items","micro_gigs","live_streams","streamer_profiles","stream_comments","servers","server_channels","server_rules","server_members","friends","server_invites");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "flash_meets","academic_channels","chat_messages","market_items","micro_gigs","live_streams","streamer_profiles","stream_comments","servers","server_channels","server_rules","server_members","friends","server_invites","campusprofile");
   }
 
   @Override
@@ -501,6 +551,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
       _db.execSQL("DELETE FROM `server_members`");
       _db.execSQL("DELETE FROM `friends`");
       _db.execSQL("DELETE FROM `server_invites`");
+      _db.execSQL("DELETE FROM `campusprofile`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();
@@ -529,6 +580,7 @@ public final class CampusDatabase_Impl extends CampusDatabase {
     _typeConvertersMap.put(ServerMemberDao.class, ServerMemberDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(FriendDao.class, FriendDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(ServerInviteDao.class, ServerInviteDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(StudentProfileDao.class, StudentProfileDao_Impl.getRequiredConverters());
     return _typeConvertersMap;
   }
 
@@ -739,6 +791,20 @@ public final class CampusDatabase_Impl extends CampusDatabase {
           _serverInviteDao = new ServerInviteDao_Impl(this);
         }
         return _serverInviteDao;
+      }
+    }
+  }
+
+  @Override
+  public StudentProfileDao studentProfileDao() {
+    if (_studentProfileDao != null) {
+      return _studentProfileDao;
+    } else {
+      synchronized(this) {
+        if(_studentProfileDao == null) {
+          _studentProfileDao = new StudentProfileDao_Impl(this);
+        }
+        return _studentProfileDao;
       }
     }
   }

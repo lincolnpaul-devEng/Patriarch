@@ -4,12 +4,14 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.header
 import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,12 +39,13 @@ class SupabaseClientProvider(
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
-            val response: HttpResponse = client.get("$supabaseUrl/rest/v1/$tableName?select=$selectQuery") {
+            val querySeparator = if ('?' in tableName) '&' else '?'
+            val response: HttpResponse = client.get("$supabaseUrl/rest/v1/$tableName${querySeparator}select=$selectQuery") {
                 header("apikey", anonKey)
                 header("Authorization", "Bearer ${userJwt ?: anonKey}")
                 header("Accept", "application/json")
             }
-            response.bodyAsText()
+            response.bodyOrThrow()
         }
     }
 
@@ -62,8 +65,62 @@ class SupabaseClientProvider(
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
             }
-            response.bodyAsText()
+            response.bodyOrThrow()
         }
+    }
+
+    /**
+     * Updates records in a Supabase table using PATCH with filter query.
+     */
+    suspend fun updateRecord(
+        tableAndQuery: String,
+        jsonPayload: String,
+        userJwt: String? = null
+    ): Result<String> = withContext(ioDispatcher) {
+        runCatching {
+            val response: HttpResponse = client.patch("$supabaseUrl/rest/v1/$tableAndQuery") {
+                header("apikey", anonKey)
+                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Prefer", "return=representation")
+                contentType(ContentType.Application.Json)
+                setBody(jsonPayload)
+            }
+            response.bodyOrThrow()
+        }
+    }
+
+    /**
+     * Upserts records into a Supabase table using merge-duplicates.
+     */
+    suspend fun upsertRecord(
+        tableName: String,
+        jsonPayload: String,
+        onConflict: String? = null,
+        userJwt: String? = null
+    ): Result<String> = withContext(ioDispatcher) {
+        runCatching {
+            val endpoint = if (onConflict.isNullOrBlank()) {
+                "$supabaseUrl/rest/v1/$tableName"
+            } else {
+                "$supabaseUrl/rest/v1/$tableName?on_conflict=$onConflict"
+            }
+            val response: HttpResponse = client.post(endpoint) {
+                header("apikey", anonKey)
+                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Prefer", "resolution=merge-duplicates,return=representation")
+                contentType(ContentType.Application.Json)
+                setBody(jsonPayload)
+            }
+            response.bodyOrThrow()
+        }
+    }
+
+    private suspend fun HttpResponse.bodyOrThrow(): String {
+        val body = bodyAsText()
+        check(status.isSuccess()) {
+            "Supabase request failed (HTTP ${status.value}): ${body.take(500)}"
+        }
+        return body
     }
 
     /**

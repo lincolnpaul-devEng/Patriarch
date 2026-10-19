@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -366,18 +367,35 @@ fun ChannelChatScreen(
                     transcriber.stopListening()
                     isVoiceRecordingActive = false
                 }
-                if (inputText.isNotBlank() || selectedMediaUris.isNotEmpty()) {
-                    val urisToSend = selectedMediaUris.map { it.toString() }
-                    viewModel.onEvent(
-                        ChannelsEvent.SendChannelMessage(
-                            text = inputText.trim(),
-                            imageUris = urisToSend
-                        )
-                    )
+                val textToSend = inputText.trim()
+                val mediaToSend = selectedMediaUris.toList()
+                if (textToSend.isNotBlank() || mediaToSend.isNotEmpty()) {
                     inputText = ""
                     selectedMediaUris.clear()
                     if (uiState.isMediaDrawerOpen) {
                         viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                    }
+                    if (mediaToSend.isNotEmpty()) {
+                        coroutineScope.launch {
+                            val uploader = com.campus.network.core.network.CloudinaryUploader()
+                            val uploaded = mediaToSend.map { uri ->
+                                val res = uploader.uploadFromUri(context, uri)
+                                if (res.isSuccess) res.getOrThrow() else uri.toString()
+                            }
+                            viewModel.onEvent(
+                                ChannelsEvent.SendChannelMessage(
+                                    text = textToSend,
+                                    imageUris = uploaded
+                                )
+                            )
+                        }
+                    } else {
+                        viewModel.onEvent(
+                            ChannelsEvent.SendChannelMessage(
+                                text = textToSend,
+                                imageUris = emptyList()
+                            )
+                        )
                     }
                 }
             }
@@ -616,11 +634,9 @@ private fun ChannelMessageItem(
                     .clip(CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                val avatarRes = resolveAvatarDrawable(message.authorAvatarRes)
-                Image(
-                    painter = painterResource(avatarRes),
-                    contentDescription = message.authorName,
-                    contentScale = ContentScale.Crop,
+                CampusStudentAvatar(
+                    avatarUrl = message.authorAvatarRes,
+                    fullName = message.authorName,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -1370,10 +1386,7 @@ private fun MediaAttachmentDrawer(
                 com.campus.network.core.ui.R.drawable.event_thumb_paws,
                 com.campus.network.core.ui.R.drawable.student_rk,
                 com.campus.network.core.ui.R.drawable.student_andrew,
-                com.campus.network.core.ui.R.drawable.student_june,
-                com.campus.network.core.ui.R.drawable.avatar_lincoln,
-                com.campus.network.core.ui.R.drawable.avatar_ath,
-                com.campus.network.core.ui.R.drawable.avatar_junebog
+                com.campus.network.core.ui.R.drawable.student_june
             )
             for (resId in campusDrawables) {
                 val uri = Uri.parse("android.resource://${context.packageName}/$resId")
@@ -1519,18 +1532,4 @@ private fun MediaAttachmentDrawer(
     }
 }
 
-/**
- * Avatar lookup helper
- */
-private fun resolveAvatarDrawable(name: String?): Int {
-    return when (name) {
-        "avatar_deleted_user" -> com.campus.network.core.ui.R.drawable.avatar_deleted_user
-        "avatar_ath" -> com.campus.network.core.ui.R.drawable.avatar_ath
-        "server_avatar2" -> com.campus.network.core.ui.R.drawable.server_avatar2
-        "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
-        "server_dragon" -> com.campus.network.core.ui.R.drawable.server_dragon
-        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
-        "server_codesistency" -> com.campus.network.core.ui.R.drawable.server_codesistency
-        else -> com.campus.network.core.ui.R.drawable.avatar_lincoln
-    }
-}
+

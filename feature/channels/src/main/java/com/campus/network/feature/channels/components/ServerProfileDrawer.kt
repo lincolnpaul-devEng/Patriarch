@@ -34,15 +34,20 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.campus.network.feature.channels.model.ServerMemberItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +86,8 @@ fun ServerProfileDrawer(
     isOpen: Boolean,
     server: ServerItem,
     userProfile: com.campus.network.feature.channels.model.PerServerProfile? = null,
+    members: List<ServerMemberItem> = emptyList(),
+    isOwner: Boolean = false,
     onDismiss: () -> Unit,
     onInviteClick: () -> Unit,
     onMarkAsReadClick: () -> Unit,
@@ -88,8 +95,10 @@ fun ServerProfileDrawer(
     onEditProfileClick: () -> Unit,
     onMembersClick: () -> Unit = {},
     onLeaveServerClick: () -> Unit,
+    onDeleteServerClick: () -> Unit = {},
     onCreateChannelClick: () -> Unit = {},
     onRulesClick: () -> Unit = {},
+    onNotificationSettingChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (!isOpen) return
@@ -100,6 +109,26 @@ fun ServerProfileDrawer(
     var hideMutedChannels by remember { mutableStateOf(false) }
     var allowDirectMessages by remember { mutableStateOf(true) }
     var allowMessageRequests by remember { mutableStateOf(true) }
+
+    var showBoostsDialog by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+    var selectedNotificationSetting by remember { mutableStateOf("All Messages") }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var selectedReportReason by remember { mutableStateOf("Spam or Advertising") }
+    var showReportConfirmation by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showLeaveConfirmation by remember { mutableStateOf(false) }
+
+    val onlineCount = if (members.isNotEmpty()) {
+        members.count { it.isOnline }.coerceAtLeast(1)
+    } else {
+        1
+    }
+    val totalCount = if (members.isNotEmpty()) {
+        members.size
+    } else {
+        server.memberCount.coerceAtLeast(1)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -229,7 +258,7 @@ fun ServerProfileDrawer(
                             .background(Color(0xFF23A55A))
                     )
                     Text(
-                        text = "1,082 Online",
+                        text = "$onlineCount Online",
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Normal,
                         color = Color(0xFF5C6470)
@@ -247,7 +276,7 @@ fun ServerProfileDrawer(
                             .background(Color(0xFF80848E))
                     )
                     Text(
-                        text = server.memberCountText.ifBlank { "48,076 Members" },
+                        text = "$totalCount ${if (totalCount == 1) "Member" else "Members"}",
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Normal,
                         color = Color(0xFF5C6470)
@@ -267,7 +296,7 @@ fun ServerProfileDrawer(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { /* Boosts info */ }
+                            .clickable { showBoostsDialog = true }
                     ) {
                         Surface(
                             modifier = Modifier.size(56.dp),
@@ -327,7 +356,7 @@ fun ServerProfileDrawer(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { /* Notifications settings */ }
+                            .clickable { showNotificationsDialog = true }
                     ) {
                         Surface(
                             modifier = Modifier.size(56.dp),
@@ -394,21 +423,23 @@ fun ServerProfileDrawer(
                             )
                         }
 
-                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+                        if (isOwner) {
+                            HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onCreateChannelClick)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Create Channel",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF5865F2)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onCreateChannelClick)
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Create Channel",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF5865F2)
+                                )
+                            }
                         }
 
                         HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
@@ -645,40 +676,60 @@ fun ServerProfileDrawer(
                             )
                         }
 
-                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+                        if (!isOwner) {
+                            HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
 
-                        // Report Server
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { /* Report */ }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Report Server",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF1E1F22)
-                            )
-                        }
+                            // Report Server
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showReportDialog = true }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Report Server",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1E1F22)
+                                )
+                            }
 
-                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+                            HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
 
-                        // Leave Server
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onLeaveServerClick)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Leave Server",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFDA373C)
-                            )
+                            // Leave Server
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showLeaveConfirmation = true }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Leave Server",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFDA373C)
+                                )
+                            }
+                        } else {
+                            HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+
+                            // Delete Server
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showDeleteConfirmation = true }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Delete Server",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFDA373C)
+                                )
+                            }
                         }
                     }
                 }
@@ -686,6 +737,237 @@ fun ServerProfileDrawer(
                 Spacer(modifier = Modifier.height(20.dp))
             }
         }
+
+    if (showBoostsDialog) {
+        AlertDialog(
+            onDismissRequest = { showBoostsDialog = false },
+            title = {
+                Text(
+                    text = "Server Boosts",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1E1F22)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Level 1 Boost Active (6 Boosts)",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = Color(0xFFEC4899)
+                    )
+                    Text(
+                        text = "Unlocked Perks:\n• 50 Custom Server Icons & Stickers\n• 720p 60fps HD Screen Streaming\n• 128Kbps High-Fidelity Audio\n• Custom Server Invite Link Background",
+                        fontSize = 13.sp,
+                        color = Color(0xFF5C6470)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBoostsDialog = false }) {
+                    Text("Got It", color = Color(0xFF5865F2), fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (showNotificationsDialog) {
+        AlertDialog(
+            onDismissRequest = { showNotificationsDialog = false },
+            title = {
+                Text(
+                    text = "Notification Settings",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1E1F22)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("All Messages", "Only @mentions", "Nothing").forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedNotificationSetting = option }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            RadioButton(
+                                selected = (selectedNotificationSetting == option),
+                                onClick = { selectedNotificationSetting = option },
+                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF5865F2))
+                            )
+                            Text(
+                                text = option,
+                                fontSize = 14.5.sp,
+                                color = Color(0xFF1E1F22),
+                                fontWeight = if (selectedNotificationSetting == option) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onNotificationSettingChange(selectedNotificationSetting)
+                        showNotificationsDialog = false
+                    }
+                ) {
+                    Text("Save", color = Color(0xFF5865F2), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNotificationsDialog = false }) {
+                    Text("Cancel", color = Color(0xFF5C6470))
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (showReportDialog) {
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            title = {
+                Text(
+                    text = "Report Server",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1E1F22)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Why are you reporting this server?",
+                        fontSize = 13.sp,
+                        color = Color(0xFF5C6470)
+                    )
+                    listOf("Spam or Advertising", "Harassment or Hate Speech", "Academic Dishonesty", "Inappropriate Content", "Other").forEach { reason ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedReportReason = reason }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            RadioButton(
+                                selected = (selectedReportReason == reason),
+                                onClick = { selectedReportReason = reason },
+                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFDA373C))
+                            )
+                            Text(
+                                text = reason,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1E1F22)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showReportDialog = false
+                        showReportConfirmation = true
+                    }
+                ) {
+                    Text("Submit Report", color = Color(0xFFDA373C), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReportDialog = false }) {
+                    Text("Cancel", color = Color(0xFF5C6470))
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (showReportConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showReportConfirmation = false },
+            title = {
+                Text("Report Received", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color(0xFF1E1F22))
+            },
+            text = {
+                Text("Thank you for helping keep the campus community safe. Our moderation team has received your report.", fontSize = 13.5.sp, color = Color(0xFF5C6470))
+            },
+            confirmButton = {
+                TextButton(onClick = { showReportConfirmation = false }) {
+                    Text("OK", color = Color(0xFF5865F2), fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = {
+                Text("Delete Server", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFDA373C))
+            },
+            text = {
+                Text("Are you sure you want to delete '${server.name}'? This action is permanent and cannot be undone.", fontSize = 14.sp, color = Color(0xFF5C6470))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteServerClick()
+                    }
+                ) {
+                    Text("Delete Server", color = Color(0xFFDA373C), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel", color = Color(0xFF5C6470))
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (showLeaveConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirmation = false },
+            title = {
+                Text("Leave Server", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1E1F22))
+            },
+            text = {
+                Text("Are you sure you want to leave '${server.name}'? You will need an invite link to rejoin.", fontSize = 14.sp, color = Color(0xFF5C6470))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLeaveConfirmation = false
+                        onLeaveServerClick()
+                    }
+                ) {
+                    Text("Leave Server", color = Color(0xFFDA373C), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveConfirmation = false }) {
+                    Text("Cancel", color = Color(0xFF5C6470))
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
 
 private fun resolveServerDrawableRes(name: String): Int {
@@ -702,7 +984,6 @@ private fun resolveServerDrawableRes(name: String): Int {
         "server_eureka" -> com.campus.network.core.ui.R.drawable.server_eureka
         "server_nvidia" -> com.campus.network.core.ui.R.drawable.server_nvidia
         "server_owl" -> com.campus.network.core.ui.R.drawable.server_owl
-        "avatar_lincoln" -> com.campus.network.core.ui.R.drawable.avatar_lincoln
         else -> com.campus.network.core.ui.R.drawable.server_codesistency
     }
 }

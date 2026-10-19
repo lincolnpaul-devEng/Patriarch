@@ -203,13 +203,17 @@ fun MapScreen(
                 }
 
                 MapNavigationMode.EVENT_DETAIL -> {
-                    val currentEvent = uiState.selectedEvent ?: sampleCampusEvents[0]
-                    EventDetailScreen(
-                        event = currentEvent,
-                        onBackClick = { viewModel.onEvent(MapEvent.BackToEvents) },
-                        onNavigateToLocationOnMap = { viewModel.onEvent(MapEvent.FocusEventLocationOnMap(it)) },
-                        onToggleRegister = { viewModel.onEvent(MapEvent.ToggleRegisterEvent(it)) }
-                    )
+                    val currentEvent = uiState.selectedEvent
+                    if (currentEvent != null) {
+                        EventDetailScreen(
+                            event = currentEvent,
+                            onBackClick = { viewModel.onEvent(MapEvent.BackToEvents) },
+                            onNavigateToLocationOnMap = { viewModel.onEvent(MapEvent.FocusEventLocationOnMap(it)) },
+                            onToggleRegister = { viewModel.onEvent(MapEvent.ToggleRegisterEvent(it)) }
+                        )
+                    } else {
+                        viewModel.onEvent(MapEvent.BackToEvents)
+                    }
                 }
 
                 MapNavigationMode.MAP -> {

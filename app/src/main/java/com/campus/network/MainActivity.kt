@@ -35,7 +35,6 @@ class MainActivity : ComponentActivity() {
         }
 
         CampusSystemNotificationCenter.emitDeepLinkFromIntent(intent)
-        handleTriggerNotificationsIntent(intent)
 
         val app = application as CampusApplication
 
@@ -63,40 +62,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         CampusSystemNotificationCenter.emitDeepLinkFromIntent(intent)
-        handleTriggerNotificationsIntent(intent)
-    }
-
-    private fun handleTriggerNotificationsIntent(intent: Intent?) {
-        if (BuildConfig.DEBUG && intent?.getBooleanExtra("trigger_notifications_now", false) == true) {
-            CampusSystemNotificationCenter.setPushEnabled(this, true)
-            CampusSystemNotificationCenter.showDirectMessageNotification(
-                context = this,
-                threadId = "thread_mwangi",
-                senderName = "Prof. Mwangi (Supervisor)",
-                senderHandle = "@prof_mwangi",
-                messageText = "Please review chapter 4 citations before tomorrow's seminar. Tap Reply below to respond directly from your notification shade!",
-                avatarColorArgb = 0xFF014784.toInt()
-            )
-            CampusSystemNotificationCenter.showFlashMeetNotification(
-                context = this,
-                meetId = "meet_cs_sprint",
-                title = "CS Finals Study Sprint",
-                locationName = "Central Quad Pod #4",
-                attendeeCount = 14,
-                timeRemainingLabel = "Starting in 5 min",
-                latitude = -1.3094,
-                longitude = 36.8122
-            )
-            CampusSystemNotificationCenter.showSafePayOrderNotification(
-                context = this,
-                orderRef = "ORD-8492",
-                itemTitle = "TI-84 Plus CE Graphing Calculator",
-                amountFormatted = "KES 2,500",
-                pickupSpotName = "North Quad SafeZone",
-                sellerName = "Brian Ochieng",
-                statusHeadline = "SafePay Escrow Locked • Ready for QR Scan"
-            )
-        }
     }
 
     override fun onRequestPermissionsResult(

@@ -233,7 +233,14 @@ fun OnboardingSurveyScreen(
             hasCompletedSurvey = true
         )
         coroutineScope.launch {
-            studentProfileRepository.saveOnboardingPreferences(finalPrefs)
+            val completedPrefs = finalPrefs.copy(hasCompletedSurvey = true)
+            studentProfileRepository.saveOnboardingPreferences(completedPrefs)
+            val authClient = com.campus.network.core.network.SupabaseGoogleAuthClient(context)
+            val currentEmail = studentProfileRepository.getProfileSync()?.universityEmail ?: authClient.getSavedSession()?.email
+            if (!currentEmail.isNullOrBlank()) {
+                authClient.setSurveyCompleted(currentEmail, true)
+            }
+            authClient.setSurveyCompleted(null, true)
             onSurveyCompleted()
         }
     }

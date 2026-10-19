@@ -174,29 +174,23 @@ fun MarketProductDetailsFullScreen(
     onOpenQrScanner: () -> Unit,
     onMessageSeller: (sellerName: String, initialOrderMessage: String?) -> Unit,
     onOpenMapLocation: (Double, Double, String) -> Unit,
-    currentUserName: String = "Lincoln Kiprotich",
+    currentUserName: String = "Student",
     onSecurityNotice: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val galleryUrls = remember(item.id, item.imageUrl, item.imageUrls) {
-        if (item.imageUrls.size > 1) {
-            item.imageUrls
+        val urls = item.imageUrls.filter { it.isNotBlank() }
+        if (urls.isNotEmpty()) {
+            urls
+        } else if (!item.imageUrl.isNullOrBlank()) {
+            listOf(item.imageUrl)
         } else {
-            val primary = item.imageUrls.firstOrNull()
-                ?: item.imageUrl
-                ?: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1000&auto=format&fit=crop&q=80"
-            listOf(
-                primary,
-                "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=1000&auto=format&fit=crop&q=80",
-                "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1000&auto=format&fit=crop&q=80",
-                "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1000&auto=format&fit=crop&q=80",
-                "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1000&auto=format&fit=crop&q=80"
-            )
+            emptyList()
         }
     }
 
-    val pagerState = rememberPagerState(pageCount = { galleryUrls.size })
+    val pagerState = rememberPagerState(pageCount = { galleryUrls.size.coerceAtLeast(1) })
     val pagerScope = androidx.compose.runtime.rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val reviewCount = remember(item.id) { 94 + (item.id.hashCode().let { if (it < 0) -it else it } % 180) }
@@ -249,16 +243,32 @@ fun MarketProductDetailsFullScreen(
                     .height(320.dp)
                     .background(Color(0xFF0F172A))
             ) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    ShimmerAsyncImage(
-                        model = galleryUrls[page],
-                        contentDescription = "${item.title} photo ${page + 1}",
-                        contentScale = ContentScale.Crop,
+                if (galleryUrls.isNotEmpty()) {
+                    HorizontalPager(
+                        state = pagerState,
                         modifier = Modifier.fillMaxSize()
-                    )
+                    ) { page ->
+                        ShimmerAsyncImage(
+                            model = galleryUrls[page],
+                            contentDescription = "${item.title} photo ${page + 1}",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF1E293B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingBag,
+                            contentDescription = item.title,
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
                 }
 
                 // Subtle top scrim for floating icon legibility
@@ -1365,12 +1375,28 @@ fun ProductOptionsBasketDrawerSheet(
                         .height(225.dp)
                         .background(Color(0xFF0F172A))
                 ) {
-                    ShimmerAsyncImage(
-                        model = item.imageUrl ?: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1000&auto=format&fit=crop&q=80",
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (!item.imageUrl.isNullOrBlank()) {
+                        ShimmerAsyncImage(
+                            model = item.imageUrl,
+                            contentDescription = item.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF1E293B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingBag,
+                                contentDescription = item.title,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                    }
 
                     Row(
                         modifier = Modifier
@@ -1869,14 +1895,31 @@ fun BasketEscrowCheckoutSheet(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            AsyncImage(
-                                model = item.imageUrl ?: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80",
-                                contentDescription = item.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                            )
+                            if (!item.imageUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = item.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFE2E8F0)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ShoppingBag,
+                                        contentDescription = item.title,
+                                        tint = Color(0xFF64748B),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(

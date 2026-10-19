@@ -69,6 +69,7 @@ data class SavedItem(
 
 @Composable
 fun SavedBookmarksScreen(
+    initialItems: List<SavedItem> = emptyList(),
     onBackClick: () -> Unit,
     onOpenItem: (SavedItem) -> Unit = {}
 ) {
@@ -77,61 +78,8 @@ fun SavedBookmarksScreen(
 
     val categories = listOf("All", "Marketplace", "Study Notes", "Hardware & Tech", "Campus Services")
 
-    var savedItems by remember {
-        mutableStateOf(
-            listOf(
-                SavedItem(
-                    id = "save-1",
-                    title = "Texas Instruments TI-84 Plus CE Color Graphing Calculator",
-                    category = "Marketplace",
-                    priceOrType = "KES 8,500",
-                    authorOrSeller = "Kevin Cheruiyot (Engineering)",
-                    trustScore = 98,
-                    dateSaved = "Saved 2 days ago",
-                    icon = Icons.Default.Sell
-                ),
-                SavedItem(
-                    id = "save-2",
-                    title = "CS-301 Algorithmic Complexity Cheatsheet & Past Exam Pack",
-                    category = "Study Notes",
-                    priceOrType = "Free (Campus Merit)",
-                    authorOrSeller = "Prof. Mwangi Verified",
-                    trustScore = 100,
-                    dateSaved = "Saved 4 days ago",
-                    icon = Icons.Default.Description
-                ),
-                SavedItem(
-                    id = "save-3",
-                    title = "Calculus Early Transcendentals 9th Ed (James Stewart)",
-                    category = "Marketplace",
-                    priceOrType = "KES 2,400",
-                    authorOrSeller = "Sarah K. (Math Dept)",
-                    trustScore = 96,
-                    dateSaved = "Saved 1 week ago",
-                    icon = Icons.Default.MenuBook
-                ),
-                SavedItem(
-                    id = "save-4",
-                    title = "Apple iPad Magic Keyboard 11-inch (Space Gray)",
-                    category = "Hardware & Tech",
-                    priceOrType = "KES 14,000",
-                    authorOrSeller = "David Mutua (B.Com)",
-                    trustScore = 94,
-                    dateSaved = "Saved 2 weeks ago",
-                    icon = Icons.Default.Sell
-                ),
-                SavedItem(
-                    id = "save-5",
-                    title = "Python Lab Assignment & Data Science Peer Tutoring",
-                    category = "Campus Services",
-                    priceOrType = "KES 500 / hr",
-                    authorOrSeller = "Faith Chebet (4th Year TA)",
-                    trustScore = 99,
-                    dateSaved = "Saved 3 weeks ago",
-                    icon = Icons.Default.Verified
-                )
-            )
-        )
+    var savedItems by remember(initialItems) {
+        mutableStateOf(initialItems)
     }
 
     val filteredItems = savedItems.filter { item ->

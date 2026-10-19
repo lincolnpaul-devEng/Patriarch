@@ -101,13 +101,13 @@ data class MessagesUiState(
     val studentProfile: StudentProfile? = null
 ) {
     val studentName: String
-        get() = studentProfile?.fullName ?: "Lincoln Kiprotich"
+        get() = studentProfile?.fullName?.ifBlank { "Student" } ?: "Student"
 
     val studentFirstName: String
-        get() = studentProfile?.firstName ?: "Lincoln"
+        get() = studentProfile?.firstName?.ifBlank { "Student" } ?: "Student"
 
     val studentInitials: String
-        get() = studentProfile?.initials ?: "LK"
+        get() = studentProfile?.initials ?: "S"
 }
 
 sealed interface MessagesEvent {

@@ -49,8 +49,11 @@ fun MainAppScreen(
     val currentRoute = navBackStackEntry?.destination?.route
     val networkState = rememberCampusNetworkState()
 
-    val studentProfileRepository = remember {
-        com.campus.network.core.data.StudentProfileRepository()
+    val studentProfileRepository = remember(database) {
+        com.campus.network.core.data.StudentProfileRepository(
+            database = database,
+            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+        )
     }
 
     val telecomCallManager = remember(context) {

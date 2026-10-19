@@ -151,121 +151,20 @@ object CampusNotificationPollManager {
         if (!CampusSystemNotificationCenter.isPushEnabled(context)) return@withContext false
         if (!CampusSystemNotificationCenter.hasNotificationPermission(context)) return@withContext false
 
-        var deliveredAny = false
-
-        // 1. Poll Supabase REST table when validated network connectivity is available
+        // Poll Supabase REST notifications table when validated network connectivity is available
         if (isNetworkValidated(context)) {
-            if (pollSupabaseNotificationsTable(context)) {
-                deliveredAny = true
-            }
+            return@withContext pollSupabaseNotificationsTable(context)
         }
 
-        // 2. On startup (once permission is actually granted), deliver the priority unread notifications
-        // to the Android system shade so the user immediately sees WhatsApp-style inline reply + Flash-Meet
-        val prefs = context.getSharedPreferences(PREFS_POLL, Context.MODE_PRIVATE)
-        val alreadyPostedInitial = prefs.getBoolean(KEY_INITIAL_BATCH_POSTED, false)
-
-        if (isStartup && !alreadyPostedInitial) {
-            prefs.edit().putBoolean(KEY_INITIAL_BATCH_POSTED, true).apply()
-            deliveredAny = true
-
-            // Post a Direct Message notification with WhatsApp-style inline Reply & Mark as Read
-            CampusSystemNotificationCenter.showDirectMessageNotification(
-                context = context,
-                threadId = "thread_mwangi",
-                senderName = "Prof. Mwangi (Supervisor)",
-                senderHandle = "@prof_mwangi",
-                messageText = "Please review chapter 4 citations before tomorrow's seminar. Reply here when ready.",
-                conversationTitle = null,
-                avatarColorArgb = 0xFF014784.toInt()
-            )
-
-            delay(900L)
-
-            // Post a Map Flash-Meet notification with Open on Map & Check In actions
-            CampusSystemNotificationCenter.showFlashMeetNotification(
-                context = context,
-                meetId = "meet_cs_sprint",
-                title = "CS Finals Study Sprint",
-                locationName = "Central Quad Pod #4",
-                attendeeCount = 14,
-                timeRemainingLabel = "Starting in 5 min",
-                latitude = -1.3094,
-                longitude = 36.8122
-            )
-        } else if (!deliveredAny) {
-            // Dispatch the next queued campus notification from the polling feed
-            triggerNextPolledNotification(context)
-            deliveredAny = true
-        }
-
-        deliveredAny
+        false
     }
 
     /**
-     * Triggers the next polled campus notification event on demand (or when user taps
-     * "Poll Now" / tests a specific notification channel).
+     * Polls campus notifications on demand from backend REST endpoint.
      */
     fun triggerNextPolledNotification(context: Context) {
         scope.launch {
-            currentPollIntervalMs = BASE_INTERVAL_MS
-            val prefs = context.getSharedPreferences(PREFS_POLL, Context.MODE_PRIVATE)
-            val cycle = prefs.getInt(KEY_LAST_CYCLE_INDEX, 0)
-            prefs.edit().putInt(KEY_LAST_CYCLE_INDEX, (cycle + 1) % 5).apply()
-
-            when (cycle % 5) {
-                0 -> {
-                    CampusSystemNotificationCenter.showDirectMessageNotification(
-                        context = context,
-                        threadId = "thread_sarah",
-                        senderName = "Sarah Nduta",
-                        senderHandle = "@sarah_n",
-                        messageText = "Hey Lincoln! I'm at the Student Center with the digitized notes. Can we meet in 5 mins?",
-                        avatarColorArgb = 0xFF0284C7.toInt()
-                    )
-                }
-                1 -> {
-                    CampusSystemNotificationCenter.showSafePayOrderNotification(
-                        context = context,
-                        orderRef = "ORD-8492",
-                        itemTitle = "TI-84 Plus CE Graphing Calculator",
-                        amountFormatted = "KES 2,500",
-                        pickupSpotName = "North Quad SafeZone",
-                        sellerName = "Brian Ochieng",
-                        statusHeadline = "SafePay Escrow Locked • Ready for QR Scan"
-                    )
-                }
-                2 -> {
-                    CampusSystemNotificationCenter.showFlashMeetNotification(
-                        context = context,
-                        meetId = "meet_hackathon",
-                        title = "Campus Hackathon Pitch Huddle",
-                        locationName = "Innovation Hub Lab 3",
-                        attendeeCount = 19,
-                        timeRemainingLabel = "Live now",
-                        latitude = -1.3078,
-                        longitude = 36.8121
-                    )
-                }
-                3 -> {
-                    CampusSystemNotificationCenter.showIncomingCallNotification(
-                        context = context,
-                        peerId = "thread_faith",
-                        callerName = "Faith Wangari",
-                        callerRoleOrHandle = "Lab Partner • @faith_w",
-                        isVideoCall = true
-                    )
-                }
-                else -> {
-                    CampusSystemNotificationCenter.showLiveStreamNotification(
-                        context = context,
-                        streamId = "live_robotics",
-                        hostName = "Strathmore Robotics Lab",
-                        streamTitle = "Autonomous Drone Quad Flight Test",
-                        viewerCount = 214
-                    )
-                }
-            }
+            pollOnce(context, isStartup = false)
         }
     }
 

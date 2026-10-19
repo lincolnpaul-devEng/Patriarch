@@ -39,6 +39,10 @@ public final class ServerMemberDao_Impl implements ServerMemberDao {
 
   private final SharedSQLiteStatement __preparedStmtOfRemoveMember;
 
+  private final SharedSQLiteStatement __preparedStmtOfUpdateMemberProfileForUser;
+
+  private final SharedSQLiteStatement __preparedStmtOfUpdateServerOwnerProfile;
+
   public ServerMemberDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfServerMemberEntity = new EntityInsertionAdapter<ServerMemberEntity>(__db) {
@@ -93,6 +97,22 @@ public final class ServerMemberDao_Impl implements ServerMemberDao {
       @NonNull
       public String createQuery() {
         final String _query = "DELETE FROM server_members WHERE serverId = ? AND userId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfUpdateMemberProfileForUser = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "UPDATE server_members SET displayName = ?, handle = ?, avatarUrl = ?, avatarResName = ? WHERE userId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfUpdateServerOwnerProfile = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "UPDATE server_members SET displayName = ?, handle = ?, avatarUrl = ?, avatarResName = ? WHERE serverId = ? AND role = 'OWNER'";
         return _query;
       }
     };
@@ -194,6 +214,84 @@ public final class ServerMemberDao_Impl implements ServerMemberDao {
           }
         } finally {
           __preparedStmtOfRemoveMember.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object updateMemberProfileForUser(final String userId, final String displayName,
+      final String handle, final String avatarUrl, final String avatarResName,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfUpdateMemberProfileForUser.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, displayName);
+        _argIndex = 2;
+        _stmt.bindString(_argIndex, handle);
+        _argIndex = 3;
+        if (avatarUrl == null) {
+          _stmt.bindNull(_argIndex);
+        } else {
+          _stmt.bindString(_argIndex, avatarUrl);
+        }
+        _argIndex = 4;
+        _stmt.bindString(_argIndex, avatarResName);
+        _argIndex = 5;
+        _stmt.bindString(_argIndex, userId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfUpdateMemberProfileForUser.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object updateServerOwnerProfile(final String serverId, final String displayName,
+      final String handle, final String avatarUrl, final String avatarResName,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfUpdateServerOwnerProfile.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, displayName);
+        _argIndex = 2;
+        _stmt.bindString(_argIndex, handle);
+        _argIndex = 3;
+        if (avatarUrl == null) {
+          _stmt.bindNull(_argIndex);
+        } else {
+          _stmt.bindString(_argIndex, avatarUrl);
+        }
+        _argIndex = 4;
+        _stmt.bindString(_argIndex, avatarResName);
+        _argIndex = 5;
+        _stmt.bindString(_argIndex, serverId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfUpdateServerOwnerProfile.release(_stmt);
         }
       }
     }, $completion);
@@ -452,6 +550,66 @@ public final class ServerMemberDao_Impl implements ServerMemberDao {
             _result = new ServerMemberEntity(_tmpId,_tmpUserId,_tmpServerId,_tmpDisplayName,_tmpHandle,_tmpRole,_tmpRoleTitle,_tmpRoleColorHex,_tmpAvatarUrl,_tmpAvatarResName,_tmpIsOnline,_tmpCustomStatus,_tmpJoinedAtEpochMs,_tmpBadge);
           } else {
             _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Flow<List<String>> getJoinedServerIdsForUser(final String userId) {
+    final String _sql = "SELECT serverId FROM server_members WHERE userId = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, userId);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"server_members"}, new Callable<List<String>>() {
+      @Override
+      @NonNull
+      public List<String> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final List<String> _result = new ArrayList<String>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final String _item;
+            _item = _cursor.getString(0);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Object getJoinedServerIdsForUserSync(final String userId,
+      final Continuation<? super List<String>> $completion) {
+    final String _sql = "SELECT serverId FROM server_members WHERE userId = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, userId);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<String>>() {
+      @Override
+      @NonNull
+      public List<String> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final List<String> _result = new ArrayList<String>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final String _item;
+            _item = _cursor.getString(0);
+            _result.add(_item);
           }
           return _result;
         } finally {

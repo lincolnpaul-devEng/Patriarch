@@ -57,7 +57,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.campus.network.core.network.CloudinaryUploader
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -267,7 +269,9 @@ fun PostProductDrawerSheet(
     var selectedTiming by remember { mutableStateOf(defaultAvailabilityWindows.first()) }
     var payoutMethod by remember { mutableStateOf("SafePay Protection") }
     var requiresQrReleaseCode by remember { mutableStateOf(true) }
-    var payoutDestination by remember { mutableStateOf("Lincoln's Campus Wallet") }
+    var payoutDestination by remember { mutableStateOf("Campus Student Wallet") }
+    var isUploadingPhotos by remember { mutableStateOf(false) }
+    var uploadStatusText by remember { mutableStateOf<String?>(null) }
 
     // Real Multi-Photo Upload State (Up to 8 product photos)
     val maxProductPhotos = 8
@@ -1444,7 +1448,7 @@ fun PostProductDrawerSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        val isWallet = payoutDestination == "Lincoln's Campus Wallet"
+                        val isWallet = payoutDestination == "Campus Student Wallet"
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = if (isWallet) Color(0xFF014784) else Color(0xFFF1F5F9),
@@ -1454,7 +1458,7 @@ fun PostProductDrawerSheet(
                             ),
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { payoutDestination = "Lincoln's Campus Wallet" }
+                                .clickable { payoutDestination = "Campus Student Wallet" }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1538,32 +1542,51 @@ fun PostProductDrawerSheet(
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                         .navigationBarsPadding()
                 ) {
+                    val buttonEnabled = canPublish && !isUploadingPhotos
                     Button(
                         onClick = {
-                            if (canPublish) {
-                                val photoStrings = selectedImageUris.map { it.toString() }
-                                onPublishProduct(
-                                    title.trim(),
-                                    price,
-                                    selectedCategory,
-                                    selectedCondition,
-                                    pickupSpotName,
-                                    description.trim(),
-                                    pickupSpotName,
-                                    pickupSecurityLevel,
-                                    pickupLatitude,
-                                    pickupLongitude,
-                                    selectedTiming,
-                                    payoutMethod,
-                                    requiresQrReleaseCode,
-                                    generatedReleaseCode,
-                                    photoStrings.firstOrNull(),
-                                    photoStrings
-                                )
-                                scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+                            if (buttonEnabled) {
+                                scope.launch {
+                                    isUploadingPhotos = true
+                                    val uploader = CloudinaryUploader()
+                                    val uploadedUrls = mutableListOf<String>()
+                                    if (selectedImageUris.isNotEmpty()) {
+                                        for ((idx, uri) in selectedImageUris.withIndex()) {
+                                            uploadStatusText = "Uploading photo ${idx + 1}/${selectedImageUris.size}..."
+                                            val uploadResult = uploader.uploadFromUri(context, uri)
+                                            if (uploadResult.isSuccess) {
+                                                uploadedUrls.add(uploadResult.getOrThrow())
+                                            } else {
+                                                uploadedUrls.add(uri.toString())
+                                            }
+                                        }
+                                    }
+                                    uploadStatusText = "Finalizing listing..."
+                                    onPublishProduct(
+                                        title.trim(),
+                                        price,
+                                        selectedCategory,
+                                        selectedCondition,
+                                        pickupSpotName,
+                                        description.trim(),
+                                        pickupSpotName,
+                                        pickupSecurityLevel,
+                                        pickupLatitude,
+                                        pickupLongitude,
+                                        selectedTiming,
+                                        payoutMethod,
+                                        requiresQrReleaseCode,
+                                        generatedReleaseCode,
+                                        uploadedUrls.firstOrNull(),
+                                        uploadedUrls
+                                    )
+                                    isUploadingPhotos = false
+                                    sheetState.hide()
+                                    onDismiss()
+                                }
                             }
                         },
-                        enabled = canPublish,
+                        enabled = buttonEnabled,
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF014784),
@@ -1578,21 +1601,35 @@ fun PostProductDrawerSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (price > 0.0) {
-                                    "Publish Listing • KES ${"%,.0f".format(price)}"
-                                } else {
-                                    "Publish Listing"
-                                },
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            if (isUploadingPhotos) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = uploadStatusText ?: "Uploading to Cloudinary...",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (price > 0.0) {
+                                        "Publish Listing • KES ${"%,.0f".format(price)}"
+                                    } else {
+                                        "Publish Listing"
+                                    },
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
