@@ -790,20 +790,99 @@ class ServerRepository(
     // 6. SOCIAL GRAPH & FRIEND REQUESTS TO DIRECT CHAT
     // ==========================================
 
-    fun getFriendsForUser(userId: String = "user_lincoln"): Flow<List<FriendRelationship>> {
-        return friendDao.getFriendsForUser(userId)
+    fun getFriendsForUser(userId: String, email: String = ""): Flow<List<FriendRelationship>> {
+        val cleanUser = userId.trim()
+        val cleanEmail = email.trim()
+        if (cleanUser.isBlank() && cleanEmail.isBlank()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        return friendDao.getFriendsForUser(cleanUser, cleanEmail)
             .map { list -> list.map { it.toDomain() } }
             .flowOn(ioDispatcher)
     }
 
-    fun getFriendRelationship(userId: String = "user_lincoln", friendUserId: String): Flow<FriendRelationship?> {
-        return friendDao.getFriendRelationship(userId, friendUserId)
+    fun getPendingReceivedFriendRequestsCount(userId: String, email: String = ""): Flow<Int> {
+        val cleanUser = userId.trim()
+        val cleanEmail = email.trim()
+        if (cleanUser.isBlank() && cleanEmail.isBlank()) return kotlinx.coroutines.flow.flowOf(0)
+        return friendDao.getPendingReceivedFriendRequestsCount(cleanUser, cleanEmail)
+            .flowOn(ioDispatcher)
+    }
+
+    fun getPendingReceivedFriendRequests(userId: String, email: String = ""): Flow<List<FriendRelationship>> {
+        val cleanUser = userId.trim()
+        val cleanEmail = email.trim()
+        if (cleanUser.isBlank() && cleanEmail.isBlank()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        return friendDao.getPendingReceivedFriendRequests(cleanUser, cleanEmail)
+            .map { list -> list.map { it.toDomain() } }
+            .flowOn(ioDispatcher)
+    }
+
+    fun getFriendRelationship(userId: String, friendUserId: String, email: String = ""): Flow<FriendRelationship?> {
+        val cleanUser = userId.trim()
+        val cleanFriend = friendUserId.trim()
+        val cleanEmail = email.trim()
+        if (cleanUser.isBlank() || cleanFriend.isBlank()) return kotlinx.coroutines.flow.flowOf(null)
+        return friendDao.getFriendRelationship(cleanUser, cleanFriend, cleanEmail)
             .map { it?.toDomain() }
             .flowOn(ioDispatcher)
     }
 
+    suspend fun syncRemoteFriends(userId: String, email: String = ""): List<FriendRelationship> = withContext(ioDispatcher) {
+        val client = supabaseClient ?: return@withContext emptyList()
+        val cleanUserId = userId.trim()
+        val cleanEmail = email.trim()
+        if (cleanUserId.isBlank() && cleanEmail.isBlank()) return@withContext emptyList()
+
+        val filter = when {
+            cleanUserId.isNotBlank() && cleanEmail.isNotBlank() && cleanUserId != cleanEmail ->
+                "user_id=in.($cleanUserId,$cleanEmail)"
+            cleanUserId.isNotBlank() ->
+                "user_id=eq.$cleanUserId"
+            else ->
+                "user_id=eq.$cleanEmail"
+        }
+        val result = client.queryTable("campus_friends?$filter&order=last_interaction_epoch_ms.desc")
+        val mappedFriends = mutableListOf<FriendRelationship>()
+
+        result.onSuccess { jsonStr ->
+            runCatching {
+                val array = org.json.JSONArray(jsonStr)
+                val entities = mutableListOf<FriendEntity>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val id = obj.optString("id")
+                    val uId = obj.optString("user_id")
+                    val fId = obj.optString("friend_user_id")
+                    if (id.isNotBlank() && uId.isNotBlank() && fId.isNotBlank()) {
+                        val rel = FriendRelationship(
+                            id = id,
+                            userId = uId,
+                            friendUserId = fId,
+                            friendDisplayName = obj.optString("friend_display_name", "Friend"),
+                            friendHandle = obj.optString("friend_handle", ""),
+                            friendAvatarResName = obj.optString("friend_avatar_res_name", ""),
+                            status = runCatching { FriendStatus.valueOf(obj.optString("status", FriendStatus.NONE.name)) }.getOrDefault(FriendStatus.NONE),
+                            lastInteractionEpochMs = obj.optLong("last_interaction_epoch_ms", System.currentTimeMillis()),
+                            dmChannelId = obj.optString("dm_channel_id").takeIf { it.isNotBlank() }
+                        )
+                        mappedFriends.add(rel)
+                        entities.add(FriendEntity.fromDomain(rel))
+                    }
+                }
+                if (entities.isNotEmpty()) {
+                    friendDao.insertFriends(entities)
+                }
+                android.util.Log.d("ServerRepository", "syncRemoteFriends completed: loaded ${entities.size} friend relationships")
+            }.onFailure { e ->
+                android.util.Log.e("ServerRepository", "Error parsing remote friends: ${e.message}")
+            }
+        }.onFailure { e ->
+            android.util.Log.e("ServerRepository", "Failed querying campus_friends: ${e.message}")
+        }
+        mappedFriends
+    }
+
     suspend fun sendFriendRequest(
-        userId: String = "user_lincoln",
+        userId: String,
         friendUserId: String,
         friendDisplayName: String,
         friendHandle: String,
@@ -811,17 +890,24 @@ class ServerRepository(
         senderDisplayName: String = "Campus peer",
         serverId: String? = null
     ) = withContext(ioDispatcher) {
-        val id = "$userId:$friendUserId"
-        val reverseId = "$friendUserId:$userId"
-        val existing = friendDao.getFriendRelationshipSync(userId, friendUserId)
+        val cleanSender = userId.trim()
+        val cleanFriend = friendUserId.trim()
+        if (cleanSender.isBlank() || cleanFriend.isBlank() || cleanSender.equals(cleanFriend, ignoreCase = true)) {
+            android.util.Log.w("ServerRepository", "sendFriendRequest ignored invalid ids: sender='$cleanSender', friend='$cleanFriend'")
+            return@withContext
+        }
+
+        val id = "$cleanSender:$cleanFriend"
+        val reverseId = "$cleanFriend:$cleanSender"
+        val existing = friendDao.getFriendRelationshipSync(cleanSender, cleanFriend)
         val now = System.currentTimeMillis()
 
         if (existing == null) {
             val relationship = FriendRelationship(
                 id = id,
-                userId = userId,
-                friendUserId = friendUserId,
-                friendDisplayName = friendDisplayName,
+                userId = cleanSender,
+                friendUserId = cleanFriend,
+                friendDisplayName = friendDisplayName.ifBlank { "Campus peer" },
                 friendHandle = friendHandle,
                 friendAvatarResName = friendAvatarResName,
                 status = FriendStatus.PENDING_SENT,
@@ -835,11 +921,11 @@ class ServerRepository(
 
         // Mirror both sides to Supabase so the recipient device can see PENDING_RECEIVED
         val client = supabaseClient
-        if (client != null && userId.isNotBlank() && friendUserId.isNotBlank()) {
+        if (client != null) {
             val outbound = org.json.JSONObject().apply {
                 put("id", id)
-                put("user_id", userId)
-                put("friend_user_id", friendUserId)
+                put("user_id", cleanSender)
+                put("friend_user_id", cleanFriend)
                 put("friend_display_name", friendDisplayName)
                 put("friend_handle", friendHandle)
                 put("friend_avatar_res_name", friendAvatarResName)
@@ -848,19 +934,24 @@ class ServerRepository(
             }.toString()
             val inbound = org.json.JSONObject().apply {
                 put("id", reverseId)
-                put("user_id", friendUserId)
-                put("friend_user_id", userId)
+                put("user_id", cleanFriend)
+                put("friend_user_id", cleanSender)
                 put("friend_display_name", senderDisplayName)
                 put("friend_handle", "")
                 put("friend_avatar_res_name", "")
                 put("status", FriendStatus.PENDING_RECEIVED.name)
                 put("last_interaction_epoch_ms", now)
             }.toString()
-            client.upsertRecord("campus_friends", outbound, onConflict = "id")
-            client.upsertRecord("campus_friends", inbound, onConflict = "id")
+
+            val resOut = client.upsertRecord("campus_friends", outbound, onConflict = "id")
+            val resIn = client.upsertRecord("campus_friends", inbound, onConflict = "id")
+            if (resOut.isFailure || resIn.isFailure) {
+                android.util.Log.e("ServerRepository", "campus_friends upsert failed: out=${resOut.exceptionOrNull()?.message}, in=${resIn.exceptionOrNull()?.message}")
+            }
+
             CampusInboxNotifier(client).notifyFriendRequest(
-                recipientUserId = friendUserId,
-                senderUserId = userId,
+                recipientUserId = cleanFriend,
+                senderUserId = cleanSender,
                 senderName = senderDisplayName,
                 serverId = serverId
             )
@@ -868,40 +959,95 @@ class ServerRepository(
     }
 
     suspend fun acceptFriendRequest(
-        userId: String = "user_lincoln",
-        friendUserId: String
+        userId: String,
+        friendUserId: String,
+        userDisplayName: String = "Campus peer"
     ) = withContext(ioDispatcher) {
-        val id = "$userId:$friendUserId"
-        val now = System.currentTimeMillis()
-        val dmId = "dm_${userId}_${friendUserId}"
+        val cleanUser = userId.trim()
+        val cleanFriend = friendUserId.trim()
+        if (cleanUser.isBlank() || cleanFriend.isBlank()) return@withContext
 
-        val existing = friendDao.getFriendRelationshipSync(userId, friendUserId)
+        val id = "$cleanUser:$cleanFriend"
+        val reverseId = "$cleanFriend:$cleanUser"
+        val now = System.currentTimeMillis()
+        val dmId = "dm_${minOf(cleanUser, cleanFriend)}_${maxOf(cleanUser, cleanFriend)}"
+
+        val existing = friendDao.getFriendRelationshipSync(cleanUser, cleanFriend)
         if (existing != null) {
             friendDao.updateFriendStatus(id, FriendStatus.FRIENDS.name, now)
             friendDao.updateDmChannelId(id, dmId)
+        } else {
+            friendDao.insertFriend(
+                FriendEntity(
+                    id = id,
+                    userId = cleanUser,
+                    friendUserId = cleanFriend,
+                    friendDisplayName = "Friend",
+                    friendHandle = "",
+                    friendAvatarResName = "",
+                    status = FriendStatus.FRIENDS.name,
+                    lastInteractionEpochMs = now,
+                    dmChannelId = dmId
+                )
+            )
+        }
+
+        val client = supabaseClient
+        if (client != null) {
+            runCatching {
+                val patch = org.json.JSONObject().apply {
+                    put("status", FriendStatus.FRIENDS.name)
+                    put("dm_channel_id", dmId)
+                    put("last_interaction_epoch_ms", now)
+                }.toString()
+                client.updateRecord("campus_friends?id=eq.$id", patch)
+                client.updateRecord("campus_friends?id=eq.$reverseId", patch)
+                CampusInboxNotifier(client).notifyFriendRequestAccepted(
+                    recipientUserId = cleanFriend,
+                    actorUserId = cleanUser,
+                    actorName = userDisplayName
+                )
+            }
         }
     }
 
     suspend fun declineOrRemoveFriend(
-        userId: String = "user_lincoln",
+        userId: String,
         friendUserId: String
     ) = withContext(ioDispatcher) {
-        val id = "$userId:$friendUserId"
+        val cleanUser = userId.trim()
+        val cleanFriend = friendUserId.trim()
+        if (cleanUser.isBlank() || cleanFriend.isBlank()) return@withContext
+
+        val id = "$cleanUser:$cleanFriend"
+        val reverseId = "$cleanFriend:$cleanUser"
         friendDao.deleteFriendRelationship(id)
+        friendDao.deleteFriendRelationship(reverseId)
+        val client = supabaseClient
+        if (client != null) {
+            runCatching {
+                client.deleteRecord("campus_friends?id=eq.$id")
+                client.deleteRecord("campus_friends?id=eq.$reverseId")
+            }
+        }
     }
 
     suspend fun getOrCreateDmChannelId(
-        userId: String = "user_lincoln",
+        userId: String,
         friendUserId: String
     ): String = withContext(ioDispatcher) {
-        val id = "$userId:$friendUserId"
-        val existing = friendDao.getFriendRelationshipSync(userId, friendUserId)
+        val cleanUser = userId.trim()
+        val cleanFriend = friendUserId.trim()
+        if (cleanUser.isBlank() || cleanFriend.isBlank()) return@withContext ""
+
+        val id = "$cleanUser:$cleanFriend"
+        val existing = friendDao.getFriendRelationshipSync(cleanUser, cleanFriend)
         val existingDmId = existing?.dmChannelId
         if (existingDmId != null) {
             return@withContext existingDmId
         }
 
-        val newDmId = "dm_${minOf(userId, friendUserId)}_${maxOf(userId, friendUserId)}"
+        val newDmId = "dm_${minOf(cleanUser, cleanFriend)}_${maxOf(cleanUser, cleanFriend)}"
         if (existing != null) {
             friendDao.updateDmChannelId(id, newDmId)
         }

@@ -8,6 +8,7 @@ import com.campus.network.core.database.dao.ChatMessageDao
 import com.campus.network.core.database.entity.ChatMessageEntity
 import com.campus.network.core.data.CallSignalingRepository
 import com.campus.network.core.data.CampusInboxNotifier
+import com.campus.network.core.data.DirectChatTypingRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.CallMediaKind
 import com.campus.network.core.model.CallSession
@@ -43,6 +44,7 @@ class MessagesViewModel(
     private val callSignalingRepository: CallSignalingRepository = CallSignalingRepository(),
     private val callMediaProvider: CallMediaProvider = CallMediaProviderRegistry.resolve(),
     private val inboxNotifier: CampusInboxNotifier = CampusInboxNotifier(),
+    private val dmTypingRepository: DirectChatTypingRepository = DirectChatTypingRepository(),
     context: Context? = null
 ) : ViewModel() {
 
@@ -56,6 +58,8 @@ class MessagesViewModel(
     private var callSignalPollJob: Job? = null
     private var incomingInvitePollJob: Job? = null
     private var inboxPollJob: Job? = null
+    private var dmTypingPollJob: Job? = null
+    private var dmTypingHeartbeatJob: Job? = null
     private var activeCallSessionId: String? = null
     private val seenIncomingSessionIds = mutableSetOf<String>()
     private val seenRemoteMessageIds = mutableSetOf<String>()
@@ -182,6 +186,8 @@ class MessagesViewModel(
         // Poll Supabase for incoming RINGING invites addressed to this user.
         startIncomingInvitePoll()
         startInboxMessagePoll()
+        // Hub-level typing poll so thread list shows green "X is typing…"
+        startDmTypingPresencePoll(focusThreadId = null)
 
         // Rebuild thread list + real unread counts from local Room cache
         viewModelScope.launch {
@@ -241,7 +247,8 @@ class MessagesViewModel(
                 isOnline = prior?.isOnline ?: false,
                 isVerified = prior?.isVerified ?: false,
                 category = prior?.category ?: ThreadCategory.DIRECT,
-                serverBadgeText = prior?.serverBadgeText
+                serverBadgeText = prior?.serverBadgeText,
+                typingLabel = prior?.typingLabel
             )
         }.sortedByDescending { thread ->
             byChannel[thread.id]?.maxOfOrNull { it.timestampEpochMs } ?: 0L
@@ -429,10 +436,12 @@ class MessagesViewModel(
                             selectedThread = thread.copy(unreadCount = 0),
                             messages = messages,
                             activateVoiceInChat = event.activateVoice || it.isVoiceFlowActive,
-                            isVoiceFlowActive = false
+                            isVoiceFlowActive = false,
+                            activeChatTypingLabel = thread.typingLabel
                         )
                     }
                     markThreadRead(thread.id)
+                    startDmTypingPresencePoll(focusThreadId = thread.id)
 
                     if (chatMessageDao != null) {
                         viewModelScope.launch {
@@ -470,10 +479,12 @@ class MessagesViewModel(
                         it.copy(
                             currentScreen = MessagesScreenMode.CHAT,
                             selectedThread = existing.copy(unreadCount = 0),
-                            messages = messages
+                            messages = messages,
+                            activeChatTypingLabel = existing.typingLabel
                         )
                     }
                     markThreadRead(existing.id)
+                    startDmTypingPresencePoll(focusThreadId = existing.id)
                 } else {
                     val newThreadId = if (event.peerId.startsWith("thread_")) event.peerId else "thread_${event.peerId}"
                     com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = newThreadId
@@ -511,20 +522,25 @@ class MessagesViewModel(
                             currentScreen = MessagesScreenMode.CHAT,
                             selectedThread = newThread,
                             threads = listOf(newThread) + it.threads,
-                            messages = welcomeMsg
+                            messages = welcomeMsg,
+                            activeChatTypingLabel = null
                         )
                     }
+                    startDmTypingPresencePoll(focusThreadId = newThreadId)
                 }
             }
 
             is MessagesEvent.BackToThreads -> {
+                publishDmTyping(false)
                 com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = null
                 _uiState.update {
                     it.copy(
                         currentScreen = MessagesScreenMode.THREADS,
-                        selectedThread = null
+                        selectedThread = null,
+                        activeChatTypingLabel = null
                     )
                 }
+                startDmTypingPresencePoll(focusThreadId = null)
             }
 
             is MessagesEvent.SearchQueryChanged -> {
@@ -535,6 +551,10 @@ class MessagesViewModel(
                 _uiState.update { it.copy(selectedCategory = event.category) }
             }
 
+            is MessagesEvent.SetDirectChatTyping -> {
+                publishDmTyping(event.isTyping)
+            }
+
             is MessagesEvent.SendMessage -> {
                 if (event.text.isBlank() && event.imageUri == null && event.imageUrl == null && event.gifUrl == null) return
                 val activeThread = _uiState.value.selectedThread ?: return
@@ -543,6 +563,7 @@ class MessagesViewModel(
                     // Refuse to send without a stable identity — otherwise bubbles collide across users.
                     return
                 }
+                publishDmTyping(false)
                 val nowTime = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date())
                 val newMsg = DirectMessageItem(
                     id = "msg_${java.util.UUID.randomUUID()}",
@@ -1394,6 +1415,97 @@ class MessagesViewModel(
         }
     }
 
+    private fun formatDmTypingLabel(displayName: String): String {
+        val first = displayName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+        val name = first.ifBlank { displayName.ifBlank { "Someone" } }
+        return "$name is typing…"
+    }
+
+    private fun publishDmTyping(isTyping: Boolean) {
+        dmTypingHeartbeatJob?.cancel()
+        dmTypingHeartbeatJob = null
+        val thread = _uiState.value.selectedThread ?: return
+        val profile = _currentProfile.value
+        val userId = profile?.stableUserId().orEmpty()
+        if (userId.isBlank() || thread.id.isBlank()) return
+        val displayName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+        val avatar = profile?.avatarUrl
+        if (!isTyping) {
+            viewModelScope.launch {
+                dmTypingRepository.setTyping(
+                    threadId = thread.id,
+                    userId = userId,
+                    displayName = displayName,
+                    avatarUrl = avatar,
+                    isTyping = false
+                )
+            }
+            return
+        }
+        dmTypingHeartbeatJob = viewModelScope.launch {
+            while (isActive) {
+                dmTypingRepository.setTyping(
+                    threadId = thread.id,
+                    userId = userId,
+                    displayName = displayName,
+                    avatarUrl = avatar,
+                    isTyping = true
+                )
+                delay(2_000L)
+            }
+        }
+    }
+
+    private fun startDmTypingPresencePoll(focusThreadId: String?) {
+        dmTypingPollJob?.cancel()
+        dmTypingPollJob = viewModelScope.launch {
+            while (isActive) {
+                val me = resolveCurrentUserId()
+                val knownThreadIds = _uiState.value.threads.map { it.id }.toSet() +
+                    listOfNotNull(focusThreadId, _uiState.value.selectedThread?.id)
+                val remote = if (!focusThreadId.isNullOrBlank()) {
+                    dmTypingRepository.fetchTypingForThread(focusThreadId).getOrNull().orEmpty()
+                } else {
+                    dmTypingRepository.fetchRecentTyping().getOrNull().orEmpty()
+                        .filter { it.threadId in knownThreadIds }
+                }
+                val byThread = remote
+                    .filter { !it.userId.equals(me, ignoreCase = true) }
+                    .groupBy { it.threadId }
+                    .mapValues { (_, users) -> users.firstOrNull() }
+
+                val updatedThreads = _uiState.value.threads.map { thread ->
+                    val typer = byThread[thread.id]
+                    thread.copy(
+                        typingLabel = typer?.let { formatDmTypingLabel(it.displayName) }
+                    )
+                }
+                val focusLabel = focusThreadId
+                    ?.let { byThread[it] }
+                    ?.let { formatDmTypingLabel(it.displayName) }
+                    ?: _uiState.value.selectedThread?.id?.let { selId ->
+                        byThread[selId]?.let { formatDmTypingLabel(it.displayName) }
+                    }
+
+                _uiState.update { state ->
+                    val sel = state.selectedThread
+                    state.copy(
+                        threads = updatedThreads,
+                        selectedThread = sel?.let { s ->
+                            updatedThreads.find { it.id == s.id } ?: s.copy(typingLabel = focusLabel)
+                        },
+                        activeChatTypingLabel = if (state.currentScreen == MessagesScreenMode.CHAT) {
+                            focusLabel
+                        } else {
+                            null
+                        }
+                    )
+                }
+                delay(1_500L)
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         ringtoneManager?.stop()
@@ -1403,6 +1515,9 @@ class MessagesViewModel(
         callSignalPollJob?.cancel()
         incomingInvitePollJob?.cancel()
         inboxPollJob?.cancel()
+        dmTypingPollJob?.cancel()
+        dmTypingHeartbeatJob?.cancel()
+        publishDmTyping(false)
     }
 
     companion object {

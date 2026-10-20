@@ -11,11 +11,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -39,6 +39,10 @@ import com.campus.network.core.ui.theme.TextSecondary
 fun CampusBottomNavBar(
     navController: NavController,
     currentRoute: String?,
+    /** Unread server/channel messages — badge on Servers tab. */
+    channelsUnreadCount: Int = 0,
+    /** Unread direct messages — badge on Messages tab. */
+    messagesUnreadCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -66,6 +70,11 @@ fun CampusBottomNavBar(
             ) {
                 Screen.bottomTabs.forEach { screen ->
                     val isSelected = currentRoute == screen.route
+                    val unread = when (screen) {
+                        is Screen.Channels -> channelsUnreadCount
+                        is Screen.Messages -> messagesUnreadCount
+                        else -> 0
+                    }
 
                     Column(
                         modifier = Modifier
@@ -86,7 +95,6 @@ fun CampusBottomNavBar(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        // Circular icon badge on active tab (Mirroring reference design)
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
@@ -96,30 +104,20 @@ fun CampusBottomNavBar(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            BadgedBox(
-                                badge = {
-                                    if (screen.badgeLabel != null) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(CircleShape)
-                                                .background(AlertRed)
-                                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                                        ) {
-                                            Text(
-                                                text = screen.badgeLabel,
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = screen.icon,
-                                    contentDescription = screen.title,
-                                    tint = if (isSelected) BrandBluePrimary else TextSecondary,
-                                    modifier = Modifier.size(22.dp)
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screen.title,
+                                tint = if (isSelected) BrandBluePrimary else TextSecondary,
+                                modifier = Modifier.size(22.dp)
+                            )
+
+                            // Commercial-style unread indicator (Servers + Direct tabs)
+                            if (unread > 0) {
+                                UnreadTabBadge(
+                                    count = unread,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 4.dp, y = (-2).dp)
                                 )
                             }
                         }
@@ -137,5 +135,38 @@ fun CampusBottomNavBar(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun UnreadTabBadge(
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    val label = when {
+        count > 99 -> "99+"
+        else -> count.toString()
+    }
+    val isSingleDigit = count in 1..9
+    Box(
+        modifier = modifier
+            .then(
+                if (isSingleDigit) Modifier.size(16.dp) else Modifier
+            )
+            .clip(CircleShape)
+            .background(AlertRed)
+            .padding(
+                horizontal = if (isSingleDigit) 0.dp else 4.dp,
+                vertical = if (isSingleDigit) 0.dp else 1.dp
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Black,
+            color = Color.White,
+            maxLines = 1
+        )
     }
 }

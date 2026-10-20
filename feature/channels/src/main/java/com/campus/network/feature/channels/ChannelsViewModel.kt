@@ -3,6 +3,8 @@ package com.campus.network.feature.channels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.campus.network.core.data.AcademicChannelsRepository
+import com.campus.network.core.data.RemoteChannelChatMessage
+import com.campus.network.core.data.ServerChannelChatRepository
 import com.campus.network.core.data.ServerRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.AcademicChannel
@@ -10,6 +12,7 @@ import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.firstName
 import com.campus.network.core.model.ServerChannelType
 import com.campus.network.core.model.ServerRule
+import com.campus.network.core.model.stableUserId
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.CourseMate
@@ -19,12 +22,15 @@ import com.campus.network.feature.channels.model.PerServerProfile
 import com.campus.network.feature.channels.model.ServerMemberItem
 import com.campus.network.feature.channels.model.ServerMemberRole
 import com.campus.network.feature.channels.model.ServerRoleType
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class ServerChannelItem(
@@ -36,7 +42,9 @@ data class ServerChannelItem(
     val isSelected: Boolean = false,
     val channelType: String = "text", // "text", "rules", "announcements"
     val categoryName: String = "Text Channels",
-    val unreadBadgeCount: Int = 0
+    val unreadBadgeCount: Int = 0,
+    /** Green subtitle when a peer is typing in this channel thread. */
+    val typingLabel: String? = null
 )
 
 data class ChannelMessageEmbed(
@@ -54,6 +62,7 @@ data class ChannelMessageEmbed(
 data class ChannelMessage(
     val id: String,
     val authorName: String,
+    val authorId: String = "",
     val authorAvatarRes: String? = null,
     val authorColorHex: Long = 0xFF1E1F22,
     val authorBadge: String? = null,
@@ -66,7 +75,15 @@ data class ChannelMessage(
     val replyTo: String? = null,
     val reactionCount: Int = 0,
     val isDateDivider: Boolean = false,
-    val dateDividerText: String? = null
+    val dateDividerText: String? = null,
+    val timestampEpochMs: Long = System.currentTimeMillis(),
+    val isMine: Boolean = false
+)
+
+data class ChannelTypingUser(
+    val userId: String,
+    val displayName: String,
+    val avatarUrl: String? = null
 )
 
 data class ServerItem(
@@ -104,11 +121,21 @@ data class ChannelsUiState(
     val activeUserName: String = "",
     val activeUserAvatar: String? = null,
     val activeUserStatus: String = "Online",
+    /** Total unread across all joined channel threads (for hub / rail indicators). */
     val activeUserUnreadCount: Int = 0,
+    /**
+     * Unread outside the channel currently open in chat — used for the in-chat back badge.
+     * Zero while not in [ChannelViewMode.CHANNEL_CHAT].
+     */
+    val otherChannelsUnreadCount: Int = 0,
     val activeChatServer: ServerItem? = null,
     val activeChatChannel: ServerChannelItem? = null,
     val studentProfile: StudentProfile? = null,
     val chatMessages: List<ChannelMessage> = emptyList(),
+    /** Peers currently typing in the open channel (excludes self). */
+    val activeChannelTypingUsers: List<ChannelTypingUser> = emptyList(),
+    /** Green header line e.g. "Lincoln is typing…" */
+    val activeChannelTypingLabel: String? = null,
     val isMediaDrawerOpen: Boolean = false,
     val activeMediaTab: String = "Photos",
     val selectedFaculty: String = "Faculty of Engineering & Technology",
@@ -180,6 +207,8 @@ sealed interface ChannelsEvent {
         val gifUrl: String? = null,
         val imageUris: List<String> = emptyList()
     ) : ChannelsEvent
+    /** Local composer typing heartbeat for channel members. */
+    data class SetChannelTyping(val isTyping: Boolean) : ChannelsEvent
     data class ToggleReaction(val messageId: String) : ChannelsEvent
     data class SelectFaculty(val facultyName: String) : ChannelsEvent
     data class SelectDepartment(val departmentName: String) : ChannelsEvent
@@ -247,10 +276,18 @@ sealed interface ChannelsEvent {
 class ChannelsViewModel(
     private val repository: AcademicChannelsRepository,
     private val serverRepository: ServerRepository? = null,
-    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository(),
+    private val channelChatRepository: ServerChannelChatRepository = ServerChannelChatRepository()
 ) : ViewModel() {
 
     private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
+    private var channelMessagePollJob: Job? = null
+    private var channelTypingPollJob: Job? = null
+    private var typingHeartbeatJob: Job? = null
+    private val seenRemoteChannelMessageIds = mutableSetOf<String>()
+    private val channelMessageWatermarks = mutableMapOf<String, Long>()
+    private val _typingByChannelId = MutableStateFlow<Map<String, List<ChannelTypingUser>>>(emptyMap())
+    private val _friendRelationships = MutableStateFlow<Map<String, com.campus.network.core.model.FriendRelationship>>(emptyMap())
     private val _previewServerId = MutableStateFlow<String?>(null)
     private val _joinedServerIds = MutableStateFlow<Set<String>>(emptySet())
     private val _isJoiningServer = MutableStateFlow(false)
@@ -268,6 +305,7 @@ class ChannelsViewModel(
     private val _activeMediaTab = MutableStateFlow("Photos")
     private val _channelProfileTab = MutableStateFlow("Members")
     private val _channelMessages = MutableStateFlow<Map<String, List<ChannelMessage>>>(emptyMap())
+    // typingByChannelId declared above with poll jobs
     private val _selectedFaculty = MutableStateFlow("Faculty of Engineering & Technology")
     private val _selectedDepartment = MutableStateFlow("All")
     private val _isCoursesExpanded = MutableStateFlow(false)
@@ -333,6 +371,7 @@ class ChannelsViewModel(
             _currentProfile.collectLatest { profile ->
                 val studentId = profile?.studentId?.ifBlank { profile.universityEmail }.orEmpty().trim()
                 val email = profile?.universityEmail.orEmpty().trim().lowercase()
+                val activeUserId = studentId.ifBlank { email }
                 if (serverRepository != null) {
                     runCatching {
                         serverRepository.syncRemoteServers()
@@ -340,10 +379,56 @@ class ChannelsViewModel(
                             serverRepository.syncRemoteMemberships(studentId, email)
                         }
                     }
+                    if (activeUserId.isNotBlank()) {
+                        launch {
+                            runCatching {
+                                serverRepository.syncRemoteFriends(activeUserId, email)
+                            }
+                        }
+                        launch {
+                            serverRepository.getFriendsForUser(activeUserId).collect { friends ->
+                                _friendRelationships.value = friends.associateBy { it.friendUserId }
+                            }
+                        }
+                    }
                     if (studentId.isNotBlank() || email.isNotBlank()) {
                         serverRepository.getJoinedServerIds(studentId, email).collect { ids ->
                             _joinedServerIds.value = ids.toSet()
                         }
+                    }
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            _friendRelationships.collect { fMap ->
+                if (_serverMembers.value.isNotEmpty()) {
+                    _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                        members.map { mem ->
+                            if (mem.isSelf) {
+                                mem.copy(friendStatus = FriendRequestStatus.FRIENDS)
+                            } else {
+                                val rel = fMap[mem.userId] ?: fMap[mem.handle.removePrefix("@")]
+                                val status = when (rel?.status) {
+                                    com.campus.network.core.model.FriendStatus.FRIENDS -> FriendRequestStatus.FRIENDS
+                                    com.campus.network.core.model.FriendStatus.PENDING_SENT -> FriendRequestStatus.REQUEST_SENT
+                                    com.campus.network.core.model.FriendStatus.PENDING_RECEIVED -> FriendRequestStatus.REQUEST_RECEIVED
+                                    else -> FriendRequestStatus.NONE
+                                }
+                                mem.copy(friendStatus = status)
+                            }
+                        }
+                    }
+                    _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let { sel ->
+                        val rel = fMap[sel.userId] ?: fMap[sel.handle.removePrefix("@")]
+                        val status = when {
+                            sel.isSelf -> FriendRequestStatus.FRIENDS
+                            rel?.status == com.campus.network.core.model.FriendStatus.FRIENDS -> FriendRequestStatus.FRIENDS
+                            rel?.status == com.campus.network.core.model.FriendStatus.PENDING_SENT -> FriendRequestStatus.REQUEST_SENT
+                            rel?.status == com.campus.network.core.model.FriendStatus.PENDING_RECEIVED -> FriendRequestStatus.REQUEST_RECEIVED
+                            else -> FriendRequestStatus.NONE
+                        }
+                        sel.copy(friendStatus = status)
                     }
                 }
             }
@@ -419,7 +504,19 @@ class ChannelsViewModel(
 
                                     _serversList.value = _serversList.value.map { srv ->
                                         if (srv.id == serverId) {
-                                            srv.copy(channels = mappedChannels)
+                                            val openId = _activeChatChannel.value?.id
+                                            // Don't resurrect unread for the channel the student is viewing
+                                            val channels = mappedChannels.map { ch ->
+                                                if (ch.id == openId) {
+                                                    ch.copy(isUnread = false, unreadBadgeCount = 0)
+                                                } else ch
+                                            }
+                                            val unreadSum = channels.sumOf { it.unreadBadgeCount }
+                                            srv.copy(
+                                                channels = channels,
+                                                badgeCount = unreadSum,
+                                                hasUnread = unreadSum > 0 || channels.any { it.isUnread }
+                                            )
                                         } else srv
                                     }
                                 }
@@ -506,9 +603,20 @@ class ChannelsViewModel(
                                             mem.avatarUrl ?: mem.avatarResName
                                         }
                                         val isUrl = rawAvatar?.startsWith("http") == true || rawAvatar?.startsWith("content:") == true
+                                        val fMap = _friendRelationships.value
+                                        val rel = fMap[mem.userId] ?: fMap[resolvedHandle.removePrefix("@")]
+                                        val resolvedFriendStatus = when {
+                                            isSelf -> FriendRequestStatus.FRIENDS
+                                            rel?.status == com.campus.network.core.model.FriendStatus.FRIENDS -> FriendRequestStatus.FRIENDS
+                                            rel?.status == com.campus.network.core.model.FriendStatus.PENDING_SENT -> FriendRequestStatus.REQUEST_SENT
+                                            rel?.status == com.campus.network.core.model.FriendStatus.PENDING_RECEIVED -> FriendRequestStatus.REQUEST_RECEIVED
+                                            else -> FriendRequestStatus.NONE
+                                        }
+
                                         ServerMemberItem(
                                             id = "mem_${mem.userId}_$serverId",
                                             serverId = serverId,
+                                            userId = mem.userId,
                                             name = resolvedName,
                                             handle = resolvedHandle,
                                             avatarResName = if (isUrl) null else rawAvatar,
@@ -530,7 +638,7 @@ class ChannelsViewModel(
                                             isOnline = mem.isOnline,
                                             joinedDate = "Joined " + java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(mem.joinedAtEpochMs)),
                                             bio = mem.customStatus ?: "Campus peer & server member.",
-                                            friendStatus = if (isSelf) FriendRequestStatus.FRIENDS else FriendRequestStatus.NONE,
+                                            friendStatus = resolvedFriendStatus,
                                             isSelf = isSelf
                                         )
                                     }
@@ -578,13 +686,25 @@ class ChannelsViewModel(
             )
         },
         combine(
-            _activeChatChannel,
-            _isMediaDrawerOpen,
-            _activeMediaTab,
-            _channelMessages,
-            _channelProfileTab
-        ) { cChan, drawerOpen, mTab, cMsgs, cpTab ->
-            ServerStateSlice2(cChan, drawerOpen, mTab, cMsgs, cpTab)
+            combine(
+                _activeChatChannel,
+                _isMediaDrawerOpen,
+                _activeMediaTab,
+                _channelMessages,
+                _channelProfileTab
+            ) { cChan, drawerOpen, mTab, cMsgs, cpTab ->
+                Quintuple(cChan, drawerOpen, mTab, cMsgs, cpTab)
+            },
+            _typingByChannelId
+        ) { quint, typingMap ->
+            ServerStateSlice2(
+                activeChatChannel = quint.first,
+                isMediaDrawerOpen = quint.second,
+                activeMediaTab = quint.third,
+                channelMessages = quint.fourth,
+                channelProfileTab = quint.fifth,
+                typingByChannelId = typingMap
+            )
         },
         combine(
             _selectedFaculty,
@@ -672,11 +792,28 @@ class ChannelsViewModel(
         val currentUserId = profile?.studentId?.ifBlank { profile.universityEmail }.orEmpty().trim()
         val currentEmail = profile?.universityEmail.orEmpty().trim().lowercase()
 
+        val typingMap = slice2.typingByChannelId
+        val myStableId = profile?.stableUserId().orEmpty()
         val joinedServersList = allServers.filter { srv ->
             slice1.joinedServerIds.contains(srv.id) ||
             (currentUserId.isNotBlank() && srv.ownerId.equals(currentUserId, ignoreCase = true)) ||
             (currentEmail.isNotBlank() && srv.ownerId.equals(currentEmail, ignoreCase = true))
-        }.map { it.copy(isPreview = false) }
+        }.map { srv ->
+            val channelsWithTyping = srv.channels.map { ch ->
+                val typers = typingMap[ch.id].orEmpty()
+                    .filter { !it.userId.equals(myStableId, ignoreCase = true) }
+                ch.copy(typingLabel = formatTypingLabel(typers))
+            }
+            val unreadSum = channelsWithTyping.sumOf {
+                it.unreadBadgeCount.coerceAtLeast(if (it.isUnread) 1 else 0)
+            }
+            srv.copy(
+                isPreview = false,
+                channels = channelsWithTyping,
+                badgeCount = unreadSum,
+                hasUnread = unreadSum > 0
+            )
+        }
 
         val previewServerItem = slice1.previewServerId?.let { pId ->
             allServers.find { it.id == pId }?.copy(isPreview = true)
@@ -701,6 +838,9 @@ class ChannelsViewModel(
         // Resolve active chat channel and its messages
         val activeChannel = slice2.activeChatChannel ?: currentServer?.channels?.find { it.id == slice1.selectedChannelId }
         val currentMessages = activeChannel?.let { slice2.channelMessages[it.id] } ?: emptyList()
+        val activeTypers = activeChannel?.id?.let { chId ->
+            typingMap[chId].orEmpty().filter { !it.userId.equals(myStableId, ignoreCase = true) }
+        }.orEmpty()
 
         val resolvedName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
         val resolvedAvatar = profile?.avatarUrl
@@ -727,9 +867,21 @@ class ChannelsViewModel(
             activeUserUnreadCount = joinedServersList.sumOf { srv ->
                 srv.channels.sumOf { ch -> ch.unreadBadgeCount.coerceAtLeast(if (ch.isUnread) 1 else 0) }
             },
+            otherChannelsUnreadCount = if (slice1.viewMode == ChannelViewMode.CHANNEL_CHAT) {
+                val openId = activeChannel?.id
+                joinedServersList.sumOf { srv ->
+                    srv.channels
+                        .filter { it.id != openId }
+                        .sumOf { ch -> ch.unreadBadgeCount.coerceAtLeast(if (ch.isUnread) 1 else 0) }
+                }
+            } else {
+                0
+            },
             activeChatServer = currentServer,
             activeChatChannel = activeChannel,
             chatMessages = currentMessages,
+            activeChannelTypingUsers = activeTypers,
+            activeChannelTypingLabel = formatTypingLabel(activeTypers),
             isMediaDrawerOpen = slice2.isMediaDrawerOpen,
             activeMediaTab = slice2.activeMediaTab,
             activeChannelProfileTab = slice2.channelProfileTab,
@@ -812,6 +964,10 @@ class ChannelsViewModel(
                 server?.channels?.firstOrNull()?.let {
                     _selectedChannelId.value = it.id
                 }
+                // Hub-level typing poll so channel thread list shows "X is typing…"
+                if (_viewMode.value != ChannelViewMode.CHANNEL_CHAT) {
+                    startTypingPresencePoll(serverId = event.serverId, focusChannelId = null)
+                }
             }
             is ChannelsEvent.SelectChannel -> {
                 _selectedChannelId.value = event.channelId
@@ -842,10 +998,16 @@ class ChannelsViewModel(
                 viewModelScope.launch {
                     serverRepository?.markChannelRead(event.channel.id)
                 }
+                startChannelMessageStream(event.channel.id)
+                startTypingPresencePoll(serverId = _selectedServerId.value, focusChannelId = event.channel.id)
             }
             is ChannelsEvent.CloseChannelChat -> {
+                publishTyping(false)
+                stopChannelMessageStream()
                 _viewMode.value = ChannelViewMode.CHANNELS_HUB
                 _isMediaDrawerOpen.value = false
+                // Keep light typing poll for channel thread list indicators
+                startTypingPresencePoll(serverId = _selectedServerId.value, focusChannelId = null)
             }
             is ChannelsEvent.OpenChannelProfile -> {
                 _viewMode.value = ChannelViewMode.CHANNEL_PROFILE
@@ -881,20 +1043,56 @@ class ChannelsViewModel(
                 val activeChan = _activeChatChannel.value
                     ?: _serversList.value.find { it.id == _selectedServerId.value }?.channels?.find { it.id == _selectedChannelId.value }
                     ?: return
-                val currentList = _channelMessages.value[activeChan.id] ?: emptyList()
-                val author = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student"
-                val avatar = _currentProfile.value?.avatarUrl
+                val profile = _currentProfile.value
+                val authorId = profile?.stableUserId().orEmpty()
+                if (authorId.isBlank()) {
+                    _feedbackMessage.value = "Sign in to send channel messages"
+                    return
+                }
+                val author = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+                val avatar = profile?.avatarUrl
+                val now = System.currentTimeMillis()
+                val msgId = "cmsg_${java.util.UUID.randomUUID()}"
                 val newMessage = ChannelMessage(
-                    id = "msg_${System.currentTimeMillis()}",
+                    id = msgId,
                     authorName = author,
+                    authorId = authorId,
                     authorColorHex = 0xFF003B68,
                     authorAvatarRes = avatar,
-                    timestamp = "Today at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()),
+                    timestamp = "Today at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(now)),
                     text = event.text,
                     gifUrl = event.gifUrl,
-                    imageUris = event.imageUris
+                    imageUris = event.imageUris,
+                    timestampEpochMs = now,
+                    isMine = true
                 )
+                val currentList = _channelMessages.value[activeChan.id] ?: emptyList()
                 _channelMessages.value = _channelMessages.value + (activeChan.id to (currentList + newMessage))
+                seenRemoteChannelMessageIds.add(msgId)
+                channelMessageWatermarks[activeChan.id] =
+                    maxOf(channelMessageWatermarks[activeChan.id] ?: 0L, now)
+                // Stop local typing once a message is sent
+                publishTyping(false)
+                val serverId = _selectedServerId.value
+                viewModelScope.launch {
+                    channelChatRepository.sendMessage(
+                        serverId = serverId,
+                        channelId = activeChan.id,
+                        senderId = authorId,
+                        senderName = author,
+                        senderAvatarUrl = avatar,
+                        text = event.text,
+                        gifUrl = event.gifUrl,
+                        imageUrls = event.imageUris,
+                        messageId = msgId,
+                        timestampEpochMs = now
+                    ).onFailure { err ->
+                        _feedbackMessage.value = "Message queued locally — sync failed: ${err.message}"
+                    }
+                }
+            }
+            is ChannelsEvent.SetChannelTyping -> {
+                publishTyping(event.isTyping)
             }
             is ChannelsEvent.ToggleReaction -> {
                 val activeChan = _activeChatChannel.value ?: return
@@ -1269,8 +1467,14 @@ class ChannelsViewModel(
                         _viewMode.value = ChannelViewMode.CHANNEL_CHAT
                     }
                     ChannelViewMode.CHANNEL_CHAT -> {
+                        publishTyping(false)
+                        stopChannelMessageStream()
                         _viewMode.value = ChannelViewMode.CHANNELS_HUB
                         _isMediaDrawerOpen.value = false
+                        startTypingPresencePoll(
+                            serverId = _selectedServerId.value,
+                            focusChannelId = null
+                        )
                     }
                     ChannelViewMode.STUDENT_PROFILE -> {
                         _viewMode.value = ChannelViewMode.DISCOVER_CAROUSEL
@@ -1307,7 +1511,9 @@ class ChannelsViewModel(
 
             is ChannelsEvent.SendFriendRequest -> {
                 val memberId = event.memberId
-                var targetName = "Member"
+                val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
+                    ?: _serverMembers.value.values.flatten().find { it.id == memberId }
+                var targetName = member?.serverNickname ?: member?.name ?: "Member"
                 _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
                     members.map { mem ->
                         if (mem.id == memberId) {
@@ -1320,10 +1526,30 @@ class ChannelsViewModel(
                     if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.REQUEST_SENT) else it
                 }
                 _feedbackMessage.value = "Friend request sent to $targetName!"
+                val me = _currentProfile.value
+                val myId = me?.studentId?.takeIf { it.isNotBlank() }
+                    ?: me?.universityEmail?.takeIf { it.isNotBlank() }
+                    ?: return
+                val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
+                if (peerUserId.isNotBlank()) {
+                    viewModelScope.launch {
+                        serverRepository?.sendFriendRequest(
+                            userId = myId,
+                            friendUserId = peerUserId,
+                            friendDisplayName = targetName,
+                            friendHandle = member?.handle.orEmpty(),
+                            friendAvatarResName = member?.avatarResName.orEmpty(),
+                            senderDisplayName = me?.fullName?.ifBlank { "Campus peer" } ?: "Campus peer",
+                            serverId = member?.serverId
+                        )
+                    }
+                }
             }
 
             is ChannelsEvent.CancelFriendRequest -> {
                 val memberId = event.memberId
+                val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
+                    ?: _serverMembers.value.values.flatten().find { it.id == memberId }
                 _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
                     members.map { mem ->
                         if (mem.id == memberId) {
@@ -1335,11 +1561,22 @@ class ChannelsViewModel(
                     if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
                 }
                 _feedbackMessage.value = "Friend request cancelled."
+                val me = _currentProfile.value
+                val myId = me?.studentId?.takeIf { it.isNotBlank() }
+                    ?: me?.universityEmail?.takeIf { it.isNotBlank() }
+                val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
+                if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
+                    viewModelScope.launch {
+                        serverRepository?.declineOrRemoveFriend(userId = myId, friendUserId = peerUserId)
+                    }
+                }
             }
 
             is ChannelsEvent.AcceptFriendRequest -> {
                 val memberId = event.memberId
-                var targetName = "Member"
+                val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
+                    ?: _serverMembers.value.values.flatten().find { it.id == memberId }
+                var targetName = member?.serverNickname ?: member?.name ?: "Member"
                 _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
                     members.map { mem ->
                         if (mem.id == memberId) {
@@ -1352,10 +1589,21 @@ class ChannelsViewModel(
                     if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.FRIENDS) else it
                 }
                 _feedbackMessage.value = "You are now friends with $targetName!"
+                val me = _currentProfile.value
+                val myId = me?.studentId?.takeIf { it.isNotBlank() }
+                    ?: me?.universityEmail?.takeIf { it.isNotBlank() }
+                val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
+                if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
+                    viewModelScope.launch {
+                        serverRepository?.acceptFriendRequest(userId = myId, friendUserId = peerUserId)
+                    }
+                }
             }
 
             is ChannelsEvent.DeclineFriendRequest -> {
                 val memberId = event.memberId
+                val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
+                    ?: _serverMembers.value.values.flatten().find { it.id == memberId }
                 _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
                     members.map { mem ->
                         if (mem.id == memberId) {
@@ -1367,6 +1615,15 @@ class ChannelsViewModel(
                     if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
                 }
                 _feedbackMessage.value = "Friend request declined."
+                val me = _currentProfile.value
+                val myId = me?.studentId?.takeIf { it.isNotBlank() }
+                    ?: me?.universityEmail?.takeIf { it.isNotBlank() }
+                val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
+                if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
+                    viewModelScope.launch {
+                        serverRepository?.declineOrRemoveFriend(userId = myId, friendUserId = peerUserId)
+                    }
+                }
             }
 
             is ChannelsEvent.OpenEditServerProfile -> {
@@ -1548,6 +1805,179 @@ class ChannelsViewModel(
             }
         }
     }
+
+    /** Member UI ids are `mem_{userId}_{serverId}` — peel back to the stable user id. */
+    private fun extractMemberUserId(member: ServerMemberItem?, memberId: String, serverId: String): String {
+        if (!member?.userId.isNullOrBlank()) return member!!.userId
+        val raw = memberId.trim()
+        if (raw.isBlank()) return ""
+        val withoutMem = raw.removePrefix("mem_")
+        if (serverId.isNotBlank() && withoutMem.endsWith("_$serverId")) {
+            return withoutMem.removeSuffix("_$serverId")
+        }
+        // Fallback: strip trailing _srv… segment when serverId unknown
+        val lastSrv = withoutMem.lastIndexOf("_srv")
+        if (lastSrv > 0) return withoutMem.substring(0, lastSrv)
+        return withoutMem
+    }
+
+    private fun formatTypingLabel(typers: List<ChannelTypingUser>): String? {
+        if (typers.isEmpty()) return null
+        return when (typers.size) {
+            1 -> "${typers[0].displayName} is typing…"
+            2 -> "${typers[0].displayName} and ${typers[1].displayName} are typing…"
+            else -> "${typers[0].displayName} and ${typers.size - 1} others are typing…"
+        }
+    }
+
+    private fun publishTyping(isTyping: Boolean) {
+        typingHeartbeatJob?.cancel()
+        val channel = _activeChatChannel.value ?: return
+        val serverId = _selectedServerId.value
+        val profile = _currentProfile.value
+        val userId = profile?.stableUserId().orEmpty()
+        if (userId.isBlank() || channel.id.isBlank()) return
+        val displayName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+        val avatar = profile?.avatarUrl
+        if (!isTyping) {
+            viewModelScope.launch {
+                channelChatRepository.setTyping(
+                    serverId = serverId,
+                    channelId = channel.id,
+                    userId = userId,
+                    displayName = displayName,
+                    avatarUrl = avatar,
+                    isTyping = false
+                )
+            }
+            return
+        }
+        // Heartbeat every 2s while composer has text
+        typingHeartbeatJob = viewModelScope.launch {
+            while (isActive) {
+                channelChatRepository.setTyping(
+                    serverId = serverId,
+                    channelId = channel.id,
+                    userId = userId,
+                    displayName = displayName,
+                    avatarUrl = avatar,
+                    isTyping = true
+                )
+                delay(2_000L)
+            }
+        }
+    }
+
+    private fun startChannelMessageStream(channelId: String) {
+        channelMessagePollJob?.cancel()
+        channelMessagePollJob = viewModelScope.launch {
+            // Initial history pull
+            pullChannelMessages(channelId, fullHistory = true)
+            while (isActive) {
+                delay(2_500L)
+                pullChannelMessages(channelId, fullHistory = false)
+            }
+        }
+    }
+
+    private fun stopChannelMessageStream() {
+        channelMessagePollJob?.cancel()
+        channelMessagePollJob = null
+    }
+
+    private suspend fun pullChannelMessages(channelId: String, fullHistory: Boolean) {
+        val after = if (fullHistory) 0L else (channelMessageWatermarks[channelId] ?: 0L)
+        val result = channelChatRepository.fetchMessages(channelId, afterEpochMs = after)
+        val remote = result.getOrNull() ?: return
+        if (remote.isEmpty()) return
+        val me = _currentProfile.value?.stableUserId().orEmpty()
+        val existing = _channelMessages.value[channelId].orEmpty().associateBy { it.id }.toMutableMap()
+        var maxTs = channelMessageWatermarks[channelId] ?: 0L
+        for (msg in remote) {
+            maxTs = maxOf(maxTs, msg.timestampEpochMs)
+            if (!seenRemoteChannelMessageIds.add(msg.id) && existing.containsKey(msg.id)) continue
+            existing[msg.id] = mapRemoteChannelMessage(msg, me)
+            // Bump unread when message arrives for a channel that isn't open
+            val viewingThis = _viewMode.value == ChannelViewMode.CHANNEL_CHAT &&
+                _activeChatChannel.value?.id == channelId
+            if (!viewingThis && !msg.senderId.equals(me, ignoreCase = true)) {
+                _serversList.value = _serversList.value.map { srv ->
+                    srv.copy(
+                        channels = srv.channels.map { ch ->
+                            if (ch.id != channelId) ch
+                            else ch.copy(
+                                isUnread = true,
+                                unreadBadgeCount = (ch.unreadBadgeCount + 1).coerceAtLeast(1)
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        channelMessageWatermarks[channelId] = maxTs
+        val merged = existing.values.sortedBy { it.timestampEpochMs }
+        _channelMessages.value = _channelMessages.value + (channelId to merged)
+    }
+
+    private fun mapRemoteChannelMessage(msg: RemoteChannelChatMessage, myUserId: String): ChannelMessage {
+        val timeLabel = "Today at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+            .format(java.util.Date(msg.timestampEpochMs))
+        val isMine = myUserId.isNotBlank() && msg.senderId.equals(myUserId, ignoreCase = true)
+        return ChannelMessage(
+            id = msg.id,
+            authorName = msg.senderName,
+            authorId = msg.senderId,
+            authorAvatarRes = msg.senderAvatarUrl,
+            authorColorHex = if (isMine) 0xFF003B68 else 0xFF1E1F22,
+            timestamp = timeLabel,
+            text = msg.text,
+            gifUrl = msg.gifUrl,
+            imageUris = msg.imageUrls,
+            reactionCount = msg.reactionCount,
+            timestampEpochMs = msg.timestampEpochMs,
+            isMine = isMine
+        )
+    }
+
+    private fun startTypingPresencePoll(serverId: String, focusChannelId: String?) {
+        channelTypingPollJob?.cancel()
+        if (serverId.isBlank() && focusChannelId.isNullOrBlank()) return
+        channelTypingPollJob = viewModelScope.launch {
+            while (isActive) {
+                val me = _currentProfile.value?.stableUserId().orEmpty()
+                val remote = when {
+                    !focusChannelId.isNullOrBlank() ->
+                        channelChatRepository.fetchTypingForChannel(focusChannelId).getOrNull().orEmpty()
+                    serverId.isNotBlank() ->
+                        channelChatRepository.fetchTypingForServer(serverId).getOrNull().orEmpty()
+                    else -> emptyList()
+                }
+                val grouped = remote
+                    .filter { !it.userId.equals(me, ignoreCase = true) }
+                    .groupBy { it.channelId }
+                    .mapValues { (_, users) ->
+                        users.distinctBy { it.userId }.map {
+                            ChannelTypingUser(
+                                userId = it.userId,
+                                displayName = it.displayName,
+                                avatarUrl = it.avatarUrl
+                            )
+                        }
+                    }
+                _typingByChannelId.value = if (focusChannelId.isNullOrBlank()) {
+                    grouped
+                } else {
+                    // Keep other channel typing labels from server poll when focused; merge focus
+                    val base = _typingByChannelId.value.toMutableMap()
+                    base.keys.filter { it != focusChannelId && it !in grouped }.forEach { base.remove(it) }
+                    grouped.forEach { (k, v) -> base[k] = v }
+                    if (focusChannelId !in grouped) base.remove(focusChannelId)
+                    base
+                }
+                delay(1_500L)
+            }
+        }
+    }
 }
 
 private data class ServerJoinSlice(
@@ -1578,7 +2008,17 @@ private data class ServerStateSlice2(
     val isMediaDrawerOpen: Boolean,
     val activeMediaTab: String,
     val channelMessages: Map<String, List<ChannelMessage>>,
-    val channelProfileTab: String = "Members"
+    val channelProfileTab: String = "Members",
+    val typingByChannelId: Map<String, List<ChannelTypingUser>> = emptyMap()
+)
+
+/** Tiny tuple helper for nested combine without Pair nesting. */
+private data class Quintuple<A, B, C, D, E>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E
 )
 
 private data class AcademicFilterSlice(

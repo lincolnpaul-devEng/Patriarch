@@ -182,6 +182,7 @@ fun HubScreen(
     onNavigateToMap: ((Double, Double, String) -> Unit)? = null,
     onNavigateToNotifications: () -> Unit = {},
     onToggleBottomBar: ((Boolean) -> Unit)? = null,
+    unreadNotificationsCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -334,6 +335,7 @@ fun HubScreen(
                     onNotificationClick = {
                         onNavigateToNotifications()
                     },
+                    unreadNotificationsCount = unreadNotificationsCount,
                     onLocationClick = {
                         scope.launch {
                             snackbarHostState.showSnackbar("Current Campus Sector: North Quad Academic Commons")
@@ -876,6 +878,7 @@ private fun HeroScenicHeader(
     onLogoClick: () -> Unit,
     onChatClick: () -> Unit,
     onNotificationClick: () -> Unit,
+    unreadNotificationsCount: Int = 0,
     onLocationClick: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -1099,14 +1102,16 @@ private fun HeroScenicHeader(
                         modifier = Modifier.size(23.dp)
                     )
 
-                    // Small indicator dot
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .align(Alignment.TopEnd)
-                            .offset(x = (-10).dp, y = 10.dp)
-                            .background(Color(0xFFEA4335), CircleShape)
-                    )
+                    // Small indicator dot (displayed dynamically when unread notifications exist)
+                    if (unreadNotificationsCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .align(Alignment.TopEnd)
+                                .offset(x = (-10).dp, y = 10.dp)
+                                .background(Color(0xFFEA4335), CircleShape)
+                        )
+                    }
                 }
             }
         }

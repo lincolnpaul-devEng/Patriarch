@@ -1413,15 +1413,32 @@ private fun ServerDetailsPanel(
 
                                     Spacer(modifier = Modifier.width(9.dp))
 
-                                    Text(
-                                        text = channel.name,
-                                        fontSize = 14.5.sp,
-                                        fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = channel.name,
+                                            fontSize = 14.5.sp,
+                                            fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (!channel.typingLabel.isNullOrBlank()) {
+                                            Text(
+                                                text = channel.typingLabel,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF23A559),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
 
-                                    if (channel.unreadBadgeCount > 0) {
+                                    // Per-channel thread unread badge (real count only)
+                                    val channelUnread = channel.unreadBadgeCount.coerceAtLeast(
+                                        if (channel.isUnread) 1 else 0
+                                    )
+                                    if (channelUnread > 0) {
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(10.dp))
@@ -1429,7 +1446,7 @@ private fun ServerDetailsPanel(
                                                 .padding(horizontal = 7.dp, vertical = 2.dp)
                                         ) {
                                             Text(
-                                                text = channel.unreadBadgeCount.toString(),
+                                                text = if (channelUnread > 99) "99+" else "$channelUnread",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White

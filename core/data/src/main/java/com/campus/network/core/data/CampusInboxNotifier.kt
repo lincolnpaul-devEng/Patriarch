@@ -59,6 +59,26 @@ class CampusInboxNotifier(
         )
     }
 
+    suspend fun notifyFriendRequestAccepted(
+        recipientUserId: String,
+        actorUserId: String,
+        actorName: String
+    ): Result<Unit> = withContext(ioDispatcher) {
+        if (recipientUserId.isBlank() || recipientUserId.equals(actorUserId, ignoreCase = true)) {
+            return@withContext Result.success(Unit)
+        }
+        insertNotification(
+            recipientUserId = recipientUserId,
+            actorUserId = actorUserId,
+            actorName = actorName.ifBlank { "Campus peer" },
+            type = TYPE_FRIEND_REQUEST_ACCEPTED,
+            title = "Friend request accepted",
+            body = "${actorName.ifBlank { "A campus peer" }} accepted your friend request",
+            threadId = null,
+            serverId = null
+        )
+    }
+
     private suspend fun insertNotification(
         recipientUserId: String,
         actorUserId: String,
@@ -89,6 +109,7 @@ class CampusInboxNotifier(
     companion object {
         const val TYPE_DIRECT_MESSAGE = "DIRECT_MESSAGE"
         const val TYPE_FRIEND_REQUEST = "FRIEND_REQUEST"
+        const val TYPE_FRIEND_REQUEST_ACCEPTED = "FRIEND_REQUEST_ACCEPTED"
         const val TYPE_CHANNEL_MESSAGE = "CHANNEL_MESSAGE"
     }
 }

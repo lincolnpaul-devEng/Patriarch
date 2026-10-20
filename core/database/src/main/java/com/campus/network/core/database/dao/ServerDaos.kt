@@ -130,14 +130,20 @@ interface ServerMemberDao {
 
 @Dao
 interface FriendDao {
-    @Query("SELECT * FROM friends WHERE userId = :userId ORDER BY lastInteractionEpochMs DESC")
-    fun getFriendsForUser(userId: String): Flow<List<FriendEntity>>
+    @Query("SELECT * FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) ORDER BY lastInteractionEpochMs DESC")
+    fun getFriendsForUser(userId: String, email: String = ""): Flow<List<FriendEntity>>
 
-    @Query("SELECT * FROM friends WHERE userId = :userId AND friendUserId = :friendUserId LIMIT 1")
-    fun getFriendRelationship(userId: String, friendUserId: String): Flow<FriendEntity?>
+    @Query("SELECT COUNT(*) FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND status = 'PENDING_RECEIVED'")
+    fun getPendingReceivedFriendRequestsCount(userId: String, email: String = ""): Flow<Int>
 
-    @Query("SELECT * FROM friends WHERE userId = :userId AND friendUserId = :friendUserId LIMIT 1")
-    suspend fun getFriendRelationshipSync(userId: String, friendUserId: String): FriendEntity?
+    @Query("SELECT * FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND status = 'PENDING_RECEIVED' ORDER BY lastInteractionEpochMs DESC")
+    fun getPendingReceivedFriendRequests(userId: String, email: String = ""): Flow<List<FriendEntity>>
+
+    @Query("SELECT * FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND friendUserId = :friendUserId LIMIT 1")
+    fun getFriendRelationship(userId: String, friendUserId: String, email: String = ""): Flow<FriendEntity?>
+
+    @Query("SELECT * FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND friendUserId = :friendUserId LIMIT 1")
+    suspend fun getFriendRelationshipSync(userId: String, friendUserId: String, email: String = ""): FriendEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFriend(friend: FriendEntity)

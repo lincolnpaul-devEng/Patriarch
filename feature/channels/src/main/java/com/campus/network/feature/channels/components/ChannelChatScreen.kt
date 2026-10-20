@@ -124,8 +124,10 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.campus.network.feature.channels.ChannelMessage
 import com.campus.network.feature.channels.ChannelMessageEmbed
+import com.campus.network.feature.channels.ChannelTypingUser
 import com.campus.network.feature.channels.ChannelsEvent
 import com.campus.network.feature.channels.ChannelsUiState
+import com.campus.network.core.ui.components.DiscordBouncingDotsLoader
 import com.campus.network.core.ui.components.KeyboardMediaTextField
 import com.campus.network.feature.channels.model.ServerRoleType
 import com.campus.network.feature.channels.ChannelsViewModel
@@ -214,9 +216,30 @@ fun ChannelChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(messages.size, uiState.activeChannelTypingUsers.size) {
+        val extra = if (uiState.activeChannelTypingUsers.isNotEmpty()) 1 else 0
+        val target = messages.size + extra - 1
+        if (target >= 0) {
+            listState.animateScrollToItem(target)
+        }
+    }
+
+    // Publish typing presence while composer has text
+    LaunchedEffect(inputText) {
+        val typing = inputText.isNotBlank()
+        viewModel.onEvent(ChannelsEvent.SetChannelTyping(typing))
+        if (typing) {
+            // Re-assert while text remains (heartbeat also runs in VM)
+            while (isActive && inputText.isNotBlank()) {
+                delay(2_000L)
+                viewModel.onEvent(ChannelsEvent.SetChannelTyping(true))
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.onEvent(ChannelsEvent.SetChannelTyping(false))
         }
     }
 
@@ -226,10 +249,11 @@ fun ChannelChatScreen(
             .background(Color.White)
             .statusBarsPadding()
     ) {
-        // TOP APP BAR / CHANNEL HEADER
+        // TOP APP BAR / CHANNEL HEADER — badge = other channel threads only (not this chat)
         ChannelTopBar(
             channelName = channelName,
-            unreadCount = uiState.activeUserUnreadCount,
+            unreadCount = uiState.otherChannelsUnreadCount,
+            typingLabel = uiState.activeChannelTypingLabel,
             onBackClick = {
                 if (isVoiceRecordingActive) {
                     transcriber.cancel()
@@ -266,6 +290,14 @@ fun ChannelChatScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // WhatsApp-style typing rows: avatar + bouncing dots
+                if (uiState.activeChannelTypingUsers.isNotEmpty()) {
+                    item(key = "typing_presence") {
+                        ChannelTypingPresenceRows(typers = uiState.activeChannelTypingUsers)
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
                 }
             }
 
@@ -578,11 +610,13 @@ fun ChannelChatScreen(
 /**
  * Top bar matching patriarch mobile:
  * [Back + real unread badge when count > 0] # channel-name > [Search]
+ * Optional green "X is typing…" under the title.
  */
 @Composable
 private fun ChannelTopBar(
     channelName: String,
     unreadCount: Int,
+    typingLabel: String? = null,
     onBackClick: () -> Unit,
     onChannelProfileClick: () -> Unit,
     onSearchClick: () -> Unit,
@@ -592,7 +626,7 @@ private fun ChannelTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(if (typingLabel.isNullOrBlank()) 52.dp else 58.dp)
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -633,36 +667,53 @@ private fun ChannelTopBar(
             Spacer(modifier = Modifier.width(8.dp))
 
             // Channel Name with Hash and Chevron (Clickable to open Channel Profile)
-            Row(
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onChannelProfileClick)
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                Text(
-                    text = "#",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF5C6470)
-                )
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                    text = channelName,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E1F22),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = "Channel Details",
-                    tint = Color(0xFF80848E),
-                    modifier = Modifier.size(18.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "#",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF5C6470)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = channelName,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E1F22),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Channel Details",
+                        tint = Color(0xFF80848E),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                AnimatedVisibility(
+                    visible = !typingLabel.isNullOrBlank(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Text(
+                        text = typingLabel.orEmpty(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF23A559),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp)
+                    )
+                }
             }
 
             // Search Icon on right
@@ -680,6 +731,55 @@ private fun ChannelTopBar(
             thickness = 0.8.dp,
             color = Color(0xFFE3E5E8)
         )
+    }
+}
+
+/** WhatsApp-style avatar + bouncing dots for each peer currently typing. */
+@Composable
+private fun ChannelTypingPresenceRows(
+    typers: List<ChannelTypingUser>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        typers.take(3).forEach { typer ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CampusStudentAvatar(
+                        avatarUrl = typer.avatarUrl,
+                        fullName = typer.displayName,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFFF2F3F5),
+                    border = BorderStroke(1.dp, Color(0xFFE3E5E8))
+                ) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DiscordBouncingDotsLoader(
+                            dotSize = 6.dp,
+                            spaceBetween = 5.dp,
+                            dotColor = Color(0xFF5C6470)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

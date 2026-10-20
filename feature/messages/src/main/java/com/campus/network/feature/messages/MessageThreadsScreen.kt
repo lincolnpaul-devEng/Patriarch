@@ -957,13 +957,24 @@ private fun ServerMessageThreadRow(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            Text(
-                text = thread.lastMessage,
-                fontSize = 13.sp,
-                color = Color(0xFF5C6470),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (!thread.typingLabel.isNullOrBlank()) {
+                Text(
+                    text = thread.typingLabel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF23A559),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Text(
+                    text = thread.lastMessage,
+                    fontSize = 13.sp,
+                    color = Color(0xFF5C6470),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(8.dp))

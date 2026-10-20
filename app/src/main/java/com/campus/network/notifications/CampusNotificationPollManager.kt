@@ -49,6 +49,7 @@ object CampusNotificationPollManager {
     private const val KEY_LAST_CREATED_AT = "last_supabase_created_at"
     private const val KEY_LAST_ETAG = "last_supabase_etag"
     private const val KEY_RECIPIENT_USER_ID = "recipient_user_id"
+    private const val KEY_RECIPIENT_USER_EMAIL = "recipient_user_email"
 
     private const val BASE_INTERVAL_MS = 45_000L
     private const val MAX_BACKOFF_INTERVAL_MS = 180_000L
@@ -180,11 +181,18 @@ object CampusNotificationPollManager {
             val lastCreatedAt = prefs.getString(KEY_LAST_CREATED_AT, null)
             val lastEtag = prefs.getString(KEY_LAST_ETAG, null)
             val recipientId = CampusSystemNotificationCenter.getActiveUserId(context)
-                ?: prefs.getString(KEY_RECIPIENT_USER_ID, null)
-            val recipientFilter = recipientId
-                ?.takeIf { it.isNotBlank() }
-                ?.let { "&recipient_user_id=eq.${URLEncoder.encode(it, "UTF-8")}" }
-                .orEmpty()
+                ?: prefs.getString(KEY_RECIPIENT_USER_ID, null)?.takeIf { it.isNotBlank() }
+            val recipientEmail = prefs.getString(KEY_RECIPIENT_USER_EMAIL, null)?.takeIf { it.isNotBlank() }
+
+            val recipientFilter = when {
+                !recipientId.isNullOrBlank() && !recipientEmail.isNullOrBlank() ->
+                    "&or=(recipient_user_id.eq.${URLEncoder.encode(recipientId, "UTF-8")},recipient_user_id.eq.${URLEncoder.encode(recipientEmail, "UTF-8")})"
+                !recipientId.isNullOrBlank() ->
+                    "&recipient_user_id=eq.${URLEncoder.encode(recipientId, "UTF-8")}"
+                !recipientEmail.isNullOrBlank() ->
+                    "&recipient_user_id=eq.${URLEncoder.encode(recipientEmail, "UTF-8")}"
+                else -> return false // Do not poll when not logged in
+            }
 
             val deltaFilter = if (!lastCreatedAt.isNullOrBlank()) {
                 "&created_at=gt.${URLEncoder.encode(lastCreatedAt, "UTF-8")}"
@@ -276,11 +284,12 @@ object CampusNotificationPollManager {
     }
 
     /** Bind poll filter to the signed-in student so we only surface their inbox rows. */
-    fun setRecipientUserId(context: Context, userId: String?) {
+    fun setRecipientUserId(context: Context, userId: String?, email: String? = null) {
         context.applicationContext
             .getSharedPreferences(PREFS_POLL, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_RECIPIENT_USER_ID, userId?.trim().orEmpty())
+            .putString(KEY_RECIPIENT_USER_EMAIL, email?.trim().orEmpty())
             .apply()
     }
 }

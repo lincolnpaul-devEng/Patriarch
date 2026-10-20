@@ -145,6 +145,8 @@ fun DirectChatScreen(
     onConsumeVoiceActivation: () -> Unit = {},
     /** Real unread across other threads — shown on back only when > 0. */
     otherThreadsUnreadCount: Int = 0,
+    /** Green "X is typing…" under the chat title when the peer is composing. */
+    typingLabel: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -169,6 +171,25 @@ fun DirectChatScreen(
 
     val listState = rememberLazyListState()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val resolvedTypingLabel = typingLabel ?: thread.typingLabel
+
+    // Publish typing presence while composer has text
+    LaunchedEffect(inputText) {
+        val typing = inputText.isNotBlank()
+        onEvent(MessagesEvent.SetDirectChatTyping(typing))
+        if (typing) {
+            while (isActive && inputText.isNotBlank()) {
+                delay(2_000L)
+                onEvent(MessagesEvent.SetDirectChatTyping(true))
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onEvent(MessagesEvent.SetDirectChatTyping(false))
+        }
+    }
 
     BackHandler(enabled = isEmojiDrawerOpen || isVoiceRecordingActive) {
         if (isVoiceRecordingActive) {
@@ -364,7 +385,7 @@ fun DirectChatScreen(
                         }
                     }
 
-                    // Online Presence / Waiting for Network Indicator
+                    // Typing / Online / Offline indicator under chat title
                     if (!networkState.isOnline) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -382,6 +403,22 @@ fun DirectChatScreen(
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFFD97706)
+                            )
+                        }
+                    } else if (!resolvedTypingLabel.isNullOrBlank()) {
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Text(
+                                text = resolvedTypingLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF23A559),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                         }
                     } else {

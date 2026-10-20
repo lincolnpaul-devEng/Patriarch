@@ -38,6 +38,7 @@ enum class FriendRequestStatus {
 data class ServerMemberItem(
     val id: String,
     val serverId: String,
+    val userId: String = "",
     val name: String,
     val handle: String,
     val avatarResName: String? = null,

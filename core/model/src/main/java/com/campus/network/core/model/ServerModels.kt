@@ -41,7 +41,7 @@ data class Server(
     val name: String,
     val description: String = "",
     val category: String = "Community",
-    val ownerId: String = "user_lincoln",
+    val ownerId: String = "",
     val avatarResName: String = "server_codesistency",
     val bannerResName: String? = null,
     val isVerified: Boolean = false,

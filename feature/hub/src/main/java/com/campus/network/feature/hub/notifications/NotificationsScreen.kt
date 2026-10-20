@@ -52,7 +52,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface NotificationDestination {
     data object None : NotificationDestination
@@ -89,15 +93,114 @@ fun NotificationsScreen(
     onNavigateToMapMeet: (latitude: Double, longitude: Double) -> Unit = { _, _ -> },
     onNavigateToMessages: (peerId: String?, peerName: String?) -> Unit = { _, _ -> },
     onNavigateToHub: () -> Unit = {},
+    currentUserId: String = "",
+    currentUserEmail: String = "",
+    serverRepository: com.campus.network.core.data.ServerRepository? = null,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showTooltip by remember { mutableStateOf(true) }
 
-    // Real campus notifications list (empty by default, loaded from backend/repository)
-    val notifications = remember {
-        mutableStateListOf<CampusNotification>()
+    // Real campus notifications list loaded from backend and local database
+    val notifications = remember { mutableStateListOf<CampusNotification>() }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(currentUserId, currentUserEmail) {
+        val cleanUserId = currentUserId.trim()
+        val cleanEmail = currentUserEmail.trim().lowercase()
+        if (cleanUserId.isBlank() && cleanEmail.isBlank()) {
+            isLoading = false
+            return@LaunchedEffect
+        }
+        isLoading = true
+        withContext(Dispatchers.IO) {
+            val list = mutableListOf<CampusNotification>()
+
+            // 1. Load pending friend requests from ServerRepository
+            if (serverRepository != null && cleanUserId.isNotBlank()) {
+                runCatching {
+                    val requests = serverRepository.getPendingReceivedFriendRequests(cleanUserId).firstOrNull().orEmpty()
+                    requests.forEach { req ->
+                        val initial = req.friendDisplayName.trim().take(1).uppercase().ifBlank { "P" }
+                        val dateStr = formatNotificationDate(req.lastInteractionEpochMs)
+                        list.add(
+                            CampusNotification(
+                                id = "fr_${req.id}",
+                                initial = initial,
+                                avatarBgColor = generateNotificationAvatarColor(req.friendDisplayName),
+                                initialTextColor = Color.White,
+                                title = req.friendDisplayName,
+                                date = dateStr,
+                                description = "${req.friendDisplayName} sent you a friend request. Tap to view and accept.",
+                                isUnread = true,
+                                destination = NotificationDestination.DirectChat(req.friendUserId, req.friendDisplayName)
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 2. Load campus_notifications from Supabase
+            runCatching {
+                val supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+                val filter = when {
+                    cleanUserId.isNotBlank() && cleanEmail.isNotBlank() ->
+                        "or=(recipient_user_id.eq.$cleanUserId,recipient_user_id.eq.$cleanEmail)"
+                    cleanUserId.isNotBlank() -> "recipient_user_id=eq.$cleanUserId"
+                    else -> "recipient_user_id=eq.$cleanEmail"
+                }
+                val res = supabaseClient.queryTable("campus_notifications?$filter&order=created_at.desc&limit=30")
+                res.onSuccess { jsonStr ->
+                    runCatching {
+                        val arr = org.json.JSONArray(jsonStr)
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val id = obj.optString("id")
+                            val type = obj.optString("type", "DIRECT_MESSAGE").uppercase()
+                            val title = obj.optString("title", "Campus Alert")
+                            val body = obj.optString("body", "")
+                            val isRead = obj.optBoolean("is_read", false)
+                            val actorName = obj.optString("actor_name", "Peer")
+                            val actorUserId = obj.optString("actor_user_id", "")
+                            val threadId = obj.optString("thread_id", "")
+                            val createdAtMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis())
+
+                            val initial = actorName.trim().take(1).uppercase().ifBlank { "C" }
+                            val dateStr = formatNotificationDate(createdAtMs)
+                            val dest = when (type) {
+                                "FRIEND_REQUEST" -> NotificationDestination.DirectChat(actorUserId, actorName)
+                                "DIRECT_MESSAGE" -> NotificationDestination.DirectChat(threadId.ifBlank { actorUserId }, actorName)
+                                "FLASH_MEET" -> NotificationDestination.FlashMeet(-1.3094, 36.8122)
+                                else -> NotificationDestination.None
+                            }
+
+                            if (type != "FRIEND_REQUEST" || list.none { it.id == "fr_$actorUserId:$cleanUserId" || it.id == id }) {
+                                list.add(
+                                    CampusNotification(
+                                        id = id,
+                                        initial = initial,
+                                        avatarBgColor = generateNotificationAvatarColor(actorName),
+                                        initialTextColor = Color.White,
+                                        title = title,
+                                        date = dateStr,
+                                        description = body,
+                                        isUnread = !isRead,
+                                        destination = dest
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                notifications.clear()
+                notifications.addAll(list)
+                isLoading = false
+            }
+        }
     }
 
     Surface(
@@ -282,6 +385,14 @@ fun NotificationsScreen(
                                 val idx = notifications.indexOfFirst { it.id == item.id }
                                 if (idx != -1 && item.isUnread) {
                                     notifications[idx] = item.copy(isUnread = false)
+                                    if (!item.id.startsWith("fr_")) {
+                                        scope.launch(Dispatchers.IO) {
+                                            runCatching {
+                                                val client = com.campus.network.core.network.SupabaseClientProvider()
+                                                client.updateRecord("campus_notifications?id=eq.${item.id}", """{"is_read":true}""")
+                                            }
+                                        }
+                                    }
                                 }
                                 when (val dest = item.destination) {
                                     is NotificationDestination.FlashMeet -> {
@@ -457,4 +568,27 @@ private fun NotificationCard(
             }
         }
     }
+}
+
+private fun formatNotificationDate(epochMs: Long): String {
+    val diff = System.currentTimeMillis() - epochMs
+    return when {
+        diff < 60_000L -> "Just now"
+        diff < 3_600_000L -> "${(diff / 60_000L).coerceAtLeast(1)}m ago"
+        diff < 86_400_000L -> "${(diff / 3_600_000L).coerceAtLeast(1)}h ago"
+        else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date(epochMs))
+    }
+}
+
+private fun generateNotificationAvatarColor(name: String): Color {
+    val colors = listOf(
+        Color(0xFF2563EB), // Blue
+        Color(0xFF16A34A), // Green
+        Color(0xFF9333EA), // Purple
+        Color(0xFFD97706), // Amber
+        Color(0xFFDC2626), // Red
+        Color(0xFF0D9488)  // Teal
+    )
+    val hash = kotlin.math.abs(name.hashCode())
+    return colors[hash % colors.size]
 }

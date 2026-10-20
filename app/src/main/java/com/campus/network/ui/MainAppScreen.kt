@@ -95,7 +95,41 @@ fun MainAppScreen(
             }
         }
     )
+    val currentProfile by remember { studentProfileRepository.getProfile() }
+        .collectAsStateWithLifecycle(initialValue = null)
+    val activeUserId = remember(currentProfile) {
+        currentProfile?.studentId?.takeIf { it.isNotBlank() }
+            ?: currentProfile?.universityEmail?.takeIf { it.isNotBlank() }
+            .orEmpty()
+    }
+    val activeEmail = remember(currentProfile) {
+        currentProfile?.universityEmail.orEmpty().trim().lowercase()
+    }
+
+    androidx.compose.runtime.LaunchedEffect(activeUserId, activeEmail) {
+        if (activeUserId.isNotBlank()) {
+            com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.setActiveUserId(context, activeUserId)
+            com.campus.network.notifications.CampusNotificationPollManager.setRecipientUserId(
+                context,
+                activeUserId,
+                activeEmail
+            )
+            com.campus.network.notifications.CampusNotificationPollManager.triggerNextPolledNotification(context)
+        }
+    }
+
+    val pendingFriendsCount by remember(activeUserId) {
+        if (activeUserId.isNotBlank()) {
+            serverRepository.getPendingReceivedFriendRequestsCount(activeUserId)
+        } else {
+            kotlinx.coroutines.flow.flowOf(0)
+        }
+    }.collectAsStateWithLifecycle(initialValue = 0)
+
     val channelsUiState by channelsViewModel.uiState.collectAsStateWithLifecycle()
+    val messagesUiState by messagesViewModel.uiState.collectAsStateWithLifecycle()
+    val channelsTabUnread = channelsUiState.activeUserUnreadCount
+    val messagesTabUnread = messagesUiState.threads.sumOf { it.unreadCount } + pendingFriendsCount
 
     var isScreenHidingBottomBar by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
@@ -155,6 +189,19 @@ fun MainAppScreen(
                         launchSingleTop = true
                     }
                 }
+                is com.campus.network.core.ui.notifications.CampusNotificationDeepLink.OpenFriendRequest -> {
+                    messagesViewModel.onEvent(
+                        com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
+                            peerId = deepLink.peerId,
+                            peerName = deepLink.peerName,
+                            serverName = deepLink.serverId,
+                            serverTag = "FRIEND"
+                        )
+                    )
+                    navController.navigate(Screen.Messages.route) {
+                        launchSingleTop = true
+                    }
+                }
             }
             com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.consumeDeepLink()
         }
@@ -163,11 +210,18 @@ fun MainAppScreen(
     // Following standard messaging app practice (WhatsApp, iMessage, Telegram, patriarch):
     // The bottom tab navigation bar is hidden on messages screens, channel chats, and whenever
     // any drawer sheet is open so the user gets full immersion.
+    // Keep bottom tabs visible on Servers hub + Messages threads so unread badges stay discoverable.
+    // Hide only during immersive channel chat / deep message screens (same as WhatsApp / Discord).
     val bottomTabRoutes = remember {
-        setOf("tab_hub", "tab_map", "tab_channels", "tab_profile")
+        setOf("tab_hub", "tab_map", "tab_channels", "tab_messages", "tab_profile")
     }
     val isChannelImmersion = currentRoute == "tab_channels" && channelsUiState.viewMode != ChannelViewMode.CHANNELS_HUB
-    val isBottomBarVisible = (currentRoute in bottomTabRoutes) && !isChannelImmersion && !isScreenHidingBottomBar
+    val isMessagesImmersion = currentRoute == "tab_messages" &&
+        messagesUiState.currentScreen != MessagesScreenMode.THREADS
+    val isBottomBarVisible = (currentRoute in bottomTabRoutes) &&
+        !isChannelImmersion &&
+        !isMessagesImmersion &&
+        !isScreenHidingBottomBar
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -179,7 +233,9 @@ fun MainAppScreen(
             ) {
                 CampusBottomNavBar(
                     navController = navController,
-                    currentRoute = currentRoute
+                    currentRoute = currentRoute,
+                    channelsUnreadCount = channelsTabUnread,
+                    messagesUnreadCount = messagesTabUnread
                 )
             }
         }

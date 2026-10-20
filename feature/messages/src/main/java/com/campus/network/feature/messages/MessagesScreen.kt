@@ -103,7 +103,8 @@ fun MessagesScreen(
                             },
                             otherThreadsUnreadCount = uiState.threads
                                 .filter { it.id != thread.id }
-                                .sumOf { it.unreadCount }
+                                .sumOf { it.unreadCount },
+                            typingLabel = uiState.activeChatTypingLabel
                         )
                     } else {
                         MessageThreadsScreen(
@@ -190,7 +191,8 @@ fun MessagesScreen(
                                 },
                                 otherThreadsUnreadCount = uiState.threads
                                     .filter { it.id != thread.id }
-                                    .sumOf { it.unreadCount }
+                                    .sumOf { it.unreadCount },
+                                typingLabel = uiState.activeChatTypingLabel
                             )
                         } else {
                             MessageThreadsScreen(
@@ -224,7 +226,8 @@ fun MessagesScreen(
                                 },
                                 otherThreadsUnreadCount = uiState.threads
                                     .filter { it.id != thread.id }
-                                    .sumOf { it.unreadCount }
+                                    .sumOf { it.unreadCount },
+                                typingLabel = uiState.activeChatTypingLabel
                             )
                         } else {
                             MessageThreadsScreen(

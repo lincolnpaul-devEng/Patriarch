@@ -33,7 +33,9 @@ data class ConversationThread(
     val isOnline: Boolean = false,
     val isVerified: Boolean = false,
     val category: ThreadCategory = ThreadCategory.DIRECT,
-    val serverBadgeText: String? = null
+    val serverBadgeText: String? = null,
+    /** Green subtitle when the peer is typing in this thread. */
+    val typingLabel: String? = null
 )
 
 data class DirectMessageItem(
@@ -112,7 +114,9 @@ data class MessagesUiState(
     val currentUserNote: String = "Add note",
     val isVoiceFlowActive: Boolean = false,
     val activateVoiceInChat: Boolean = false,
-    val studentProfile: StudentProfile? = null
+    val studentProfile: StudentProfile? = null,
+    /** Green header line e.g. "Lincoln is typing…" while peer types in open chat. */
+    val activeChatTypingLabel: String? = null
 ) {
     val studentName: String
         get() = studentProfile?.fullName?.ifBlank { "Student" } ?: "Student"
@@ -145,6 +149,7 @@ sealed interface MessagesEvent {
         val gifUrl: String? = null,
         val replyToText: String? = null
     ) : MessagesEvent
+    data class SetDirectChatTyping(val isTyping: Boolean) : MessagesEvent
     data class DeleteMessage(val messageId: String) : MessagesEvent
     data class ToggleMessageReaction(val messageId: String, val reaction: String) : MessagesEvent
     data class ClearChat(val threadId: String) : MessagesEvent

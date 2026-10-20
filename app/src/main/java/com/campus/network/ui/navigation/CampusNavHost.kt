@@ -453,8 +453,19 @@ fun CampusNavHost(
 
         // Tab 4: Hub Layer (Campus Micro-Commerce)
         composable(route = Screen.Hub.route) {
+            val p = currentProfile
+            val activeUserId = p?.studentId?.takeIf { it.isNotBlank() } ?: p?.universityEmail?.takeIf { it.isNotBlank() }.orEmpty()
+            val pendingFriendsCount by remember(activeUserId) {
+                if (activeUserId.isNotBlank()) {
+                    serverRepository.getPendingReceivedFriendRequestsCount(activeUserId)
+                } else {
+                    kotlinx.coroutines.flow.flowOf(0)
+                }
+            }.collectAsState(initial = 0)
+
             HubScreen(
                 viewModel = hubViewModel,
+                unreadNotificationsCount = pendingFriendsCount,
                 onNavigateToChat = { peerId, peerName ->
                     val resolvedPeerId = peerId.trim().ifBlank {
                         peerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
@@ -516,9 +527,15 @@ fun CampusNavHost(
 
         // Dedicated Notifications Screen (Reference Image 1)
         composable(route = Screen.Notifications.route) {
+            val p = currentProfile
+            val activeUserId = p?.studentId?.takeIf { it.isNotBlank() } ?: p?.universityEmail?.takeIf { it.isNotBlank() }.orEmpty()
+            val activeEmail = p?.universityEmail.orEmpty()
             NotificationsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSettings = { navController.navigate(Screen.NotificationSettings.route) },
+                currentUserId = activeUserId,
+                currentUserEmail = activeEmail,
+                serverRepository = serverRepository,
                 onNavigateToMapMeet = { lat, lng ->
                     mapViewModel.onEvent(com.campus.network.feature.map.MapEvent.FocusCoordinatesOnMap(lat, lng))
                     navController.navigate(Screen.Map.route) {
