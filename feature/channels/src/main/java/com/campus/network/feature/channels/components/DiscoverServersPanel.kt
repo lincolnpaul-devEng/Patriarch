@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
@@ -105,6 +106,10 @@ data class FeaturedCommunity(
 @Composable
 fun DiscoverServersPanel(
     discoverableServers: List<ServerItem> = emptyList(),
+    joinedServerIds: Set<String> = emptySet(),
+    loadingPreviewServerName: String? = null,
+    currentUserId: String = "",
+    onSelectServer: (serverId: String) -> Unit = {},
     onCreateServerSubmit: (name: String, category: String) -> Unit,
     onJoinInviteSubmit: (inviteCode: String) -> Unit,
     onPreviewCommunitySubmit: (serverName: String) -> Unit,
@@ -272,9 +277,14 @@ fun DiscoverServersPanel(
 
         if (discoverableServers.isNotEmpty()) {
             discoverableServers.forEach { server ->
+                val isJoinedOrOwned = joinedServerIds.contains(server.id) || (currentUserId.isNotBlank() && server.ownerId == currentUserId)
+                val isPreviewLoading = loadingPreviewServerName == server.name || loadingPreviewServerName == server.id
                 ServerFeaturedCard(
                     server = server,
-                    onPreviewClick = { onPreviewCommunitySubmit(server.name) }
+                    isJoinedOrOwned = isJoinedOrOwned,
+                    isPreviewLoading = isPreviewLoading,
+                    onPreviewClick = { onPreviewCommunitySubmit(server.name) },
+                    onSelectServer = { onSelectServer(server.id) }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -527,7 +537,10 @@ private fun GamingBadgeIllustration() {
 @Composable
 private fun ServerFeaturedCard(
     server: ServerItem,
-    onPreviewClick: () -> Unit
+    isJoinedOrOwned: Boolean = false,
+    isPreviewLoading: Boolean = false,
+    onPreviewClick: () -> Unit,
+    onSelectServer: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier
@@ -722,21 +735,61 @@ private fun ServerFeaturedCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // "Preview" Button
-                Button(
-                    onClick = onPreviewClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                ) {
-                    Text(
-                        text = "Preview",
-                        color = Color.White,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                if (isJoinedOrOwned) {
+                    Button(
+                        onClick = onSelectServer,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE3E5E8),
+                            contentColor = Color(0xFF1E1F22)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF23A55A),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Joined",
+                                color = Color(0xFF1E1F22),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onPreviewClick,
+                        enabled = !isPreviewLoading,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        if (isPreviewLoading) {
+                            com.campus.network.core.ui.components.DiscordBouncingDotsLoader(
+                                dotSize = 6.dp,
+                                dotSpacing = 5.dp,
+                                dotColor = Color.White
+                            )
+                        } else {
+                            Text(
+                                text = "Preview",
+                                color = Color.White,
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }

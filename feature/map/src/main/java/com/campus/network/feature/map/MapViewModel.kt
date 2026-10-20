@@ -13,6 +13,8 @@ import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.firstName
 import com.campus.network.core.model.initials
+import com.campus.network.feature.map.components.CampusFriend
+import androidx.compose.ui.graphics.Color
 import com.campus.network.feature.map.events.CampusEvent
 import com.campus.network.feature.map.events.MapNavigationMode
 import com.campus.network.feature.map.events.sampleCampusEvents
@@ -48,7 +50,8 @@ data class MapUiState(
     val events: List<CampusEvent> = sampleCampusEvents,
     val selectedEvent: CampusEvent? = null,
     val focusedEventLocation: LatLng? = null,
-    val studentProfile: StudentProfile? = null
+    val studentProfile: StudentProfile? = null,
+    val friends: List<CampusFriend> = emptyList()
 ) {
     val studentName: String
         get() = studentProfile?.fullName?.ifBlank { "Student" } ?: "Student"
@@ -105,6 +108,15 @@ sealed interface MapEvent {
     data class FocusCoordinatesOnMap(val latitude: Double, val longitude: Double) : MapEvent
 }
 
+private val avatarColors = listOf(
+    Color(0xFF6366F1), // Indigo
+    Color(0xFF0D9488), // Teal
+    Color(0xFFEA580C), // Orange
+    Color(0xFF8B5CF6), // Purple
+    Color(0xFFEC4899), // Pink
+    Color(0xFF10B981)  // Emerald
+)
+
 class MapViewModel(
     private val flashMeetRepository: FlashMeetRepository,
     private val placesRepository: PlacesRepository = PlacesRepository(),
@@ -158,7 +170,8 @@ class MapViewModel(
         _events,
         _selectedEvent,
         _focusedEventLocation,
-        _currentProfile
+        _currentProfile,
+        studentProfileRepository.knownProfiles
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val allPlaces = args[0] as List<CampusPlace>
@@ -186,6 +199,34 @@ class MapViewModel(
         val currentEvent = args[17] as CampusEvent?
         val focusedLocation = args[18] as LatLng?
         val currentProfile = args[19] as StudentProfile?
+        @Suppress("UNCHECKED_CAST")
+        val knownProfilesMap = (args[20] as? Map<String, StudentProfile>) ?: emptyMap()
+
+        val currentEmail = currentProfile?.universityEmail.orEmpty()
+        val campusFriends = knownProfilesMap.values
+            .filter { it.universityEmail.isNotBlank() && it.universityEmail != currentEmail && it.fullName.isNotBlank() }
+            .distinctBy { it.universityEmail }
+            .map { profile ->
+                val initials = profile.initials.ifBlank {
+                    profile.fullName.take(2).uppercase()
+                }
+                val handle = if (profile.universityEmail.contains("@")) {
+                    "@" + profile.universityEmail.substringBefore("@")
+                } else {
+                    "@" + profile.fullName.lowercase().replace(" ", "")
+                }
+                val faculty = profile.degreeProgram.ifBlank { profile.universityName.ifBlank { "Campus Student" } }
+                val color = avatarColors[kotlin.math.abs(profile.fullName.hashCode()) % avatarColors.size]
+                CampusFriend(
+                    id = profile.studentId.ifBlank { profile.universityEmail },
+                    name = profile.fullName,
+                    handle = handle,
+                    faculty = faculty,
+                    avatarInitials = initials,
+                    avatarBg = color,
+                    isOnline = true
+                )
+            }
 
         val filtered = allPlaces.filter { place ->
             val matchesCategory = category == PlaceCategory.TOP_PICKS || place.category == category
@@ -227,7 +268,8 @@ class MapViewModel(
             events = eventList,
             selectedEvent = currentEvent,
             focusedEventLocation = focusedLocation,
-            studentProfile = currentProfile
+            studentProfile = currentProfile,
+            friends = campusFriends
         )
     }.stateIn(
         scope = viewModelScope,

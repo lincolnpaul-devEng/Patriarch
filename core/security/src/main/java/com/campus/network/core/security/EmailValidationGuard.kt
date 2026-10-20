@@ -41,6 +41,7 @@ object EmailValidationGuard {
 
     /**
      * Edge verification method called prior to any auth request, message emission, or marketplace transaction.
+     * Supports standard emails (e.g. Gmail, Outlook) as well as collegiate domains (.edu, .ac.ke).
      */
     fun validateUniversityEmail(email: String?): ValidationResult {
         if (email.isNullOrBlank()) {
@@ -54,17 +55,6 @@ object EmailValidationGuard {
         }
 
         val domain = trimmed.substringAfter('@')
-        val isDomainAllowed = ALLOWED_DOMAIN_PATTERNS.any { pattern ->
-            pattern.matcher(domain).matches()
-        }
-
-        if (!isDomainAllowed) {
-            return ValidationResult.UnauthorizedDomain(
-                domain = domain,
-                reason = "Domain '$domain' is not an approved university partner. Access requires a valid collegiate email ending in .tu.ac.ke or strathmore.edu."
-            )
-        }
-
         val institutionName = resolveInstitutionName(domain)
 
         return ValidationResult.Authorized(
@@ -83,7 +73,10 @@ object EmailValidationGuard {
             domain.contains("jkuat.ac.ke") -> "Jomo Kenyatta University of Agriculture & Technology"
             domain.contains("ku.ac.ke") -> "Kenyatta University"
             domain.contains("uonbi.ac.ke") -> "University of Nairobi"
-            else -> "Campus University Partner"
+            domain.contains("egerton.ac.ke") -> "Egerton University"
+            domain.contains("moi.ac.ke") || domain.contains("mu.ac.ke") -> "Moi University"
+            domain.contains(".edu") || domain.contains(".ac.") -> "University Partner"
+            else -> "Campus Community"
         }
     }
 }

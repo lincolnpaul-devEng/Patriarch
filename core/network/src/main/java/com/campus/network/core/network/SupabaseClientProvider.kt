@@ -3,6 +3,7 @@ package com.campus.network.core.network
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.header
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
@@ -110,6 +111,22 @@ class SupabaseClientProvider(
                 header("Prefer", "resolution=merge-duplicates,return=representation")
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
+            }
+            response.bodyOrThrow()
+        }
+    }
+
+    /**
+     * Deletes records from a Supabase table using DELETE with filter query.
+     */
+    suspend fun deleteRecord(
+        tableAndQuery: String,
+        userJwt: String? = null
+    ): Result<String> = withContext(ioDispatcher) {
+        runCatching {
+            val response: HttpResponse = client.delete("$supabaseUrl/rest/v1/$tableAndQuery") {
+                header("apikey", anonKey)
+                header("Authorization", "Bearer ${userJwt ?: anonKey}")
             }
             response.bodyOrThrow()
         }

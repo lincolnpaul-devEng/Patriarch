@@ -60,8 +60,15 @@ data class ChatMessageEntity(
     val senderName: String,
     val text: String,
     val timestampEpochMs: Long,
-    val isOptimistic: Boolean,
-    val settlementPayloadJson: String? = null
+    val isOptimistic: Boolean = false,
+    val settlementPayloadJson: String? = null,
+    val imageUri: String? = null,
+    val imageUrl: String? = null,
+    val gifUrl: String? = null,
+    val replyToText: String? = null,
+    val isMine: Boolean = false,
+    val isDelivered: Boolean = true,
+    val isRead: Boolean = true
 )
 
 @Entity(tableName = "market_items")

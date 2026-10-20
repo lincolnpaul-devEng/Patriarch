@@ -1,14 +1,13 @@
 package com.campus.network.feature.messages
 
 import android.Manifest
+import android.content.Context
+import android.net.Uri
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -16,11 +15,17 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,8 +52,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -56,22 +59,25 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Videocam
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.campus.network.core.ui.components.HybridEmojiReactionDrawer
-import com.campus.network.core.ui.components.KeyboardMediaTextField
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,8 +92,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -97,38 +101,37 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.viewinterop.AndroidView
-import android.content.Context
-import android.view.inputmethod.InputMethodManager
-import android.net.Uri
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.inputmethod.EditorInfo
-import androidx.appcompat.widget.AppCompatEditText
-import androidx.core.view.OnReceiveContentListener
-import androidx.core.view.ViewCompat
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.campus.network.core.ui.components.HybridEmojiReactionDrawer
+import com.campus.network.core.ui.components.KeyboardMediaTextField
 import com.campus.network.core.ui.components.TransactionSettlementCard
 import com.campus.network.core.ui.theme.BrandBluePrimary
 import com.campus.network.core.ui.theme.SurfaceWhite
 import com.campus.network.core.ui.theme.TextPrimary
 import com.campus.network.core.ui.theme.TextSecondary
-import com.campus.network.core.ui.theme.TextWhite
 import com.campus.network.feature.messages.audio.OnDeviceTranscriber
 import com.campus.network.feature.messages.audio.TranscriptionState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun DirectChatScreen(
@@ -150,9 +153,16 @@ fun DirectChatScreen(
 
     var inputText by remember { mutableStateOf("") }
     var draftAttachment by remember { mutableStateOf<Int?>(null) }
-    var selectedMediaUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedMediaUri by remember { mutableStateOf<Uri?>(null) }
     var isEmojiDrawerOpen by remember { mutableStateOf(false) }
     var showActionMenu by remember { mutableStateOf(false) }
+
+    // Production States
+    var isProfileSheetOpen by remember { mutableStateOf(false) }
+    var lightboxMediaUri by remember { mutableStateOf<String?>(null) }
+    var replyingToMessage by remember { mutableStateOf<DirectMessageItem?>(null) }
+    var selectedMessageForMenu by remember { mutableStateOf<DirectMessageItem?>(null) }
+
     val listState = rememberLazyListState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -167,7 +177,7 @@ fun DirectChatScreen(
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: android.net.Uri? ->
+    ) { uri: Uri? ->
         if (uri != null) {
             selectedMediaUri = uri
         }
@@ -214,11 +224,14 @@ fun DirectChatScreen(
         }
     }
 
+    // Scroll to bottom (top of inverted LazyColumn) on new message
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.animateScrollToItem(0)
         }
     }
+
+    val reversedMessages = remember(messages) { messages.asReversed() }
 
     Box(
         modifier = modifier
@@ -261,14 +274,14 @@ fun DirectChatScreen(
                     }
                 }
 
-                // Center: Circular Avatar with floating Name pill directly attached below
+                // Center: Circular Avatar with floating Name pill & Online Presence
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { /* Conversation profile details */ }
+                    modifier = Modifier.clickable { isProfileSheetOpen = true }
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
@@ -281,7 +294,7 @@ fun DirectChatScreen(
                             text = if (thread.avatarInitials.isNotEmpty()) thread.avatarInitials.take(1) else "J",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 17.sp
                         )
                     }
 
@@ -294,12 +307,12 @@ fun DirectChatScreen(
                         border = BorderStroke(0.5.dp, Color(0x18000000))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = thread.peerName,
-                                fontSize = 12.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF0F172A),
                                 maxLines = 1,
@@ -310,66 +323,92 @@ fun DirectChatScreen(
                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = null,
                                 tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(12.dp)
                             )
                         }
                     }
 
-                    if (thread.serverBadgeText != null) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFF1F5F9),
-                            border = BorderStroke(0.5.dp, Color(0xFFCBD5E1))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = thread.serverBadgeText,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF475569)
-                                )
-                            }
-                        }
+                    // Online Presence Indicator
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF22C55E))
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Online",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF16A34A)
+                        )
                     }
                 }
 
-                // Video Call Button
-                Surface(
-                    shape = CircleShape,
-                    color = Color.White,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(0.5.dp, Color(0x12000000)),
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clickable { onEvent(MessagesEvent.StartVideoCall(thread)) }
+                // Right Top Bar: Side-by-Side Voice Call and Video Call Buttons
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Videocam,
-                            contentDescription = "Video Call",
-                            tint = Color(0xFF0F172A),
-                            modifier = Modifier.size(22.dp)
-                        )
+                    // Voice Call Button
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        shadowElevation = 3.dp,
+                        border = BorderStroke(0.5.dp, Color(0x12000000)),
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clickable { onEvent(MessagesEvent.StartAudioCall(thread)) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Voice Call",
+                                tint = Color(0xFF0F172A),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Video Call Button
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        shadowElevation = 3.dp,
+                        border = BorderStroke(0.5.dp, Color(0x12000000)),
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clickable { onEvent(MessagesEvent.StartVideoCall(thread)) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Videocam,
+                                contentDescription = "Video Call",
+                                tint = Color(0xFF0F172A),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            // 2. Chat Message Stream
+            // 2. Chat Message Stream (Inverted LazyColumn matching WhatsApp/Telegram standards)
             LazyColumn(
                 state = listState,
+                reverseLayout = true,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                item { Spacer(modifier = Modifier.height(8.dp)) }
+                item { Spacer(modifier = Modifier.height(10.dp)) }
 
-                items(messages, key = { it.id }) { message ->
+                items(reversedMessages, key = { it.id }) { message ->
                     if (message.settlementPayload != null) {
                         TransactionSettlementCard(
                             payload = message.settlementPayload,
@@ -388,11 +427,78 @@ fun DirectChatScreen(
                                 .padding(vertical = 10.dp)
                         )
                     } else {
-                        DirectChatBubble(message = message)
+                        DirectChatBubble(
+                            message = message,
+                            onMediaClick = { uri -> lightboxMediaUri = uri },
+                            onLongClick = { selectedMessageForMenu = message }
+                        )
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(10.dp)) }
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+            }
+
+            // 3. Reply Preview Bar (Renders directly above bottom input when replying)
+            AnimatedVisibility(
+                visible = replyingToMessage != null,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                replyingToMessage?.let { target ->
+                    Surface(
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                        color = Color(0xFFF1F5F9),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(3.dp)
+                                    .height(28.dp)
+                                    .background(Color(0xFF007AFF), RoundedCornerShape(2.dp))
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (target.isMine) "You" else thread.peerName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF007AFF)
+                                )
+                                Text(
+                                    text = target.text.ifBlank { "Attachment" },
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF475569),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE2E8F0))
+                                    .clickable { replyingToMessage = null },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cancel reply",
+                                    tint = Color(0xFF475569),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             val bottomInsetsModifier = if (isEmojiDrawerOpen) {
@@ -410,8 +516,6 @@ fun DirectChatScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isVoiceRecordingActive) {
-                    // Transformed input bar matching referenced image:
-                    // Solid circular blue microphone on left, soft pale-blue pill body, animated dancing waveform, and send action
                     VoiceWaveformInputBar(
                         isListening = isVoiceRecordingActive,
                         isSpeechDetected = isSpeechDetected,
@@ -424,8 +528,14 @@ fun DirectChatScreen(
                             transcriber.stopListening()
                             isVoiceRecordingActive = false
                             if (inputText.isNotBlank()) {
-                                onEvent(MessagesEvent.SendMessage(inputText))
+                                onEvent(
+                                    MessagesEvent.SendMessage(
+                                        text = inputText.trim(),
+                                        replyToText = replyingToMessage?.text
+                                    )
+                                )
                                 inputText = ""
+                                replyingToMessage = null
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -510,7 +620,7 @@ fun DirectChatScreen(
                                     modifier = Modifier
                                         .padding(start = 2.dp, top = 2.dp, bottom = 6.dp)
                                         .size(68.dp)
-                                ) {
+                                    ) {
                                     if (selectedMediaUri != null) {
                                         AsyncImage(
                                             model = selectedMediaUri,
@@ -563,7 +673,7 @@ fun DirectChatScreen(
                                 // Emoji & GIF Access Button
                                 Icon(
                                     imageVector = Icons.Default.SentimentSatisfiedAlt,
-                                    contentDescription = "Emojis & GIFs",
+                                    contentDescription = "Reactions & GIFs",
                                     tint = if (isEmojiDrawerOpen) Color(0xFF007AFF) else Color(0xFF64748B),
                                     modifier = Modifier
                                         .size(22.dp)
@@ -602,12 +712,14 @@ fun DirectChatScreen(
                                             onEvent(
                                                 MessagesEvent.SendMessage(
                                                     text = inputText.trim(),
-                                                    imageUri = selectedMediaUri?.toString()
+                                                    imageUri = selectedMediaUri?.toString(),
+                                                    replyToText = replyingToMessage?.text
                                                 )
                                             )
                                             inputText = ""
                                             selectedMediaUri = null
                                             draftAttachment = null
+                                            replyingToMessage = null
                                             isEmojiDrawerOpen = false
                                         }
                                     },
@@ -659,12 +771,14 @@ fun DirectChatScreen(
                                                     onEvent(
                                                         MessagesEvent.SendMessage(
                                                             text = inputText.trim(),
-                                                            imageUri = selectedMediaUri?.toString()
+                                                            imageUri = selectedMediaUri?.toString(),
+                                                            replyToText = replyingToMessage?.text
                                                         )
                                                     )
                                                     inputText = ""
                                                     selectedMediaUri = null
                                                     draftAttachment = null
+                                                    replyingToMessage = null
                                                     isEmojiDrawerOpen = false
                                                 }
                                             },
@@ -686,7 +800,7 @@ fun DirectChatScreen(
                 }
             }
 
-            // 5. Hybrid Emoji & GIF Drawer for Direct Chat (docks at bottom of screen below input bar)
+            // 5. Drawer for Direct Chat (docks at bottom of screen below input bar)
             AnimatedVisibility(
                 visible = isEmojiDrawerOpen,
                 enter = expandVertically() + fadeIn(),
@@ -700,13 +814,51 @@ fun DirectChatScreen(
                         onEvent(
                             MessagesEvent.SendMessage(
                                 text = "",
-                                gifUrl = gif.originalUrl
+                                gifUrl = gif.originalUrl,
+                                replyToText = replyingToMessage?.text
                             )
                         )
+                        replyingToMessage = null
                         isEmojiDrawerOpen = false
                     }
                 )
             }
+        }
+
+        // Fullscreen Lightbox Media Viewer Modal
+        lightboxMediaUri?.let { uri ->
+            MediaLightboxDialog(
+                mediaUri = uri,
+                onDismiss = { lightboxMediaUri = null }
+            )
+        }
+
+        // Peer Contact Profile Sheet
+        if (isProfileSheetOpen) {
+            PeerProfileBottomSheet(
+                thread = thread,
+                onDismiss = { isProfileSheetOpen = false },
+                onVoiceCall = { onEvent(MessagesEvent.StartAudioCall(thread)) },
+                onVideoCall = { onEvent(MessagesEvent.StartVideoCall(thread)) },
+                onClearChat = { onEvent(MessagesEvent.ClearChat(thread.id)) }
+            )
+        }
+
+        // Long-press Actions & Reactions Sheet
+        selectedMessageForMenu?.let { targetMsg ->
+            MessageActionBottomSheet(
+                message = targetMsg,
+                onDismiss = { selectedMessageForMenu = null },
+                onReactionSelected = { reactionKey ->
+                    onEvent(MessagesEvent.ToggleMessageReaction(targetMsg.id, reactionKey))
+                },
+                onReplySelected = {
+                    replyingToMessage = targetMsg
+                },
+                onDeleteSelected = {
+                    onEvent(MessagesEvent.DeleteMessage(targetMsg.id))
+                }
+            )
         }
 
         // Send Settlement Modal
@@ -723,7 +875,756 @@ fun DirectChatScreen(
 }
 
 /**
- * Transformed Voice Waveform Input Bar conforming to referenced image:
+ * Message Receipt Tick rendering WhatsApp / Telegram delivery and read receipts:
+ * - Unsent / pending: single gray tick
+ * - Delivered: double gray tick
+ * - Read: double cyan / blue tick
+ */
+@Composable
+private fun MessageReceiptTick(
+    isDelivered: Boolean,
+    isRead: Boolean,
+    tint: Color
+) {
+    if (!isDelivered && !isRead) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = "Sent",
+            tint = tint,
+            modifier = Modifier.size(13.dp)
+        )
+    } else {
+        val tickTint = if (isRead) Color(0xFF60A5FA) else tint
+        Box(
+            modifier = Modifier.width(18.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = tickTint,
+                modifier = Modifier.size(13.dp)
+            )
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = if (isRead) "Read" else "Delivered",
+                tint = tickTint,
+                modifier = Modifier
+                    .padding(start = 5.dp)
+                    .size(13.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Renders vector reaction indicator badges adhering strictly to ZERO EMOJI POLICY.
+ */
+@Composable
+private fun ReactionVectorIcon(reaction: String, size: Int = 14) {
+    when (reaction) {
+        "THUMBS_UP" -> Icon(Icons.Default.ThumbUp, contentDescription = "Like", tint = Color(0xFF007AFF), modifier = Modifier.size(size.dp))
+        "HEART" -> Icon(Icons.Default.Favorite, contentDescription = "Love", tint = Color(0xFFEF4444), modifier = Modifier.size(size.dp))
+        "STAR" -> Icon(Icons.Default.Star, contentDescription = "Star", tint = Color(0xFFF59E0B), modifier = Modifier.size(size.dp))
+        "CHECK" -> Icon(Icons.Default.CheckCircle, contentDescription = "Verified", tint = Color(0xFF10B981), modifier = Modifier.size(size.dp))
+        else -> Icon(Icons.Default.ThumbUp, contentDescription = "Reaction", tint = Color(0xFF007AFF), modifier = Modifier.size(size.dp))
+    }
+}
+
+/**
+ * Formats epoch timestamp into clean local time (e.g. "10:32 AM").
+ */
+private fun formatMessageTime(epochMs: Long): String {
+    return try {
+        val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+        sdf.format(Date(epochMs))
+    } catch (_: Exception) {
+        "Just now"
+    }
+}
+
+/**
+ * Message Bubble conforming to production messaging standards (Apple Messages / WhatsApp).
+ * Supports timestamps, compact receipts, full-screen image viewing, and long-press actions.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DirectChatBubble(
+    message: DirectMessageItem,
+    onMediaClick: (String) -> Unit,
+    onLongClick: () -> Unit
+) {
+    val timeString = formatMessageTime(message.timestampEpochMs)
+    val mediaData = message.imageUri ?: message.imageUrl ?: message.gifUrl ?: message.imageResId?.toString()
+
+    if (message.isHandwritten) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongClick
+                ),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = message.text,
+                fontFamily = FontFamily.Cursive,
+                fontSize = 46.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color(0xFF1E293B),
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 4.dp, top = 2.dp)
+            ) {
+                Text(
+                    text = timeString,
+                    fontSize = 11.sp,
+                    color = Color(0xFF8E8E93)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                MessageReceiptTick(
+                    isDelivered = message.isDelivered,
+                    isRead = message.isRead,
+                    tint = Color(0xFF8E8E93)
+                )
+            }
+        }
+    } else if (message.isMine) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Surface(
+                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
+                color = Color(0xFF007AFF),
+                modifier = Modifier
+                    .widthIn(max = 290.dp)
+                    .combinedClickable(
+                        onClick = {
+                            if (mediaData != null) {
+                                onMediaClick(mediaData)
+                            }
+                        },
+                        onLongClick = onLongClick
+                    )
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    // Quoted replied message preview
+                    if (!message.replyToText.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0x2EFFFFFF),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(24.dp)
+                                        .background(Color.White, RoundedCornerShape(2.dp))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = message.replyToText,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 12.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // Media Attachment
+                    if (mediaData != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(mediaData)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Attachment",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF1F5F9))
+                        )
+                        if (message.text.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                    }
+
+                    // Text & Status Row
+                    if (message.text.isNotBlank()) {
+                        Text(
+                            text = message.text,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    // Bottom info: Time + Receipt Checkmarks
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 2.dp, end = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = timeString,
+                            fontSize = 10.5.sp,
+                            color = Color.White.copy(alpha = 0.75f)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        MessageReceiptTick(
+                            isDelivered = message.isDelivered,
+                            isRead = message.isRead,
+                            tint = Color.White.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+            }
+
+            // Reaction Badge docked below bubble
+            if (message.reaction != null) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White,
+                    shadowElevation = 2.dp,
+                    border = BorderStroke(0.5.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier
+                        .padding(top = 2.dp, end = 6.dp)
+                        .clickable(onClick = onLongClick)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ReactionVectorIcon(message.reaction, size = 12)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "1",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF475569)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        // Incoming message from peer
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Surface(
+                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp),
+                color = Color(0xFFE9E9EB),
+                modifier = Modifier
+                    .widthIn(max = 290.dp)
+                    .combinedClickable(
+                        onClick = {
+                            if (mediaData != null) {
+                                onMediaClick(mediaData)
+                            }
+                        },
+                        onLongClick = onLongClick
+                    )
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    // Quoted replied message preview
+                    if (!message.replyToText.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0x1F000000),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(24.dp)
+                                        .background(Color(0xFF007AFF), RoundedCornerShape(2.dp))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = message.replyToText,
+                                    color = Color(0xFF0F172A),
+                                    fontSize = 12.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // Media Attachment
+                    if (mediaData != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(mediaData)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Attachment",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFE2E8F0))
+                        )
+                        if (message.text.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                    }
+
+                    // Text & Status Row
+                    if (message.text.isNotBlank()) {
+                        Text(
+                            text = message.text,
+                            color = Color(0xFF0F172A),
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    // Bottom info: Time
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 2.dp, end = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = timeString,
+                            fontSize = 10.5.sp,
+                            color = Color(0xFF8E8E93)
+                        )
+                    }
+                }
+            }
+
+            // Reaction Badge docked below bubble
+            if (message.reaction != null) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White,
+                    shadowElevation = 2.dp,
+                    border = BorderStroke(0.5.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier
+                        .padding(top = 2.dp, start = 6.dp)
+                        .clickable(onClick = onLongClick)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ReactionVectorIcon(message.reaction, size = 12)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "1",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF475569)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Fullscreen Lightbox Dialog for displaying pictures and GIFs.
+ */
+@Composable
+private fun MediaLightboxDialog(
+    mediaUri: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.95f))
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(mediaUri)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "Fullscreen preview",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            )
+
+            // Close button top-right
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(16.dp)
+                    .size(40.dp)
+                    .clickable(onClick = onDismiss)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Long-press Action Sheet with quick reactions dock and contextual options.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MessageActionBottomSheet(
+    message: DirectMessageItem,
+    onDismiss: () -> Unit,
+    onReactionSelected: (String) -> Unit,
+    onReplySelected: () -> Unit,
+    onDeleteSelected: () -> Unit
+) {
+    val clipboardManager = LocalClipboardManager.current
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .navigationBarsPadding()
+        ) {
+            // 1. Quick Reactions Dock (Strictly Vector Icons under ZERO EMOJI POLICY)
+            Text(
+                text = "Quick Reactions",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF64748B),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                listOf(
+                    "THUMBS_UP" to Icons.Default.ThumbUp to Color(0xFF007AFF),
+                    "HEART" to Icons.Default.Favorite to Color(0xFFEF4444),
+                    "STAR" to Icons.Default.Star to Color(0xFFF59E0B),
+                    "CHECK" to Icons.Default.CheckCircle to Color(0xFF10B981)
+                ).forEach { item ->
+                    val (keyAndIcon, color) = item
+                    val (reactionKey, icon) = keyAndIcon
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clickable {
+                                onReactionSelected(reactionKey)
+                                onDismiss()
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = reactionKey,
+                                tint = color,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 2. Action Menu items: Reply
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onReplySelected()
+                        onDismiss()
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Reply",
+                    tint = Color(0xFF007AFF),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(14.dp))
+                Text(
+                    text = "Reply",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF0F172A)
+                )
+            }
+
+            // Copy Text
+            if (message.text.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            clipboardManager.setText(AnnotatedString(message.text))
+                            onDismiss()
+                        }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Payments,
+                        contentDescription = "Copy",
+                        tint = Color(0xFF475569),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = "Copy Text",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A)
+                    )
+                }
+            }
+
+            // Delete (if mine)
+            if (message.isMine) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onDeleteSelected()
+                            onDismiss()
+                        }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = "Delete Message",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFEF4444)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Peer Contact Profile Sheet (WhatsApp / Telegram style peer overview).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PeerProfileBottomSheet(
+    thread: ConversationThread,
+    onDismiss: () -> Unit,
+    onVoiceCall: () -> Unit,
+    onVideoCall: () -> Unit,
+    onClearChat: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Large circular avatar
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF818CF8), Color(0xFF4F46E5))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (thread.avatarInitials.isNotEmpty()) thread.avatarInitials.take(1) else "J",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 32.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = thread.peerName,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color(0xFF0F172A)
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF22C55E))
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = "Online • Campus Verified Student",
+                    fontSize = 12.sp,
+                    color = Color(0xFF16A34A),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            if (thread.serverBadgeText != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFF1F5F9),
+                    border = BorderStroke(0.5.dp, Color(0xFFCBD5E1))
+                ) {
+                    Text(
+                        text = thread.serverBadgeText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF475569),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Action Quick Buttons: Voice Call, Video Call
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        onDismiss()
+                        onVoiceCall()
+                    }
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFE0E7FF),
+                        modifier = Modifier.size(50.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Call, contentDescription = "Voice Call", tint = Color(0xFF4F46E5), modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Audio Call", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        onDismiss()
+                        onVideoCall()
+                    }
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFDBEAFE),
+                        modifier = Modifier.size(50.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Videocam, contentDescription = "Video Call", tint = Color(0xFF007AFF), modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Video Call", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF334155))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Clear chat button
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFEE2E2),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onClearChat()
+                        onDismiss()
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Clear Chat History", color = Color(0xFFDC2626), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+    }
+}
+
+/**
+ * Transformed Voice Waveform Input Bar:
  * Solid vibrant blue circular mic button on left, pale sky-blue pill body,
  * and rhythmically animated vertical frequency waveform bars and dots.
  */
@@ -803,79 +1704,66 @@ private fun VoiceWaveformInputBar(
 
 /**
  * Real-time WhatsApp-style audio visualization during voice dictation / recording.
- *
- * In calm state (silence / no speech detected):
- * Displays an evenly spaced sequence of discrete vertical rounded bars at minimum resting height (3.5dp)
- * running across the pill capsule. Never draws a continuous horizontal baseline line end-to-end.
- *
- * When speech is detected:
- * Live vocal amplitude slices push into a rolling queue every ~60ms. Spoken voice causes the
- * vertical bars to dynamically expand up to 26dp in height and stream smoothly across, matching
- * WhatsApp's native waveform scrolling visualizer.
  */
 @Composable
 private fun WhatsAppRealtimeWaveform(
     isRecording: Boolean,
     isSpeechDetected: Boolean,
     audioRms: Float,
-    modifier: Modifier = Modifier,
-    barCount: Int = 34,
+    barCount: Int = 38,
     color: Color = Color(0xFF007AFF)
 ) {
-    val currentSpeechDetected by rememberUpdatedState(isSpeechDetected)
+    val liveAmplitudes = remember { mutableStateListOf<Float>().apply { repeat(barCount) { add(0.05f) } } }
     val currentRms by rememberUpdatedState(audioRms)
+    val currentSpeechDetected by rememberUpdatedState(isSpeechDetected)
 
-    val liveAmplitudes = remember {
-        mutableStateListOf<Float>().apply {
-            repeat(barCount) { add(0f) }
-        }
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val idlePulse by infiniteTransition.animateFloat(
+        initialValue = 0.05f,
+        targetValue = 0.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "idle_pulse"
+    )
 
     LaunchedEffect(isRecording) {
-        if (!isRecording) {
-            for (i in 0 until liveAmplitudes.size) {
-                liveAmplitudes[i] = 0f
-            }
-            return@LaunchedEffect
-        }
-
-        while (isActive && isRecording) {
-            val targetAmp = if (currentSpeechDetected) {
-                val baseAmp = (0.22f + currentRms * 0.78f).coerceIn(0.22f, 1f)
-                val flutter = (kotlin.random.Random.nextFloat() * 0.16f) - 0.08f
-                (baseAmp + flutter).coerceIn(0.15f, 1f)
+        if (!isRecording) return@LaunchedEffect
+        var step = 0
+        while (isActive) {
+            val nextAmp: Float = if (currentSpeechDetected) {
+                val normalized = ((currentRms + 2f) / 12f).coerceIn(0.15f, 1.0f)
+                val variance = kotlin.random.Random.nextFloat() * 0.25f - 0.12f
+                (normalized + variance).coerceIn(0.1f, 1.0f)
             } else {
-                0f
+                val wave = kotlin.math.sin((step * 0.2f).toDouble()).toFloat() * 0.03f
+                (idlePulse + wave).coerceIn(0.04f, 0.15f)
             }
 
             if (liveAmplitudes.size >= barCount) {
                 liveAmplitudes.removeAt(0)
             }
-            liveAmplitudes.add(targetAmp)
-
-            delay(60L)
+            liveAmplitudes.add(nextAmp)
+            step++
+            delay(55L)
         }
     }
 
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(32.dp)
-    ) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
         val totalBars = liveAmplitudes.size
         if (totalBars == 0) return@Canvas
 
-        val barWidthPx = 2.8.dp.toPx()
-        val minBarHeightPx = 3.5.dp.toPx()
-        val maxBarHeightPx = 26.dp.toPx()
-        val centerY = size.height / 2f
+        val barWidthPx = 3.dp.toPx()
+        val minBarHeightPx = 4.dp.toPx()
+        val maxBarHeightPx = (size.height * 0.78f).coerceAtLeast(minBarHeightPx + 4f)
 
-        val totalBarWidth = totalBars * barWidthPx
+        val totalAvailableWidth = size.width
         val spacing = if (totalBars > 1) {
-            ((size.width - totalBarWidth) / (totalBars - 1)).coerceAtLeast(1.5f)
-        } else {
-            0f
-        }
+            ((totalAvailableWidth - (totalBars * barWidthPx)) / (totalBars - 1)).coerceAtLeast(2.dp.toPx())
+        } else 0f
+
+        val centerY = size.height / 2f
 
         for (i in 0 until totalBars) {
             val amp = liveAmplitudes[i]
@@ -889,153 +1777,6 @@ private fun WhatsAppRealtimeWaveform(
                 strokeWidth = barWidthPx,
                 cap = StrokeCap.Round
             )
-        }
-    }
-}
-
-/**
- * Message Bubble conforming to the Apple Messages style.
- */
-@Composable
-private fun DirectChatBubble(
-    message: DirectMessageItem
-) {
-    if (message.isHandwritten) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalAlignment = Alignment.End
-        ) {
-            Text(
-                text = message.text,
-                fontFamily = FontFamily.Cursive,
-                fontSize = 46.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color(0xFF1E293B),
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            if (message.isDelivered) {
-                Text(
-                    text = "Delivered",
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF8E8E93),
-                    modifier = Modifier.padding(end = 4.dp, top = 2.dp)
-                )
-            }
-        }
-    } else if (message.isMine) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            horizontalAlignment = Alignment.End
-        ) {
-            if (message.replyToText != null) {
-                Text(
-                    text = "Replay",
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF007AFF),
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(end = 6.dp, bottom = 2.dp)
-                )
-            }
-
-            val mediaData = message.imageUri ?: message.imageUrl ?: message.gifUrl ?: message.imageResId
-            if (mediaData != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(mediaData)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Attachment",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .widthIn(max = 240.dp)
-                        .heightIn(max = 190.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFFF1F5F9))
-                )
-                if (message.text.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-            }
-
-            if (message.text.isNotBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
-                    color = Color(0xFF007AFF),
-                    modifier = Modifier.widthIn(max = 280.dp)
-                ) {
-                    Text(
-                        text = message.text,
-                        color = Color.White,
-                        fontSize = 15.5.sp,
-                        lineHeight = 21.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                    )
-                }
-            }
-
-            if (message.isEdited) {
-                Text(
-                    text = "Edited",
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF007AFF),
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(end = 4.dp, top = 2.dp)
-                )
-            } else if (message.isDelivered) {
-                Text(
-                    text = "Delivered",
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF8E8E93),
-                    modifier = Modifier.padding(end = 4.dp, top = 2.dp)
-                )
-            }
-        }
-    } else {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            val peerMediaData = message.imageUri ?: message.imageUrl ?: message.gifUrl ?: message.imageResId
-            if (peerMediaData != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(peerMediaData)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Attachment",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .widthIn(max = 240.dp)
-                        .heightIn(max = 190.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFFF1F5F9))
-                )
-                if (message.text.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-            }
-
-            if (message.text.isNotBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp),
-                    color = Color(0xFFE9E9EB),
-                    modifier = Modifier.widthIn(max = 280.dp)
-                ) {
-                    Text(
-                        text = message.text,
-                        color = Color(0xFF0F172A),
-                        fontSize = 15.5.sp,
-                        lineHeight = 21.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
-                    )
-                }
-            }
         }
     }
 }

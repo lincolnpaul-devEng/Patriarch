@@ -74,6 +74,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -89,6 +90,7 @@ import com.campus.network.feature.channels.components.DiscoverServersPanel
 import com.campus.network.feature.channels.components.CourseMateAvatarLineup
 import com.campus.network.feature.channels.components.CourseMateDiscoverScreen
 import com.campus.network.feature.channels.components.EditServerProfileSheet
+import com.campus.network.feature.channels.components.EditServerSettingsSheet
 import com.campus.network.feature.channels.components.IndividualStudentProfileScreen
 import com.campus.network.feature.channels.components.ServerInviteSheet
 import com.campus.network.feature.channels.components.ServerMemberProfileSheet
@@ -97,6 +99,7 @@ import com.campus.network.feature.channels.components.ServerProfileDrawer
 import com.campus.network.feature.channels.components.ServerRulesSheet
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
+import com.campus.network.feature.channels.model.ServerRoleType
 import com.campus.network.feature.channels.model.InDemandCompany
 import com.campus.network.core.ui.components.CampusInlineNetworkAlertCard
 import com.campus.network.core.ui.components.MessageThreadRowSkeleton
@@ -146,6 +149,10 @@ fun ChannelsScreen(
     // Android back navigation per view mode
     BackHandler(enabled = uiState.viewMode != ChannelViewMode.CHANNELS_HUB) {
         viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
+    }
+
+    BackHandler(enabled = uiState.previewServer != null) {
+        viewModel.onEvent(ChannelsEvent.ExitServerPreview)
     }
 
     LaunchedEffect(uiState.feedbackMessage) {
@@ -242,8 +249,18 @@ fun ChannelsScreen(
 
         // SERVER MEMBER PROFILE SHEET (Accessible globally across channels hub & channel profile)
         if (uiState.selectedMemberForProfile != null) {
+            val targetServer = uiState.selectedServer ?: uiState.previewServer
+            val currentStudentId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail }
+            val isCurrentOwner = targetServer != null && currentStudentId != null && currentStudentId.isNotBlank() && targetServer.ownerId == currentStudentId
+
             ServerMemberProfileSheet(
                 member = uiState.selectedMemberForProfile,
+                isOwner = isCurrentOwner,
+                onUpdateMemberRole = { memberId, newRole ->
+                    if (targetServer != null) {
+                        viewModel.onEvent(ChannelsEvent.UpdateMemberRole(targetServer.id, memberId, newRole))
+                    }
+                },
                 onDismiss = {
                     viewModel.onEvent(ChannelsEvent.CloseMemberProfile)
                 },
@@ -322,6 +339,7 @@ private fun patriarchServersHubContent(
                 servers = uiState.joinedServers,
                 selectedServerId = if (uiState.previewServer != null) "" else uiState.selectedServerId,
                 isAddServerSelected = uiState.isAddServerSelected || (uiState.joinedServers.isEmpty() && uiState.previewServer == null),
+                unreadDmCount = uiState.activeUserUnreadCount,
                 onNavigateToMessages = onNavigateToMessages,
                 onSelectServer = { serverId ->
                     viewModel.onEvent(ChannelsEvent.SelectServer(serverId))
@@ -342,9 +360,15 @@ private fun patriarchServersHubContent(
                 shape = RoundedCornerShape(topStart = 20.dp),
                 color = Color.White
             ) {
+                val currentUserId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail } ?: ""
                 if (uiState.isAddServerSelected || currentServer == null) {
                     DiscoverServersPanel(
                         discoverableServers = uiState.discoverableServers,
+                        joinedServerIds = uiState.joinedServerIds,
+                        currentUserId = currentUserId,
+                        onSelectServer = { serverId ->
+                            viewModel.onEvent(ChannelsEvent.SelectServer(serverId))
+                        },
                         onCreateServerSubmit = { name, category ->
                             viewModel.onEvent(ChannelsEvent.CreateServer(name, category))
                         },
@@ -356,12 +380,22 @@ private fun patriarchServersHubContent(
                         },
                         onPreviewCommunitySubmit = { serverName ->
                             viewModel.onEvent(ChannelsEvent.PreviewCommunityServer(serverName))
-                        }
+                        },
+                        loadingPreviewServerName = uiState.loadingPreviewServerName
                     )
                 } else {
+                    val currentMembers = uiState.serverMembers[currentServer.id].orEmpty()
+                    val currentMember = currentMembers.find { it.isSelf }
+                    val isOwner = currentUserId.isNotBlank() && currentServer.ownerId == currentUserId
+                    val isAdmin = isOwner || currentMember?.role?.roleType in listOf(ServerRoleType.OWNER, ServerRoleType.ADMIN)
+                    val isMember = uiState.joinedServerIds.contains(currentServer.id) || isOwner
                     ServerDetailsPanel(
                         server = currentServer,
                         selectedChannelId = uiState.selectedChannelId,
+                        isOwner = isOwner,
+                        isAdmin = isAdmin,
+                        isMember = isMember,
+                        isJoining = uiState.isJoiningServer,
                         onChannelClick = { channel ->
                             viewModel.onEvent(ChannelsEvent.OpenChannelChat(channel))
                         },
@@ -391,10 +425,10 @@ private fun patriarchServersHubContent(
         // SERVER PROFILE BOTTOM SHEET DRAWER
         if (currentServer != null) {
             val currentMembers = uiState.serverMembers[currentServer.id].orEmpty()
-            val currentStudentId = uiState.studentProfile?.studentId
-            val isCurrentOwner = (currentStudentId != null && currentServer.ownerId == currentStudentId) ||
-                    currentServer.ownerId == "user_student" ||
-                    currentServer.ownerId.isEmpty()
+            val currentMember = currentMembers.find { it.isSelf }
+            val currentStudentId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail }
+            val isCurrentOwner = currentStudentId != null && currentStudentId.isNotBlank() && currentServer.ownerId == currentStudentId
+            val isCurrentAdmin = isCurrentOwner || currentMember?.role?.roleType in listOf(ServerRoleType.OWNER, ServerRoleType.ADMIN)
             ServerProfileDrawer(
                 isOpen = uiState.isServerProfileDrawerOpen,
                 server = currentServer,
@@ -412,6 +446,9 @@ private fun patriarchServersHubContent(
                 },
                 onRulesClick = {
                     viewModel.onEvent(ChannelsEvent.OpenRulesSheet)
+                },
+                onEditServerSettingsClick = {
+                    viewModel.onEvent(ChannelsEvent.OpenEditServerSettings)
                 },
                 onMarkAsReadClick = {
                     viewModel.onEvent(ChannelsEvent.ClearFeedback("All channels marked as read"))
@@ -467,10 +504,16 @@ private fun patriarchServersHubContent(
 
         // SERVER RULES MANAGEMENT SHEET
         if (uiState.isRulesSheetOpen && currentServer != null) {
+            val currentMembers = uiState.serverMembers[currentServer.id].orEmpty()
+            val currentMember = currentMembers.find { it.isSelf }
+            val currentStudentId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail }
+            val isCurrentOwner = currentStudentId != null && currentStudentId.isNotBlank() && currentServer.ownerId == currentStudentId
+            val isCurrentAdmin = isCurrentOwner || currentMember?.role?.roleType in listOf(ServerRoleType.OWNER, ServerRoleType.ADMIN)
+
             ServerRulesSheet(
                 serverName = currentServer.name,
                 rules = uiState.currentServerRules,
-                canManageRules = true,
+                canManageRules = isCurrentOwner || isCurrentAdmin,
                 onDismiss = {
                     viewModel.onEvent(ChannelsEvent.CloseRulesSheet)
                 },
@@ -529,6 +572,29 @@ private fun patriarchServersHubContent(
                             nickname = nick,
                             tag = tag,
                             tagColorHex = colorHex
+                        )
+                    )
+                }
+            )
+        }
+
+        // EDIT SERVER SETTINGS SHEET (Owner Only)
+        if (uiState.isEditServerSettingsOpen && currentServer != null) {
+            EditServerSettingsSheet(
+                isOpen = uiState.isEditServerSettingsOpen,
+                server = currentServer,
+                onDismiss = {
+                    viewModel.onEvent(ChannelsEvent.CloseEditServerSettings)
+                },
+                onSaveSettings = { name, description, category, avatarResName, bannerResName ->
+                    viewModel.onEvent(
+                        ChannelsEvent.UpdateServerSettings(
+                            serverId = currentServer.id,
+                            name = name,
+                            category = category,
+                            description = description,
+                            avatarResName = avatarResName,
+                            bannerResName = bannerResName
                         )
                     )
                 }
@@ -629,6 +695,7 @@ private fun ServerRail(
     servers: List<ServerItem>,
     selectedServerId: String,
     isAddServerSelected: Boolean,
+    unreadDmCount: Int = 0,
     onNavigateToMessages: () -> Unit,
     onSelectServer: (String) -> Unit,
     onAddServer: () -> Unit,
@@ -644,18 +711,43 @@ private fun ServerRail(
         Box(
             modifier = Modifier
                 .padding(vertical = 4.dp)
-                .size(48.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFD1D5DB))
-                .clickable(onClick = onNavigateToMessages),
+                .size(48.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.ChatBubble,
-                contentDescription = "Direct Messages",
-                tint = Color(0xFF1E1F22),
-                modifier = Modifier.size(24.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFFD1D5DB))
+                    .clickable(onClick = onNavigateToMessages),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChatBubble,
+                    contentDescription = "Direct Messages",
+                    tint = Color(0xFF1E1F22),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            if (unreadDmCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 4.dp, y = 2.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFDA373C))
+                        .border(2.dp, Color(0xFFE3E5E8), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                ) {
+                    Text(
+                        text = if (unreadDmCount > 99) "99+" else unreadDmCount.toString(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         // Gray divider
@@ -706,7 +798,7 @@ private fun ServerRail(
                                 .width(4.dp)
                                 .height(indicatorHeight)
                                 .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-                                .background(Color(0xFF1E1F22))
+                                .background(Color.White)
                         )
                     }
 
@@ -809,6 +901,10 @@ private fun ServerRail(
 private fun ServerDetailsPanel(
     server: ServerItem,
     selectedChannelId: String,
+    isOwner: Boolean = false,
+    isAdmin: Boolean = false,
+    isMember: Boolean = false,
+    isJoining: Boolean = false,
     onChannelClick: (ServerChannelItem) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onInviteClick: () -> Unit,
@@ -819,6 +915,7 @@ private fun ServerDetailsPanel(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var collapsedCategories by remember { mutableStateOf(setOf<String>()) }
 
     val bannerResId: Int? = when (server.bannerResName) {
         "server_banner_clash" -> com.campus.network.core.ui.R.drawable.server_banner_clash
@@ -860,8 +957,8 @@ private fun ServerDetailsPanel(
                     )
                 }
 
-                // If in Preview Mode (Matching Image 1): overlay back button and SERVER PREVIEW badge
-                if (server.isPreview) {
+                // If in Preview Mode (Matching Image 1): overlay back button and SERVER PREVIEW badge (only if non-member and non-owner)
+                if (server.isPreview && !isOwner && !isMember) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -909,7 +1006,7 @@ private fun ServerDetailsPanel(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.clickable(enabled = !server.isPreview, onClick = onServerProfileClick)
+                modifier = Modifier.clickable(enabled = !server.isPreview || isOwner || isMember, onClick = onServerProfileClick)
             ) {
                 Text(
                     text = server.name,
@@ -1024,8 +1121,8 @@ private fun ServerDetailsPanel(
                     }
                 }
 
-                // Add Member / Invite Button (only if not previewing)
-                if (!server.isPreview) {
+                // Add Member / Invite Button (only if not previewing, or if member/owner)
+                if (!server.isPreview || isOwner || isMember) {
                     Box(
                         modifier = Modifier
                             .size(width = 44.dp, height = 38.dp)
@@ -1044,23 +1141,32 @@ private fun ServerDetailsPanel(
                 }
             }
 
-            // Preview Mode: Solid blurple "Join Server" button (Exact match to Preview button)
-            if (server.isPreview) {
+            // Preview Mode: Solid blurple "Join Server" button (Exact match to Preview button, only if not owner and not member)
+            if (server.isPreview && !isOwner && !isMember) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onJoinServerClick,
+                    enabled = !isJoining,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
                 ) {
-                    Text(
-                        text = "Join Server",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (isJoining) {
+                        com.campus.network.core.ui.components.DiscordBouncingDotsLoader(
+                            dotSize = 6.dp,
+                            dotSpacing = 5.dp,
+                            dotColor = Color.White
+                        )
+                    } else {
+                        Text(
+                            text = "Join Server",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             } else if (server.boostGoalText != null) {
                 // Joined Server with Banner: "Boost Goal" Card (Matching Image 2 BASI)
@@ -1202,146 +1308,155 @@ private fun ServerDetailsPanel(
                 contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
             ) {
                 channelsByCategory.forEach { (categoryName, channelsInCategory) ->
-                item(key = "cat_$categoryName") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = categoryName,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF5C6470),
-                            letterSpacing = 0.4.sp
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = Color(0xFF5C6470),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        if (!server.isPreview) {
-                            IconButton(
-                                onClick = { onAddChannelClick(categoryName) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Add Channel",
-                                    tint = Color(0xFF5C6470),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                items(channelsInCategory, key = { "${categoryName}_${it.id}" }) { channel ->
-                    val isCurrentSelected = channel.id == selectedChannelId || channel.isSelected
-                    val isProminent = channel.isUnread || isCurrentSelected
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 1.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isCurrentSelected) Color(0xFFE3E5E8) else Color.Transparent)
-                            .clickable {
-                                if (!server.isPreview) {
-                                    onChannelClick(channel)
-                                } else {
-                                    onJoinServerClick()
-                                }
-                            }
-                            .padding(horizontal = 10.dp, vertical = 7.dp)
-                    ) {
+                    val isCollapsed = collapsedCategories.contains(categoryName)
+                    item(key = "cat_$categoryName") {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    collapsedCategories = if (isCollapsed) {
+                                        collapsedCategories - categoryName
+                                    } else {
+                                        collapsedCategories + categoryName
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            when (channel.channelType) {
-                                "rules" -> {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (isCollapsed) "Expand $categoryName" else "Collapse $categoryName",
+                                tint = Color(0xFF5C6470),
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .rotate(if (isCollapsed) -90f else 0f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = categoryName,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF5C6470),
+                                letterSpacing = 0.4.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (isOwner || isAdmin) {
+                                IconButton(
+                                    onClick = { onAddChannelClick(categoryName) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.AssignmentTurnedIn,
-                                        contentDescription = "Rules",
-                                        tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Channel",
+                                        tint = Color(0xFF5C6470),
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
-                                "announcements" -> {
-                                    Icon(
-                                        imageVector = Icons.Default.Campaign,
-                                        contentDescription = "Announcements",
-                                        tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
-                                        modifier = Modifier.size(19.dp)
-                                    )
-                                }
-                                else -> {
-                                    Text(
-                                        text = "#",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E)
-                                    )
-                                }
                             }
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.width(9.dp))
+                    if (!isCollapsed) {
+                        items(channelsInCategory, key = { "${categoryName}_${it.id}" }) { channel ->
+                            val isCurrentSelected = channel.id == selectedChannelId || channel.isSelected
+                            val isProminent = channel.isUnread || isCurrentSelected
 
-                            Text(
-                                text = channel.name,
-                                fontSize = 14.5.sp,
-                                fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            if (channel.unreadBadgeCount > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFDA373C))
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 1.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isCurrentSelected) Color(0xFFE3E5E8) else Color.Transparent)
+                                    .clickable {
+                                        onChannelClick(channel)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 7.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = channel.unreadBadgeCount.toString(),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            } else if (channel.badgeText != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFDA373C))
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = channel.badgeText,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
+                                    when (channel.channelType) {
+                                        "rules" -> {
+                                            Icon(
+                                                imageVector = Icons.Default.AssignmentTurnedIn,
+                                                contentDescription = "Rules",
+                                                tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        "announcements" -> {
+                                            Icon(
+                                                imageVector = Icons.Default.Campaign,
+                                                contentDescription = "Announcements",
+                                                tint = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E),
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                        else -> {
+                                            Text(
+                                                text = "#",
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF80848E)
+                                            )
+                                        }
+                                    }
 
-                            if (channel.hasBoltIcon) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = "Special",
-                                    tint = Color(0xFFF59E0B),
-                                    modifier = Modifier.size(19.dp)
-                                )
+                                    Spacer(modifier = Modifier.width(9.dp))
+
+                                    Text(
+                                        text = channel.name,
+                                        fontSize = 14.5.sp,
+                                        fontWeight = if (isProminent) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isProminent) Color(0xFF1E1F22) else Color(0xFF5C6470),
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    if (channel.unreadBadgeCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFFDA373C))
+                                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = channel.unreadBadgeCount.toString(),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    } else if (channel.badgeText != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFFDA373C))
+                                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = channel.badgeText,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+
+                                    if (channel.hasBoltIcon) {
+                                        Icon(
+                                            imageVector = Icons.Default.Bolt,
+                                            contentDescription = "Special",
+                                            tint = Color(0xFFF59E0B),
+                                            modifier = Modifier.size(19.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
         }
         }
     }

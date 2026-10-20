@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -98,6 +99,7 @@ fun ServerProfileDrawer(
     onDeleteServerClick: () -> Unit = {},
     onCreateChannelClick: () -> Unit = {},
     onRulesClick: () -> Unit = {},
+    onEditServerSettingsClick: () -> Unit = {},
     onNotificationSettingChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -439,6 +441,38 @@ fun ServerProfileDrawer(
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFF5865F2)
                                 )
+                            }
+
+                            HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE3E5E8))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onDismiss()
+                                        onEditServerSettingsClick()
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = null,
+                                        tint = Color(0xFF5865F2),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Server Settings",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF5865F2)
+                                    )
+                                }
                             }
                         }
 

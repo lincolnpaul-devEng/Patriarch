@@ -80,7 +80,12 @@ fun CampusNavHost(
     val placesRepository = remember { com.campus.network.core.data.PlacesRepository() }
     val academicChannelsRepository = remember(database) { AcademicChannelsRepository(database) }
     val campusHubRepository = remember(database) { CampusHubRepository(database) }
-    val serverRepository = remember(database) { com.campus.network.core.data.ServerRepository(database) }
+    val serverRepository = remember(database) {
+        com.campus.network.core.data.ServerRepository(
+            database = database,
+            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+        )
+    }
     val liveStreamRepository = remember(database) { com.campus.network.core.data.LiveStreamRepository(database) }
 
     // Scoped ViewModels managed by ViewModelProvider to survive configuration changes
@@ -90,7 +95,10 @@ fun CampusNavHost(
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return MessagesViewModel(
                     streamChatEngine = streamChatEngine,
-                    studentProfileRepository = studentProfileRepository
+                    studentProfileRepository = studentProfileRepository,
+                    chatMessageDao = database.chatMessageDao(),
+                    supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+                    context = context.applicationContext
                 ) as T
             }
         }
@@ -205,6 +213,8 @@ fun CampusNavHost(
                             // User was deleted from the remote database! Purge local session
                             authClient.signOut()
                             studentProfileRepository.signOut()
+                            serverRepository.clearLocalCache()
+                            resolvedChannelsViewModel.clearSession()
                             android.widget.Toast.makeText(
                                 context,
                                 "Your account was not found in the campus database. Please sign in again.",
@@ -429,9 +439,11 @@ fun CampusNavHost(
                     navController.navigate(Screen.Profile.route)
                 },
                 onNavigateToServer = { serverId ->
-                    resolvedChannelsViewModel.onEvent(
-                        com.campus.network.feature.channels.ChannelsEvent.SelectServer(serverId)
-                    )
+                    if (serverId.isNotBlank()) {
+                        resolvedChannelsViewModel.onEvent(
+                            com.campus.network.feature.channels.ChannelsEvent.SelectServer(serverId)
+                        )
+                    }
                     navController.navigate(Screen.Channels.route) {
                         popUpTo(Screen.Channels.route) { inclusive = false }
                     }
@@ -564,6 +576,9 @@ fun CampusNavHost(
                 onSignOut = {
                     coroutineScope.launch {
                         authClient.signOut()
+                        studentProfileRepository.signOut()
+                        serverRepository.clearLocalCache()
+                        resolvedChannelsViewModel.clearSession()
                         profileViewModel.onEvent(com.campus.network.feature.profile.ProfileEvent.SignOut)
                         navController.navigate(Screen.Auth.route) {
                             popUpTo(0) { inclusive = true }

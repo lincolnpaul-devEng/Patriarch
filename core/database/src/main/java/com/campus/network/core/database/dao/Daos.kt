@@ -45,10 +45,22 @@ interface ChatMessageDao {
     fun getMessagesForChannel(channelId: String): Flow<List<ChatMessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: ChatMessageEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessages(messages: List<ChatMessageEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOptimisticMessage(message: ChatMessageEntity)
 
     @Query("UPDATE chat_messages SET isOptimistic = 0 WHERE id = :messageId")
     suspend fun markMessageSynced(messageId: String)
+
+    @Query("DELETE FROM chat_messages WHERE id = :messageId")
+    suspend fun deleteMessage(messageId: String)
+
+    @Query("DELETE FROM chat_messages WHERE channelId = :channelId")
+    suspend fun clearChannelMessages(channelId: String)
 }
 
 @Dao

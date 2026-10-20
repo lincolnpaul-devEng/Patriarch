@@ -5,6 +5,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -85,8 +86,8 @@ class SupabaseGoogleAuthClient(
                 // still honor the verified Google account from Google Play Services if available
                 if (!fallbackEmail.isNullOrBlank()) {
                     val localGoogleUser = AuthenticatedSessionUser(
-                        userId = "google_${fallbackEmail.hashCode().toUInt()}",
-                        email = fallbackEmail,
+                        userId = java.util.UUID.nameUUIDFromBytes("google:${fallbackEmail.trim().lowercase()}".toByteArray(Charsets.UTF_8)).toString(),
+                        email = fallbackEmail.trim().lowercase(),
                         fullName = fallbackName,
                         avatarUrl = fallbackAvatarUrl,
                         accessToken = idToken,
@@ -95,7 +96,8 @@ class SupabaseGoogleAuthClient(
                     saveSession(
                         rawJson = JSONObject().apply {
                             put("access_token", idToken)
-                            put("email", fallbackEmail)
+                            put("user_id", localGoogleUser.userId)
+                            put("email", localGoogleUser.email)
                             put("full_name", fallbackName ?: "")
                             put("avatar_url", fallbackAvatarUrl ?: "")
                         }.toString(),
@@ -119,9 +121,15 @@ class SupabaseGoogleAuthClient(
         googleId: String?
     ): Result<AuthenticatedSessionUser> = withContext(ioDispatcher) {
         runCatching {
+            val cleanEmail = email.trim().lowercase()
+            val validUuid = if (googleId != null && runCatching { java.util.UUID.fromString(googleId) }.isSuccess) {
+                googleId
+            } else {
+                java.util.UUID.nameUUIDFromBytes("google:$cleanEmail".toByteArray(Charsets.UTF_8)).toString()
+            }
             val sessionUser = AuthenticatedSessionUser(
-                userId = googleId ?: "google_${email.hashCode().toUInt()}",
-                email = email.trim(),
+                userId = validUuid,
+                email = cleanEmail,
                 fullName = fullName?.trim(),
                 avatarUrl = avatarUrl?.trim(),
                 accessToken = "google_session_${System.currentTimeMillis()}",
@@ -326,7 +334,7 @@ class SupabaseGoogleAuthClient(
                     )
                 }.getOrElse {
                     AuthenticatedSessionUser(
-                        userId = loadedUserId ?: "verified_${cleanEmail.hashCode().toUInt()}",
+                        userId = loadedUserId ?: java.util.UUID.nameUUIDFromBytes("verified:$cleanEmail".toByteArray(Charsets.UTF_8)).toString(),
                         email = cleanEmail,
                         fullName = loadedFullName ?: cleanEmail.substringBefore("@").replace(".", " ").capitalizeWords(),
                         avatarUrl = loadedAvatarUrl,
@@ -337,7 +345,7 @@ class SupabaseGoogleAuthClient(
                 }
             } else {
                 AuthenticatedSessionUser(
-                    userId = loadedUserId ?: "verified_${cleanEmail.hashCode().toUInt()}",
+                    userId = loadedUserId ?: java.util.UUID.nameUUIDFromBytes("verified:$cleanEmail".toByteArray(Charsets.UTF_8)).toString(),
                     email = cleanEmail,
                     fullName = loadedFullName ?: cleanEmail.substringBefore("@").replace(".", " ").capitalizeWords(),
                     avatarUrl = loadedAvatarUrl,
@@ -377,10 +385,10 @@ class SupabaseGoogleAuthClient(
      */
     suspend fun isProfileRegistered(email: String): Result<Boolean> = withContext(ioDispatcher) {
         runCatching {
-            val cleanEmail = email.trim()
+            val cleanEmail = email.trim().lowercase()
             if (cleanEmail.isBlank()) return@runCatching false
             val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-            val response: HttpResponse = client.get("$supabaseUrl/rest/v1/campusprofile?university_email=eq.$encodedEmail&select=id,university_email") {
+            val response: HttpResponse = client.get("$supabaseUrl/rest/v1/campusprofile?university_email=ilike.$encodedEmail&select=id,university_email") {
                 header("apikey", anonKey)
                 header("Authorization", "Bearer $anonKey")
                 header("Accept", "application/json")
@@ -406,24 +414,56 @@ class SupabaseGoogleAuthClient(
         avatarUrl: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
-            val cleanEmail = email.trim()
+            val cleanEmail = email.trim().lowercase()
             val cleanName = fullName.trim()
             val studentId = "STD-${(cleanEmail.hashCode().toLong() and 0xFFFFFFFFL).toString().padStart(6, '0')}"
-            val payload = JSONObject().apply {
-                if (!userId.isNullOrBlank()) put("user_id", userId)
-                put("student_id", studentId)
-                put("full_name", cleanName)
-                put("university_email", cleanEmail)
-                if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
-            }
-            val response: HttpResponse = client.post("$supabaseUrl/rest/v1/campusprofile") {
+            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+
+            // Validate that userId is a valid UUID before sending to Postgres UUID column
+            val validUuid = if (!userId.isNullOrBlank() && runCatching { java.util.UUID.fromString(userId) }.isSuccess) {
+                userId
+            } else null
+
+            // Check if profile exists first to prevent duplicate entries and handle updates smoothly
+            val checkRes = client.get("$supabaseUrl/rest/v1/campusprofile?university_email=ilike.$encodedEmail&select=id,user_id") {
                 header("apikey", anonKey)
                 header("Authorization", "Bearer $anonKey")
-                header("Prefer", "resolution=merge-duplicates,return=representation")
-                contentType(ContentType.Application.Json)
-                setBody(payload.toString())
+                header("Accept", "application/json")
             }
-            response.bodyAsText()
+            val existingProfiles = if (checkRes.status.isSuccess()) {
+                org.json.JSONArray(checkRes.bodyAsText().trim())
+            } else org.json.JSONArray()
+
+            if (existingProfiles.length() > 0) {
+                val patchPayload = JSONObject().apply {
+                    if (cleanName.isNotBlank() && !cleanName.equals("Student", ignoreCase = true)) put("full_name", cleanName)
+                    if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
+                    if (validUuid != null) put("user_id", validUuid)
+                }
+                val updateRes = client.patch("$supabaseUrl/rest/v1/campusprofile?university_email=ilike.$encodedEmail") {
+                    header("apikey", anonKey)
+                    header("Authorization", "Bearer $anonKey")
+                    contentType(ContentType.Application.Json)
+                    setBody(patchPayload.toString())
+                }
+                updateRes.bodyAsText()
+            } else {
+                val payload = JSONObject().apply {
+                    if (validUuid != null) put("user_id", validUuid)
+                    put("student_id", studentId)
+                    put("full_name", cleanName)
+                    put("university_email", cleanEmail)
+                    if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
+                }
+                val response: HttpResponse = client.post("$supabaseUrl/rest/v1/campusprofile") {
+                    header("apikey", anonKey)
+                    header("Authorization", "Bearer $anonKey")
+                    header("Prefer", "return=representation")
+                    contentType(ContentType.Application.Json)
+                    setBody(payload.toString())
+                }
+                response.bodyAsText()
+            }
         }
     }
 

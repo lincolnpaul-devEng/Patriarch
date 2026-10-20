@@ -75,6 +75,8 @@ import com.campus.network.feature.channels.model.ServerRoleType
 @Composable
 fun ServerMemberProfileSheet(
     member: ServerMemberItem?,
+    isOwner: Boolean = false,
+    onUpdateMemberRole: (memberId: String, newRole: ServerRoleType) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     onSendFriendRequest: (memberId: String) -> Unit,
     onCancelFriendRequest: (memberId: String) -> Unit,
@@ -260,6 +262,63 @@ fun ServerMemberProfileSheet(
                             fontWeight = FontWeight.Bold,
                             color = Color(member.role.colorHex)
                         )
+                    }
+                }
+
+                // OWNER ROLE MANAGEMENT CONTROLS (Discord RBAC Role Assignment)
+                if (isOwner && !member.isSelf && member.role.roleType != ServerRoleType.OWNER) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "MANAGE ROLE",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF5C6470),
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            Triple("Admin", ServerRoleType.ADMIN, 0xFF5865F2),
+                            Triple("Mod", ServerRoleType.MODERATOR, 0xFF23A55A),
+                            Triple("Contributor", ServerRoleType.CONTRIBUTOR, 0xFFF59E0B),
+                            Triple("Member", ServerRoleType.MEMBER, 0xFF5C6470)
+                        ).forEach { (title, rType, colorHex) ->
+                            val isSelected = member.role.roleType == rType
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) Color(colorHex).copy(alpha = 0.18f) else Color(0xFFF2F3F5),
+                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, Color(colorHex)) else null,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onUpdateMemberRole(member.id, rType) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color(colorHex),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                    }
+                                    Text(
+                                        text = title,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) Color(colorHex) else Color(0xFF4E5058),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 

@@ -15,7 +15,7 @@ enum class CampusAccessTier(val label: String, val badgeText: String) {
     ),
     VERIFIED_STUDENT(
         label = "Verified Collegiate Student",
-        badgeText = "Verified .ac.ke / .edu"
+        badgeText = "Verified Student"
     ),
     GUILD_EXECUTIVE(
         label = "Campus Guild Executive & Arbitrator",
@@ -50,8 +50,8 @@ enum class LocationPrivacyScope(
         allowsCoordinatesBroadcast = true
     ),
     VERIFIED_CAMPUS_PEERS(
-        title = "Verified Campus Peers (.ac.ke)",
-        subtitle = "Visible only to signed-in students with a verified university email on your campus. Guests and external links are blocked.",
+        title = "Verified Campus Peers",
+        subtitle = "Visible only to signed-in students with a verified email on your campus. Guests and external links are blocked.",
         badgeLabel = "Verified Peers Only",
         allowsCoordinatesBroadcast = true
     ),
@@ -137,11 +137,7 @@ object CampusSecurityPolicy {
         return if (isGuildExec) {
             CampusAccessTier.GUILD_EXECUTIVE
         } else {
-            val email = profile.universityEmail.trim().lowercase()
-            val hasValidUniversityDomain = email.endsWith(".ac.ke") ||
-                email.endsWith("strathmore.edu") ||
-                profile.onboardingPreferences.isVerifiedStudentEmail
-            if (hasValidUniversityDomain && profile.behavioralTrustScore >= 40) {
+            if (profile.behavioralTrustScore >= 40) {
                 CampusAccessTier.VERIFIED_STUDENT
             } else {
                 CampusAccessTier.GUEST_READ_ONLY

@@ -137,117 +137,59 @@ fun AuthScreen(
             isLoading = true
             statusBannerMessage = null
             val idToken = account.idToken
-            val email = account.email ?: ""
+            val rawEmail = account.email ?: ""
             val displayName = account.displayName ?: ""
             val photoUrl = account.photoUrl?.toString()
 
-            if (email.isBlank()) {
+            if (rawEmail.isBlank()) {
                 isLoading = false
                 showFeedback("Unable to retrieve Google account email.", isError = true)
                 return@launch
             }
 
-            // Check if user's Google account is already registered in campusprofile database
-            val isRegistered = authClient.isProfileRegistered(email).getOrDefault(false)
+            val cleanEmail = rawEmail.trim().lowercase()
+            val cleanName = displayName.trim().ifBlank { cleanEmail.substringBefore("@").replace(".", " ") }
 
-            val isSigningIn = (activeTab == 0 || !showAuthSheet)
-
-            if (isSigningIn) {
-                // USER IS TRYING TO SIGN IN WITH GOOGLE
-                if (!isRegistered) {
-                    // NOT REGISTERED: Immediately knock them out to Sign Up with Google and Verify!
-                    isLoading = false
-                    activeTab = 1 // Switch to Sign Up tab
-                    showAuthSheet = true
-                    regFullName = displayName
-                    regEmail = email
-                    statusBannerMessage = "No student account found for $email. Please complete sign-up with Google and verify your campus credentials."
-                    isStatusError = true
-                    snackbarHostState.showSnackbar("No account found for $email. Please sign up and verify first.")
-                    return@launch
-                }
-
-                // REGISTERED: Proceed with Sign-In
-                val result = if (!idToken.isNullOrBlank()) {
-                    authClient.signInWithGoogleIdToken(
-                        idToken = idToken,
-                        fallbackEmail = email,
-                        fallbackName = displayName,
-                        fallbackAvatarUrl = photoUrl
-                    )
-                } else {
-                    authClient.signInWithGoogleAccountProfile(
-                        email = email,
-                        fullName = displayName,
-                        avatarUrl = photoUrl,
-                        googleId = account.id
-                    )
-                }
-
-                isLoading = false
-                result.onSuccess { sessionUser ->
-                    showAuthSheet = false
-                    onLoginSuccess(
-                        sessionUser.email,
-                        sessionUser.fullName ?: displayName,
-                        sessionUser.avatarUrl ?: photoUrl
-                    )
-                }.onFailure { err ->
-                    showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
-                }
+            // Federated Google sign-in: Authenticate with Supabase via ID token or Google profile
+            val result = if (!idToken.isNullOrBlank()) {
+                authClient.signInWithGoogleIdToken(
+                    idToken = idToken,
+                    fallbackEmail = cleanEmail,
+                    fallbackName = cleanName,
+                    fallbackAvatarUrl = photoUrl
+                )
             } else {
-                // USER IS IN SIGN-UP WITH GOOGLE
-                if (isRegistered) {
-                    // ALREADY REGISTERED: Knock them back to Log In tab
-                    isLoading = false
-                    activeTab = 0
-                    showAuthSheet = true
-                    loginEmail = email
-                    statusBannerMessage = "An account with $email is already registered. Please log in."
-                    isStatusError = false
-                    snackbarHostState.showSnackbar("Account already exists for $email. Please log in.")
-                    return@launch
-                }
+                authClient.signInWithGoogleAccountProfile(
+                    email = cleanEmail,
+                    fullName = cleanName,
+                    avatarUrl = photoUrl,
+                    googleId = account.id
+                )
+            }
 
-                // NEW USER: Sign up with Google & Verify
-                val result = if (!idToken.isNullOrBlank()) {
-                    authClient.signInWithGoogleIdToken(
-                        idToken = idToken,
-                        fallbackEmail = email,
-                        fallbackName = displayName,
-                        fallbackAvatarUrl = photoUrl
-                    )
-                } else {
-                    authClient.signInWithGoogleAccountProfile(
-                        email = email,
-                        fullName = displayName,
-                        avatarUrl = photoUrl,
-                        googleId = account.id
-                    )
-                }
+            result.onSuccess { sessionUser ->
+                val finalEmail = sessionUser.email.ifBlank { cleanEmail }.lowercase()
+                val finalName = sessionUser.fullName ?: cleanName
+                val finalAvatar = sessionUser.avatarUrl ?: photoUrl
+
+                // Upsert into campusprofile database so this user is registered and linked
+                authClient.registerCampusProfile(
+                    userId = sessionUser.userId,
+                    email = finalEmail,
+                    fullName = finalName,
+                    avatarUrl = finalAvatar
+                )
 
                 isLoading = false
-                result.onSuccess { sessionUser ->
-                    val cleanEmail = sessionUser.email
-                    val cleanName = sessionUser.fullName ?: displayName
-                    // Register row in campusprofile so all Google and normal email sign-ins appear in the same table
-                    authClient.registerCampusProfile(
-                        userId = sessionUser.userId,
-                        email = cleanEmail,
-                        fullName = cleanName,
-                        avatarUrl = sessionUser.avatarUrl ?: photoUrl
-                    )
-                    // Dispatch real 6-digit verification code to Google email via Resend
-                    authClient.sendOtp(
-                        email = cleanEmail,
-                        fullName = cleanName
-                    )
-                    showAuthSheet = false
-                    // Knock out to verification screen
-                    onNavigateToVerify(cleanEmail, false)
-                }.onFailure { err ->
-                    showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
-                }
+                showAuthSheet = false
+                onLoginSuccess(
+                    finalEmail,
+                    finalName,
+                    finalAvatar
+                )
+            }.onFailure { err ->
+                isLoading = false
+                showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
             }
         }
     }
@@ -327,19 +269,20 @@ fun AuthScreen(
         coroutineScope.launch {
             isLoading = true
             statusBannerMessage = null
+            val cleanEmail = loginEmail.trim().lowercase()
             val result = authClient.signInWithPassword(
-                email = loginEmail.trim(),
+                email = cleanEmail,
                 password = loginPassword
             )
             isLoading = false
             result.onSuccess { user ->
                 showAuthSheet = false
-                onLoginSuccess(user.email, user.fullName, user.avatarUrl)
+                onLoginSuccess(user.email.lowercase(), user.fullName, user.avatarUrl)
             }.onFailure { err ->
                 val friendly = SupabaseGoogleAuthClient.getFriendlyErrorMessage(err)
                 if (err.message?.contains("Email not confirmed", ignoreCase = true) == true) {
                     showAuthSheet = false
-                    onNavigateToVerify(loginEmail.trim(), false)
+                    onNavigateToVerify(cleanEmail, false)
                 } else {
                     showFeedback(friendly, isError = true)
                 }
@@ -355,29 +298,31 @@ fun AuthScreen(
         coroutineScope.launch {
             isLoading = true
             statusBannerMessage = null
+            val cleanEmail = regEmail.trim().lowercase()
+            val cleanName = regFullName.trim()
             val result = authClient.signUpWithEmail(
-                fullName = regFullName.trim(),
-                email = regEmail.trim(),
+                fullName = cleanName,
+                email = cleanEmail,
                 password = regPassword
             )
             isLoading = false
             result.onSuccess { user ->
-                val cleanEmail = user.email.ifBlank { regEmail.trim() }
-                val cleanName = user.fullName ?: regFullName.trim()
+                val finalEmail = user.email.ifBlank { cleanEmail }.lowercase()
+                val finalName = user.fullName ?: cleanName
                 // Register into campusprofile table so email and google users appear in same table
                 authClient.registerCampusProfile(
                     userId = user.userId,
-                    email = cleanEmail,
-                    fullName = cleanName,
+                    email = finalEmail,
+                    fullName = finalName,
                     avatarUrl = user.avatarUrl
                 )
                 // Dispatch real 6-digit verification code to student email via Resend
                 authClient.sendOtp(
-                    email = cleanEmail,
-                    fullName = cleanName
+                    email = finalEmail,
+                    fullName = finalName
                 )
                 showAuthSheet = false
-                onNavigateToVerify(cleanEmail, false)
+                onNavigateToVerify(finalEmail, false)
             }.onFailure { err ->
                 showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
             }

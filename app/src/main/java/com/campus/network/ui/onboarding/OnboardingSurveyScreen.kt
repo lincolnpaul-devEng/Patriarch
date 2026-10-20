@@ -343,7 +343,7 @@ fun OnboardingSurveyScreen(
                         selectedUniversityName = customName
                         selectedUniversityDomain = ""
                         isCustomUniversity = true
-                        isVerifiedStudentEmail = false
+                        isVerifiedStudentEmail = true
                     },
                     onBack = { stepBack() },
                     onContinue = { currentStep = OnboardingStep.WELCOME }

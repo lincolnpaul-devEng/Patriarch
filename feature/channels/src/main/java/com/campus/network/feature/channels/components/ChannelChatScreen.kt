@@ -26,6 +26,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -70,6 +71,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -78,6 +80,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -123,6 +127,7 @@ import com.campus.network.feature.channels.ChannelMessageEmbed
 import com.campus.network.feature.channels.ChannelsEvent
 import com.campus.network.feature.channels.ChannelsUiState
 import com.campus.network.core.ui.components.KeyboardMediaTextField
+import com.campus.network.feature.channels.model.ServerRoleType
 import com.campus.network.feature.channels.ChannelsViewModel
 import com.campus.network.feature.channels.audio.OnDeviceTranscriber
 import com.campus.network.feature.channels.audio.TranscriptionState
@@ -294,112 +299,227 @@ fun ChannelChatScreen(
             }
         }
 
-        // 4. BOTTOM CHAT INPUT DOCK (Matching DirectChatScreen interface with embedded media preview & Keyboard rich content)
-        ChatInputDock(
-            channelName = channelName,
-            inputText = inputText,
-            selectedMediaUris = selectedMediaUris,
-            onRemoveMediaUri = { selectedMediaUris.remove(it) },
-            onMediaReceived = { uri ->
-                if (!selectedMediaUris.contains(uri)) {
-                    selectedMediaUris.add(uri)
-                }
-            },
-            isDrawerOpen = uiState.isMediaDrawerOpen,
-            isEmojiOpen = isEmojiDrawerOpen,
-            isVoiceRecordingActive = isVoiceRecordingActive,
-            isSpeechDetected = isSpeechDetected,
-            audioRms = audioRms,
-            onTextChanged = { inputText = it },
-            onFocusRequested = {
-                if (isEmojiDrawerOpen) {
-                    isEmojiDrawerOpen = false
-                }
-                if (uiState.isMediaDrawerOpen) {
-                    viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
-                }
-            },
-            onToggleDrawer = {
-                if (isVoiceRecordingActive) {
-                    transcriber.cancel()
-                    isVoiceRecordingActive = false
-                }
-                if (isEmojiDrawerOpen) {
-                    isEmojiDrawerOpen = false
-                }
-                viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
-            },
-            onToggleEmoji = {
-                if (isVoiceRecordingActive) {
-                    transcriber.cancel()
-                    isVoiceRecordingActive = false
-                }
-                if (uiState.isMediaDrawerOpen) {
-                    viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
-                }
-                if (!isEmojiDrawerOpen) {
-                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                    imm?.hideSoftInputFromWindow(view.windowToken, 0)
-                    keyboardController?.hide()
-                    isEmojiDrawerOpen = true
-                } else {
-                    isEmojiDrawerOpen = false
-                }
-            },
-            onStartVoice = {
-                if (uiState.isMediaDrawerOpen) {
-                    viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
-                }
-                isEmojiDrawerOpen = false
-                if (transcriber.hasRecordPermission()) {
-                    isVoiceRecordingActive = true
-                    transcriber.startListening()
-                } else {
-                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }
-            },
-            onStopVoice = {
-                transcriber.stopListening()
-                isVoiceRecordingActive = false
-            },
-            onSendMessage = {
-                if (isVoiceRecordingActive) {
-                    transcriber.stopListening()
-                    isVoiceRecordingActive = false
-                }
-                val textToSend = inputText.trim()
-                val mediaToSend = selectedMediaUris.toList()
-                if (textToSend.isNotBlank() || mediaToSend.isNotEmpty()) {
-                    inputText = ""
-                    selectedMediaUris.clear()
-                    if (uiState.isMediaDrawerOpen) {
-                        viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+        val currentUserId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail } ?: ""
+        val currentServer = uiState.activeChatServer
+        val currentMembers = currentServer?.id?.let { uiState.serverMembers[it] }.orEmpty()
+        val currentMember = currentMembers.find { it.isSelf }
+        val isCurrentOwner = currentUserId.isNotBlank() && currentServer?.ownerId == currentUserId
+        val isCurrentAdmin = isCurrentOwner || currentMember?.role?.roleType in listOf(ServerRoleType.OWNER, ServerRoleType.ADMIN)
+        val isBroadcastReadOnly = (activeChannel?.channelType?.lowercase() in listOf("announcements", "announcement", "rules")) && !isCurrentAdmin
+
+        val isPreviewMode = currentServer?.isPreview == true &&
+                (currentUserId.isBlank() || currentServer.ownerId != currentUserId) &&
+                !uiState.joinedServerIds.contains(currentServer.id)
+
+        if (isPreviewMode) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                color = Color(0xFFF2F3F5),
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "You are in preview mode",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E1F22)
+                        )
+                        Text(
+                            text = "Join this server to chat and participate!",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5C6470)
+                        )
                     }
-                    if (mediaToSend.isNotEmpty()) {
-                        coroutineScope.launch {
-                            val uploader = com.campus.network.core.network.CloudinaryUploader()
-                            val uploaded = mediaToSend.map { uri ->
-                                val res = uploader.uploadFromUri(context, uri)
-                                if (res.isSuccess) res.getOrThrow() else uri.toString()
-                            }
-                            viewModel.onEvent(
-                                ChannelsEvent.SendChannelMessage(
-                                    text = textToSend,
-                                    imageUris = uploaded
-                                )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            viewModel.onEvent(ChannelsEvent.JoinCurrentPreviewServer)
+                        },
+                        enabled = !uiState.isJoiningServer,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.defaultMinSize(minWidth = 96.dp, minHeight = 38.dp)
+                    ) {
+                        if (uiState.isJoiningServer) {
+                            com.campus.network.core.ui.components.DiscordBouncingDotsLoader(
+                                dotSize = 5.dp,
+                                dotSpacing = 4.dp,
+                                dotColor = Color.White
+                            )
+                        } else {
+                            Text(
+                                text = "Join Server",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
-                    } else {
-                        viewModel.onEvent(
-                            ChannelsEvent.SendChannelMessage(
-                                text = textToSend,
-                                imageUris = emptyList()
-                            )
+                    }
+                }
+            }
+        } else if (isBroadcastReadOnly) {
+            // Discord Read-Only Notice Dock for Announcement & Rules Channels
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                color = Color(0xFFF2F3F5),
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE3E5E8)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Read-only channel",
+                            tint = Color(0xFF5C6470),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "#$channelName is a read-only channel",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E1F22)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Only server owners and admins can send messages here.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5C6470)
                         )
                     }
                 }
             }
-        )
+        } else {
+            // 4. BOTTOM CHAT INPUT DOCK (Matching DirectChatScreen interface with embedded media preview & Keyboard rich content)
+            ChatInputDock(
+                channelName = channelName,
+                inputText = inputText,
+                selectedMediaUris = selectedMediaUris,
+                onRemoveMediaUri = { selectedMediaUris.remove(it) },
+                onMediaReceived = { uri ->
+                    if (!selectedMediaUris.contains(uri)) {
+                        selectedMediaUris.add(uri)
+                    }
+                },
+                isDrawerOpen = uiState.isMediaDrawerOpen,
+                isEmojiOpen = isEmojiDrawerOpen,
+                isVoiceRecordingActive = isVoiceRecordingActive,
+                isSpeechDetected = isSpeechDetected,
+                audioRms = audioRms,
+                onTextChanged = { inputText = it },
+                onFocusRequested = {
+                    if (isEmojiDrawerOpen) {
+                        isEmojiDrawerOpen = false
+                    }
+                    if (uiState.isMediaDrawerOpen) {
+                        viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                    }
+                },
+                onToggleDrawer = {
+                    if (isVoiceRecordingActive) {
+                        transcriber.cancel()
+                        isVoiceRecordingActive = false
+                    }
+                    if (isEmojiDrawerOpen) {
+                        isEmojiDrawerOpen = false
+                    }
+                    viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                },
+                onToggleEmoji = {
+                    if (isVoiceRecordingActive) {
+                        transcriber.cancel()
+                        isVoiceRecordingActive = false
+                    }
+                    if (uiState.isMediaDrawerOpen) {
+                        viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                    }
+                    if (!isEmojiDrawerOpen) {
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                        imm?.hideSoftInputFromWindow(view.windowToken, 0)
+                        keyboardController?.hide()
+                        isEmojiDrawerOpen = true
+                    } else {
+                        isEmojiDrawerOpen = false
+                    }
+                },
+                onStartVoice = {
+                    if (uiState.isMediaDrawerOpen) {
+                        viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                    }
+                    isEmojiDrawerOpen = false
+                    if (transcriber.hasRecordPermission()) {
+                        isVoiceRecordingActive = true
+                        transcriber.startListening()
+                    } else {
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onStopVoice = {
+                    transcriber.stopListening()
+                    isVoiceRecordingActive = false
+                },
+                onSendMessage = {
+                    if (isVoiceRecordingActive) {
+                        transcriber.stopListening()
+                        isVoiceRecordingActive = false
+                    }
+                    val textToSend = inputText.trim()
+                    val mediaToSend = selectedMediaUris.toList()
+                    if (textToSend.isNotBlank() || mediaToSend.isNotEmpty()) {
+                        inputText = ""
+                        selectedMediaUris.clear()
+                        if (uiState.isMediaDrawerOpen) {
+                            viewModel.onEvent(ChannelsEvent.ToggleMediaDrawer)
+                        }
+                        if (mediaToSend.isNotEmpty()) {
+                            coroutineScope.launch {
+                                val uploader = com.campus.network.core.network.CloudinaryUploader()
+                                val uploaded = mediaToSend.map { uri ->
+                                    val res = uploader.uploadFromUri(context, uri)
+                                    if (res.isSuccess) res.getOrThrow() else uri.toString()
+                                }
+                                viewModel.onEvent(
+                                    ChannelsEvent.SendChannelMessage(
+                                        text = textToSend,
+                                        imageUris = uploaded
+                                    )
+                                )
+                            }
+                        } else {
+                            viewModel.onEvent(
+                                ChannelsEvent.SendChannelMessage(
+                                    text = textToSend,
+                                    imageUris = emptyList()
+                                )
+                            )
+                        }
+                    }
+                }
+            )
+        }
 
         // HYBRID EMOJI & GIF DRAWER (Google EmojiPicker + GIPHY via Supabase Proxy)
         AnimatedVisibility(

@@ -38,6 +38,9 @@ interface ServerDao {
     @Query("DELETE FROM servers WHERE id = :serverId")
     suspend fun deleteServer(serverId: String)
 
+    @Query("DELETE FROM servers")
+    suspend fun clearAllServers()
+
     @Query("""
         SELECT DISTINCT s.* FROM servers s
         LEFT JOIN server_members m ON s.id = m.serverId
@@ -106,11 +109,14 @@ interface ServerMemberDao {
     @Query("DELETE FROM server_members WHERE serverId = :serverId AND userId = :userId")
     suspend fun removeMember(serverId: String, userId: String)
 
-    @Query("SELECT serverId FROM server_members WHERE userId = :userId")
-    fun getJoinedServerIdsForUser(userId: String): Flow<List<String>>
+    @Query("DELETE FROM server_members")
+    suspend fun clearAllMembers()
 
-    @Query("SELECT serverId FROM server_members WHERE userId = :userId")
-    suspend fun getJoinedServerIdsForUserSync(userId: String): List<String>
+    @Query("SELECT DISTINCT serverId FROM server_members WHERE userId = :userId OR (:email != '' AND userId = :email)")
+    fun getJoinedServerIdsForUser(userId: String, email: String = ""): Flow<List<String>>
+
+    @Query("SELECT DISTINCT serverId FROM server_members WHERE userId = :userId OR (:email != '' AND userId = :email)")
+    suspend fun getJoinedServerIdsForUserSync(userId: String, email: String = ""): List<String>
 
     @Query("UPDATE server_members SET displayName = :displayName, handle = :handle, avatarUrl = :avatarUrl, avatarResName = :avatarResName WHERE userId = :userId")
     suspend fun updateMemberProfileForUser(userId: String, displayName: String, handle: String, avatarUrl: String?, avatarResName: String)

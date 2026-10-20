@@ -22,6 +22,7 @@ import com.campus.network.feature.channels.model.ServerRoleType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -83,7 +84,7 @@ data class ServerItem(
     val isPreview: Boolean = false,
     val boostGoalText: String? = null,
     val hasServerGuide: Boolean = false,
-    val ownerId: String = "user_student",
+    val ownerId: String = "",
     val channels: List<ServerChannelItem> = emptyList()
 )
 
@@ -92,6 +93,9 @@ data class ChannelsUiState(
     val servers: List<ServerItem> = emptyList(),
     val joinedServers: List<ServerItem> = emptyList(),
     val discoverableServers: List<ServerItem> = emptyList(),
+    val joinedServerIds: Set<String> = emptySet(),
+    val isJoiningServer: Boolean = false,
+    val loadingPreviewServerName: String? = null,
     val previewServer: ServerItem? = null,
     val selectedServerId: String = "",
     val selectedServer: ServerItem? = null,
@@ -138,6 +142,7 @@ data class ChannelsUiState(
     val perServerProfiles: Map<String, PerServerProfile> = emptyMap(),
     val selectedMemberForProfile: ServerMemberItem? = null,
     val isEditServerProfileOpen: Boolean = false,
+    val isEditServerSettingsOpen: Boolean = false,
     val isServerMembersSheetOpen: Boolean = false,
     val currentMemberFilterChannelId: String? = null
 )
@@ -215,6 +220,21 @@ sealed interface ChannelsEvent {
         val tag: String,
         val tagColorHex: Long
     ) : ChannelsEvent
+    data object OpenEditServerSettings : ChannelsEvent
+    data object CloseEditServerSettings : ChannelsEvent
+    data class UpdateServerSettings(
+        val serverId: String,
+        val name: String,
+        val category: String,
+        val description: String,
+        val avatarResName: String,
+        val bannerResName: String? = null
+    ) : ChannelsEvent
+    data class UpdateMemberRole(
+        val serverId: String,
+        val memberId: String,
+        val newRole: ServerRoleType
+    ) : ChannelsEvent
     data class OpenServerMembersSheet(val serverId: String, val channelId: String? = null) : ChannelsEvent
     data object CloseServerMembersSheet : ChannelsEvent
     data class DeleteServer(val serverId: String) : ChannelsEvent
@@ -231,6 +251,8 @@ class ChannelsViewModel(
     private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
     private val _previewServerId = MutableStateFlow<String?>(null)
     private val _joinedServerIds = MutableStateFlow<Set<String>>(emptySet())
+    private val _isJoiningServer = MutableStateFlow(false)
+    private val _loadingPreviewServerName = MutableStateFlow<String?>(null)
 
     private val _viewMode = MutableStateFlow(ChannelViewMode.CHANNELS_HUB)
     private val _selectedServerId = MutableStateFlow("")
@@ -263,6 +285,7 @@ class ChannelsViewModel(
     private val _perServerProfiles = MutableStateFlow<Map<String, PerServerProfile>>(emptyMap())
     private val _selectedMemberForProfile = MutableStateFlow<ServerMemberItem?>(null)
     private val _isEditServerProfileOpen = MutableStateFlow(false)
+    private val _isEditServerSettingsOpen = MutableStateFlow(false)
     private val _isServerMembersSheetOpen = MutableStateFlow(false)
     private val _currentMemberFilterChannelId = MutableStateFlow<String?>(null)
 
@@ -305,10 +328,16 @@ class ChannelsViewModel(
         }
 
         viewModelScope.launch {
-            _currentProfile.collect { profile ->
+            _currentProfile.collectLatest { profile ->
                 val studentId = profile?.studentId?.ifBlank { profile.universityEmail } ?: ""
-                if (studentId.isNotBlank() && serverRepository != null) {
-                    serverRepository.getJoinedServerIds(studentId).collect { ids ->
+                val email = profile?.universityEmail.orEmpty().trim().lowercase()
+                if (serverRepository != null && (studentId.isNotBlank() || email.isNotBlank())) {
+                    _joinedServerIds.value = emptySet()
+                    // Sync any memberships tracked remotely in Supabase
+                    runCatching {
+                        serverRepository.syncRemoteMemberships(studentId, email)
+                    }
+                    serverRepository.getJoinedServerIds(studentId, email).collect { ids ->
                         _joinedServerIds.value = ids.toSet()
                     }
                 }
@@ -341,7 +370,12 @@ class ChannelsViewModel(
                     }
                     _serversList.value = mapped
                     val profileId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: ""
-                    val joinedOnes = mapped.filter { _joinedServerIds.value.contains(it.id) || (profileId.isNotBlank() && it.ownerId == profileId) }
+                    val userEmail = _currentProfile.value?.universityEmail.orEmpty().trim().lowercase()
+                    val joinedOnes = mapped.filter {
+                        _joinedServerIds.value.contains(it.id) ||
+                        (profileId.isNotBlank() && it.ownerId.equals(profileId, ignoreCase = true)) ||
+                        (userEmail.isNotBlank() && it.ownerId.equals(userEmail, ignoreCase = true))
+                    }
                     if (_selectedServerId.value.isEmpty() && joinedOnes.isNotEmpty()) {
                         _selectedServerId.value = joinedOnes.first().id
                         _selectedChannelId.value = joinedOnes.first().channels.firstOrNull()?.id ?: ""
@@ -400,12 +434,14 @@ class ChannelsViewModel(
                                 if (dbMembers.isNotEmpty()) {
                                     val currentAuthor = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student"
                                     val currentAvatar = _currentProfile.value?.avatarUrl
-                                    val currentStudentId = _currentProfile.value?.studentId
+                                    val currentStudentId = _currentProfile.value?.studentId.orEmpty().trim()
+                                    val currentEmail = _currentProfile.value?.universityEmail.orEmpty().trim().lowercase()
                                     val known = studentProfileRepository.knownProfiles.value
                                     val mapped = dbMembers.map { mem ->
-                                        val isSelf = (currentStudentId != null && currentStudentId.isNotBlank() && mem.userId == currentStudentId) ||
-                                                mem.displayName.equals(currentAuthor, ignoreCase = true)
-                                        val matchedProfile = known[mem.userId] ?: known[mem.displayName.lowercase()]
+                                        val cleanUserId = mem.userId.trim()
+                                        val isSelf = (currentStudentId.isNotBlank() && cleanUserId.equals(currentStudentId, ignoreCase = true)) ||
+                                                (currentEmail.isNotBlank() && cleanUserId.equals(currentEmail, ignoreCase = true))
+                                        val matchedProfile = known[cleanUserId] ?: (if (cleanUserId.contains("@")) known[cleanUserId.lowercase()] else null)
 
                                         var resolvedName = if (isSelf && currentAuthor != "Student") {
                                             currentAuthor
@@ -418,17 +454,16 @@ class ChannelsViewModel(
                                         // Heal legacy placeholder "Student" for server owner
                                         if (resolvedName.equals("Student", ignoreCase = true) && mem.role == com.campus.network.core.model.ServerMemberRole.OWNER) {
                                             val targetServer = _serversList.value.find { it.id == serverId }
-                                            val ownerProf = targetServer?.ownerId?.let { known[it] }
-                                            val altKnown = ownerProf ?: known.values.firstOrNull { it.fullName != currentAuthor && it.fullName.isNotBlank() && !it.fullName.equals("Student", ignoreCase = true) }
-                                            if (altKnown != null) {
-                                                resolvedName = altKnown.fullName
+                                            val ownerProf = targetServer?.ownerId?.let { known[it] ?: known[it.lowercase()] }
+                                            if (ownerProf != null && ownerProf.fullName.isNotBlank() && !ownerProf.fullName.equals("Student", ignoreCase = true)) {
+                                                resolvedName = ownerProf.fullName
                                                 viewModelScope.launch {
                                                     serverRepository.updateServerOwnerProfile(
                                                         serverId = serverId,
-                                                        displayName = altKnown.fullName,
-                                                        handle = "@" + altKnown.fullName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' },
-                                                        avatarUrl = altKnown.avatarUrl,
-                                                        avatarResName = altKnown.avatarUrl ?: ""
+                                                        displayName = ownerProf.fullName,
+                                                        handle = "@" + ownerProf.fullName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' },
+                                                        avatarUrl = ownerProf.avatarUrl,
+                                                        avatarResName = ownerProf.avatarUrl ?: ""
                                                     )
                                                 }
                                             }
@@ -504,8 +539,10 @@ class ChannelsViewModel(
             combine(_isRailCollapsed, _serverSearchQuery) { rc, sq -> Pair(rc, sq) },
             _isServerProfileDrawerOpen,
             _isAddServerSelected,
-            combine(_currentProfile, _previewServerId, _joinedServerIds) { p, prev, joined -> Triple(p, prev, joined) }
-        ) { t, railAndQuery, isProfileDrawerOpen, isAddServerSelected, profilePrevJoined ->
+            combine(_currentProfile, _previewServerId, _joinedServerIds, _isJoiningServer, _loadingPreviewServerName) { p, prev, joined, isJoining, loadingPrev ->
+                ServerJoinSlice(p, prev, joined, isJoining, loadingPrev)
+            }
+        ) { t, railAndQuery, isProfileDrawerOpen, isAddServerSelected, joinSlice ->
             ServerStateSlice1(
                 viewMode = t.first,
                 selectedServerId = t.second,
@@ -514,9 +551,11 @@ class ChannelsViewModel(
                 serverSearchQuery = railAndQuery.second,
                 isServerProfileDrawerOpen = isProfileDrawerOpen,
                 isAddServerSelected = isAddServerSelected,
-                studentProfile = profilePrevJoined.first,
-                previewServerId = profilePrevJoined.second,
-                joinedServerIds = profilePrevJoined.third
+                studentProfile = joinSlice.studentProfile,
+                previewServerId = joinSlice.previewServerId,
+                joinedServerIds = joinSlice.joinedServerIds,
+                isJoiningServer = joinSlice.isJoiningServer,
+                loadingPreviewServerName = joinSlice.loadingPreviewServerName
             )
         },
         combine(
@@ -562,9 +601,10 @@ class ChannelsViewModel(
                 _isCreateChannelSheetOpen,
                 _isRulesSheetOpen,
                 _isServerInviteSheetOpen,
+                _isEditServerSettingsOpen,
                 _targetChannelCategory
-            ) { chOpen, rulesOpen, inviteOpen, cat ->
-                ServerManagementFlags(chOpen, rulesOpen, inviteOpen, cat)
+            ) { chOpen, rulesOpen, inviteOpen, settingsOpen, cat ->
+                ServerManagementFlags(chOpen, rulesOpen, inviteOpen, settingsOpen, cat)
             },
             _currentServerRules,
             _currentServerInviteCode,
@@ -575,6 +615,7 @@ class ChannelsViewModel(
                     flags.isCreateChannelSheetOpen,
                     flags.isRulesSheetOpen,
                     flags.isServerInviteSheetOpen,
+                    flags.isEditServerSettingsOpen,
                     flags.targetChannelCategory,
                     rules,
                     inviteCode
@@ -642,11 +683,16 @@ class ChannelsViewModel(
         val resolvedName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
         val resolvedAvatar = profile?.avatarUrl
 
+        val allJoinedIds = slice1.joinedServerIds + joinedServersList.map { it.id }.toSet()
+
         ChannelsUiState(
             viewMode = slice1.viewMode,
             servers = joinedServersList,
             joinedServers = joinedServersList,
             discoverableServers = allServers,
+            joinedServerIds = allJoinedIds,
+            isJoiningServer = slice1.isJoiningServer,
+            loadingPreviewServerName = slice1.loadingPreviewServerName,
             previewServer = previewServerItem,
             selectedServerId = currentServer?.id.orEmpty(),
             selectedServer = enrichedServer,
@@ -668,6 +714,7 @@ class ChannelsViewModel(
             isCreateChannelSheetOpen = mgmtSlice.isCreateChannelSheetOpen,
             isRulesSheetOpen = mgmtSlice.isRulesSheetOpen,
             isServerInviteSheetOpen = mgmtSlice.isServerInviteSheetOpen,
+            isEditServerSettingsOpen = mgmtSlice.isEditServerSettingsOpen,
             targetChannelCategory = mgmtSlice.targetChannelCategory,
             currentServerRules = mgmtSlice.currentServerRules,
             currentServerInviteCode = mgmtSlice.currentServerInviteCode,
@@ -698,6 +745,17 @@ class ChannelsViewModel(
             selectedServer = initialMasterServersList.firstOrNull()
         )
     )
+
+    fun clearSession() {
+        _joinedServerIds.value = emptySet()
+        _selectedServerId.value = ""
+        _selectedChannelId.value = ""
+        _previewServerId.value = null
+        _serverMembers.value = emptyMap()
+        _currentServerRules.value = emptyList()
+        _activeChatChannel.value = null
+        _viewMode.value = ChannelViewMode.CHANNELS_HUB
+    }
 
     fun onEvent(event: ChannelsEvent) {
         when (event) {
@@ -997,9 +1055,26 @@ class ChannelsViewModel(
                 _isAddServerSelected.value = false
                 val existing = _serversList.value.find { it.name.equals(event.serverName, ignoreCase = true) || it.id == event.serverName }
                 if (existing != null) {
-                    _previewServerId.value = existing.id
-                    existing.channels.firstOrNull()?.let {
-                        _selectedChannelId.value = it.id
+                    val currentUserId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: ""
+                    val isOwner = currentUserId.isNotBlank() && existing.ownerId == currentUserId
+                    val isJoined = _joinedServerIds.value.contains(existing.id)
+
+                    if (isOwner || isJoined) {
+                        _previewServerId.value = null
+                        _selectedServerId.value = existing.id
+                        existing.channels.firstOrNull()?.let {
+                            _selectedChannelId.value = it.id
+                        }
+                    } else {
+                        viewModelScope.launch {
+                            _loadingPreviewServerName.value = event.serverName
+                            kotlinx.coroutines.delay(350)
+                            _loadingPreviewServerName.value = null
+                            _previewServerId.value = existing.id
+                            existing.channels.firstOrNull()?.let {
+                                _selectedChannelId.value = it.id
+                            }
+                        }
                     }
                 }
             }
@@ -1008,52 +1083,56 @@ class ChannelsViewModel(
                 _isAddServerSelected.value = true
             }
             is ChannelsEvent.JoinCurrentPreviewServer -> {
-                val previewId = _previewServerId.value
-                if (!previewId.isNullOrEmpty()) {
+                val previewId = _previewServerId.value ?: _selectedServerId.value
+                if (previewId.isNotBlank()) {
                     val targetServer = _serversList.value.find { it.id == previewId }
                     val prof = _currentProfile.value ?: studentProfileRepository.studentProfile.value
                     val author = prof?.fullName?.takeIf { it.isNotBlank() } ?: "Campus Student"
                     val authorAvatar = prof?.avatarUrl
-                    val authorId = prof?.studentId?.takeIf { it.isNotBlank() } ?: prof?.universityEmail?.takeIf { it.isNotBlank() } ?: "user_${System.currentTimeMillis()}"
+                    val authorId = prof?.studentId?.takeIf { it.isNotBlank() }
+                        ?: prof?.universityEmail?.takeIf { it.isNotBlank() }
+                        ?: if (author.isNotBlank()) author else "current_user"
                     val authorHandle = "@" + author.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
 
-                    _joinedServerIds.value = _joinedServerIds.value + previewId
-                    _selectedServerId.value = previewId
-                    _previewServerId.value = null
+                    viewModelScope.launch {
+                        _isJoiningServer.value = true
 
-                    _feedbackMessage.value = "Joined ${targetServer?.name ?: "server"}!"
+                        _joinedServerIds.value = _joinedServerIds.value + previewId
+                        _selectedServerId.value = previewId
+                        _previewServerId.value = null
 
-                    val currentMembers = _serverMembers.value[previewId].orEmpty()
-                    val newMember = ServerMemberItem(
-                        id = "mem_${authorId}_$previewId",
-                        serverId = previewId,
-                        name = author,
-                        handle = authorHandle,
-                        avatarResName = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) null else authorAvatar,
-                        avatarUrl = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) authorAvatar else null,
-                        serverNickname = author,
-                        serverTag = "MEMBER",
-                        serverTagColorHex = 0xFF5C6470,
-                        role = ServerMemberRole("Member", ServerRoleType.MEMBER, 0xFF5C6470, isOwner = false),
-                        isOnline = true,
-                        joinedDate = "Joined Just Now",
-                        bio = "Campus peer & server member.",
-                        friendStatus = FriendRequestStatus.NONE,
-                        isSelf = true
-                    )
-                    _serverMembers.value = _serverMembers.value + (previewId to (currentMembers + newMember).distinctBy { it.id })
+                        val currentMembers = _serverMembers.value[previewId].orEmpty()
+                        val newMember = ServerMemberItem(
+                            id = "mem_${authorId}_$previewId",
+                            serverId = previewId,
+                            name = author,
+                            handle = authorHandle,
+                            avatarResName = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) null else authorAvatar,
+                            avatarUrl = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) authorAvatar else null,
+                            serverNickname = author,
+                            serverTag = "MEMBER",
+                            serverTagColorHex = 0xFF5C6470,
+                            role = ServerMemberRole("Member", ServerRoleType.MEMBER, 0xFF5C6470, isOwner = false),
+                            isOnline = true,
+                            joinedDate = "Joined Just Now",
+                            bio = "Campus peer & server member.",
+                            friendStatus = FriendRequestStatus.NONE,
+                            isSelf = true
+                        )
+                        _serverMembers.value = _serverMembers.value + (previewId to (currentMembers + newMember).distinctBy { it.id })
 
-                    serverRepository?.let { repo ->
-                        viewModelScope.launch {
-                            repo.joinServerDirectly(
-                                serverId = previewId,
-                                userId = authorId,
-                                displayName = author,
-                                handle = authorHandle,
-                                avatarUrl = authorAvatar,
-                                avatarResName = authorAvatar ?: ""
-                            )
-                        }
+                        serverRepository?.joinServerDirectly(
+                            serverId = previewId,
+                            userId = authorId,
+                            displayName = author,
+                            handle = authorHandle,
+                            avatarUrl = authorAvatar,
+                            avatarResName = authorAvatar ?: ""
+                        )
+
+                        kotlinx.coroutines.delay(450)
+                        _isJoiningServer.value = false
+                        _feedbackMessage.value = "Joined ${targetServer?.name ?: "server"}!"
                     }
                 }
             }
@@ -1239,6 +1318,84 @@ class ChannelsViewModel(
                 _feedbackMessage.value = "Updated server profile tag [${event.tag.uppercase()}]!"
             }
 
+            is ChannelsEvent.OpenEditServerSettings -> {
+                _isEditServerSettingsOpen.value = true
+            }
+
+            is ChannelsEvent.CloseEditServerSettings -> {
+                _isEditServerSettingsOpen.value = false
+            }
+
+            is ChannelsEvent.UpdateServerSettings -> {
+                _isEditServerSettingsOpen.value = false
+                _serversList.value = _serversList.value.map { srv ->
+                    if (srv.id == event.serverId) {
+                        srv.copy(
+                            name = event.name.trim().ifEmpty { srv.name },
+                            categoryText = event.category.trim().ifEmpty { srv.categoryText },
+                            iconResName = event.avatarResName.ifEmpty { srv.iconResName },
+                            bannerResName = event.bannerResName ?: srv.bannerResName
+                        )
+                    } else srv
+                }
+                _feedbackMessage.value = "Server settings updated"
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        runCatching {
+                            repo.updateServerProfile(
+                                serverId = event.serverId,
+                                name = event.name,
+                                description = event.description,
+                                category = event.category,
+                                avatarResName = event.avatarResName,
+                                bannerResName = event.bannerResName
+                            )
+                        }
+                    }
+                }
+            }
+
+            is ChannelsEvent.UpdateMemberRole -> {
+                val (roleTitle, roleColor, domainRole) = when (event.newRole) {
+                    ServerRoleType.ADMIN -> Triple("Server Admin", 0xFF5865F2, com.campus.network.core.model.ServerMemberRole.ADMIN)
+                    ServerRoleType.MODERATOR -> Triple("Moderator", 0xFF23A55A, com.campus.network.core.model.ServerMemberRole.MODERATOR)
+                    ServerRoleType.CONTRIBUTOR -> Triple("Core Contributor", 0xFFF59E0B, com.campus.network.core.model.ServerMemberRole.MEMBER)
+                    ServerRoleType.MEMBER -> Triple("Member", 0xFF5C6470, com.campus.network.core.model.ServerMemberRole.MEMBER)
+                    ServerRoleType.OWNER -> Triple("Server Owner", 0xFFEAB308, com.campus.network.core.model.ServerMemberRole.OWNER)
+                }
+                val members = _serverMembers.value[event.serverId].orEmpty()
+                val updatedMembers = members.map { mem ->
+                    if (mem.id == event.memberId) {
+                        mem.copy(
+                            role = mem.role.copy(
+                                name = roleTitle,
+                                roleType = event.newRole,
+                                colorHex = roleColor,
+                                isOwner = (event.newRole == ServerRoleType.OWNER)
+                            )
+                        )
+                    } else mem
+                }
+                _serverMembers.value = _serverMembers.value + (event.serverId to updatedMembers)
+                if (_selectedMemberForProfile.value?.id == event.memberId) {
+                    _selectedMemberForProfile.value = updatedMembers.find { it.id == event.memberId }
+                }
+                _feedbackMessage.value = "Role updated to $roleTitle"
+                serverRepository?.let { repo ->
+                    viewModelScope.launch {
+                        runCatching {
+                            repo.updateMemberRole(
+                                serverId = event.serverId,
+                                userId = event.memberId,
+                                role = domainRole,
+                                roleTitle = roleTitle,
+                                roleColorHex = roleColor
+                            )
+                        }
+                    }
+                }
+            }
+
             is ChannelsEvent.OpenServerMembersSheet -> {
                 _currentMemberFilterChannelId.value = event.channelId
                 _isServerMembersSheetOpen.value = true
@@ -1252,8 +1409,9 @@ class ChannelsViewModel(
             is ChannelsEvent.DeleteServer -> {
                 val targetServerId = event.serverId
                 _isServerProfileDrawerOpen.value = false
+                _joinedServerIds.value = _joinedServerIds.value - targetServerId
                 _serversList.value = _serversList.value.filterNot { it.id == targetServerId }
-                val remaining = _serversList.value
+                val remaining = _serversList.value.filter { it.id in _joinedServerIds.value }
                 if (_selectedServerId.value == targetServerId) {
                     val nextServer = remaining.firstOrNull()
                     _selectedServerId.value = nextServer?.id.orEmpty()
@@ -1272,8 +1430,8 @@ class ChannelsViewModel(
             is ChannelsEvent.LeaveServer -> {
                 val targetServerId = event.serverId
                 _isServerProfileDrawerOpen.value = false
-                _serversList.value = _serversList.value.filterNot { it.id == targetServerId }
-                val remaining = _serversList.value
+                _joinedServerIds.value = _joinedServerIds.value - targetServerId
+                val remaining = _serversList.value.filter { it.id in _joinedServerIds.value }
                 if (_selectedServerId.value == targetServerId) {
                     val nextServer = remaining.firstOrNull()
                     _selectedServerId.value = nextServer?.id.orEmpty()
@@ -1282,9 +1440,11 @@ class ChannelsViewModel(
                 _feedbackMessage.value = "Left server"
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
-                        val currentStudentId = _currentProfile.value?.studentId ?: "user_student"
-                        runCatching {
-                            repo.removeMember(targetServerId, currentStudentId)
+                        val currentStudentId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: ""
+                        if (currentStudentId.isNotBlank()) {
+                            runCatching {
+                                repo.removeMember(targetServerId, currentStudentId)
+                            }
                         }
                     }
                 }
@@ -1297,6 +1457,14 @@ class ChannelsViewModel(
     }
 }
 
+private data class ServerJoinSlice(
+    val studentProfile: StudentProfile?,
+    val previewServerId: String?,
+    val joinedServerIds: Set<String>,
+    val isJoiningServer: Boolean,
+    val loadingPreviewServerName: String?
+)
+
 private data class ServerStateSlice1(
     val viewMode: ChannelViewMode,
     val selectedServerId: String,
@@ -1307,7 +1475,9 @@ private data class ServerStateSlice1(
     val isAddServerSelected: Boolean = false,
     val studentProfile: StudentProfile? = null,
     val previewServerId: String? = null,
-    val joinedServerIds: Set<String> = emptySet()
+    val joinedServerIds: Set<String> = emptySet(),
+    val isJoiningServer: Boolean = false,
+    val loadingPreviewServerName: String? = null
 )
 
 private data class ServerStateSlice2(
@@ -1336,6 +1506,7 @@ private data class ServerManagementFlags(
     val isCreateChannelSheetOpen: Boolean,
     val isRulesSheetOpen: Boolean,
     val isServerInviteSheetOpen: Boolean,
+    val isEditServerSettingsOpen: Boolean,
     val targetChannelCategory: String
 )
 
@@ -1343,6 +1514,7 @@ private data class ServerManagementSlice(
     val isCreateChannelSheetOpen: Boolean,
     val isRulesSheetOpen: Boolean,
     val isServerInviteSheetOpen: Boolean,
+    val isEditServerSettingsOpen: Boolean,
     val targetChannelCategory: String,
     val currentServerRules: List<ServerRule>,
     val currentServerInviteCode: String

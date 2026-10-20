@@ -113,8 +113,10 @@ class StudentProfileRepository(
                         if (id.isNotBlank()) map[id] = prof
                         if (userId.isNotBlank()) map[userId] = prof
                         if (studentId.isNotBlank()) map[studentId] = prof
-                        if (email.isNotBlank()) map[email] = prof
-                        map[name.lowercase()] = prof
+                        if (email.isNotBlank()) {
+                            map[email] = prof
+                            map[email.lowercase()] = prof
+                        }
                     }
                 }
                 _knownProfiles.value = map
@@ -213,8 +215,10 @@ class StudentProfileRepository(
         if (profile.fullName.isNotBlank()) {
             val updatedMap = _knownProfiles.value.toMutableMap()
             if (profile.studentId.isNotBlank()) updatedMap[profile.studentId] = profile
-            if (profile.universityEmail.isNotBlank()) updatedMap[profile.universityEmail] = profile
-            updatedMap[profile.fullName.lowercase()] = profile
+            if (profile.universityEmail.isNotBlank()) {
+                updatedMap[profile.universityEmail] = profile
+                updatedMap[profile.universityEmail.lowercase()] = profile
+            }
             _knownProfiles.value = updatedMap
         }
     }
@@ -230,12 +234,13 @@ class StudentProfileRepository(
             val cleanEmail = email.trim()
             if (cleanEmail.isBlank()) return@runCatching false
             val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-            val result = supabaseClient?.queryTable("campusprofile?university_email=eq.$encodedEmail")?.getOrNull()
+            val result = supabaseClient?.queryTable("campusprofile?university_email=ilike.$encodedEmail")?.getOrNull()
             if (!result.isNullOrBlank()) {
                 val jsonArray = org.json.JSONArray(result)
                 if (jsonArray.length() > 0) {
                     val row = jsonArray.getJSONObject(0)
                     val current = _studentProfile.value
+                    val remoteStudentId = row.optString("student_id").ifBlank { row.optString("id") }.takeIf { it.isNotBlank() } ?: current.studentId
                     val remoteName = row.optString("full_name").takeIf { it.isNotBlank() } ?: current.fullName
                     val remoteAvatar = row.optString("avatar_url").takeIf { it.isNotBlank() } ?: current.avatarUrl
                     val remoteMerit = row.optInt("campus_merit_points", current.campusMeritPoints)
@@ -249,6 +254,7 @@ class StudentProfileRepository(
                         current.onboardingPreferences
                     }
                     val updated = current.copy(
+                        studentId = remoteStudentId,
                         fullName = remoteName,
                         avatarUrl = remoteAvatar,
                         campusMeritPoints = remoteMerit,
@@ -283,7 +289,7 @@ class StudentProfileRepository(
             }
             val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
             val client = supabaseClient ?: return@runCatching true
-            val queryResult = client.queryTable("campusprofile?university_email=eq.$encodedEmail&select=id,university_email").getOrThrow()
+            val queryResult = client.queryTable("campusprofile?university_email=ilike.$encodedEmail&select=id,university_email").getOrThrow()
             val jsonArray = org.json.JSONArray(queryResult.trim())
             val exists = jsonArray.length() > 0
             if (!exists) {
@@ -297,6 +303,7 @@ class StudentProfileRepository(
     suspend fun signOut() = withContext(ioDispatcher) {
         _isAuthenticatedSession.value = false
         _isGuestSession.value = false
+        _knownProfiles.value = emptyMap()
         _studentProfile.value = StudentProfile(
             studentId = "",
             fullName = "",
@@ -325,7 +332,7 @@ class StudentProfileRepository(
         // 1. Check live Supabase database first
         val remoteCheck = runCatching {
             val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-            val queryResult = supabaseClient?.queryTable("campusprofile?university_email=eq.$encodedEmail&select=id,university_email")?.getOrThrow()
+            val queryResult = supabaseClient?.queryTable("campusprofile?university_email=ilike.$encodedEmail&select=id,university_email")?.getOrThrow()
             if (!queryResult.isNullOrBlank()) {
                 val arr = org.json.JSONArray(queryResult.trim())
                 arr.length() > 0
@@ -424,9 +431,6 @@ class StudentProfileRepository(
         val cleanAvatar = current.avatarUrl?.takeIf { it.isNotBlank() }
             ?: avatarUrl?.trim()?.takeIf { it.isNotEmpty() }
         val currentPrefs = current.onboardingPreferences
-        val isAcademicDomain = cleanEmail.lowercase().endsWith(".ac.ke") ||
-            cleanEmail.lowercase().endsWith("strathmore.edu") ||
-            matchedUniversity != null
         val updatedPrefs = if (matchedUniversity != null) {
             currentPrefs.copy(
                 countryCode = matchedUniversity.countryCode.ifBlank { currentPrefs.countryCode },
@@ -439,14 +443,14 @@ class StudentProfileRepository(
                 isVerifiedStudentEmail = true
             )
         } else {
-            currentPrefs.copy(isVerifiedStudentEmail = isAcademicDomain)
+            currentPrefs.copy(isVerifiedStudentEmail = true)
         }
         _studentProfile.value = current.copy(
             fullName = cleanName,
             universityEmail = cleanEmail,
             avatarUrl = cleanAvatar,
             universityName = matchedUniversity?.name ?: current.universityName,
-            personaRole = if (isAcademicDomain) "Undergraduate Student" else "Guest Preview (Unverified)",
+            personaRole = if (current.personaRole.isBlank() || current.personaRole.contains("Guest", ignoreCase = true)) "Undergraduate Student" else current.personaRole,
             onboardingPreferences = updatedPrefs
         )
         profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(_studentProfile.value))

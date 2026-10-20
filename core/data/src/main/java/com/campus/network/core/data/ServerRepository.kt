@@ -31,6 +31,7 @@ import java.util.UUID
  */
 class ServerRepository(
     private val database: CampusDatabase,
+    private val supabaseClient: com.campus.network.core.network.SupabaseClientProvider? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val serverDao = database.serverDao()
@@ -57,10 +58,19 @@ class ServerRepository(
             .flowOn(ioDispatcher)
     }
 
-    fun getJoinedServerIds(userId: String): Flow<List<String>> {
-        if (userId.isBlank()) return kotlinx.coroutines.flow.flowOf(emptyList())
-        return memberDao.getJoinedServerIdsForUser(userId)
+    fun getJoinedServerIds(userId: String, email: String = ""): Flow<List<String>> {
+        val cleanUserId = userId.trim()
+        val cleanEmail = email.trim()
+        if (cleanUserId.isBlank() && cleanEmail.isBlank()) return kotlinx.coroutines.flow.flowOf(emptyList())
+        return memberDao.getJoinedServerIdsForUser(cleanUserId, cleanEmail)
             .flowOn(ioDispatcher)
+    }
+
+    suspend fun clearLocalCache() = withContext(ioDispatcher) {
+        runCatching {
+            memberDao.clearAllMembers()
+            serverDao.clearAllServers()
+        }
     }
 
     fun getServerById(serverId: String): Flow<Server?> {
@@ -73,9 +83,9 @@ class ServerRepository(
         name: String,
         category: String,
         description: String = "",
-        ownerId: String = "user_student",
-        ownerDisplayName: String = "Student",
-        ownerHandle: String = "@student",
+        ownerId: String = "",
+        ownerDisplayName: String = "Campus Founder",
+        ownerHandle: String = "@founder",
         ownerAvatarUrl: String? = null,
         avatarResName: String = "server_codesistency",
         bannerResName: String? = null,
@@ -208,14 +218,16 @@ class ServerRepository(
         name: String,
         description: String,
         category: String,
-        avatarResName: String
+        avatarResName: String,
+        bannerResName: String? = null
     ) = withContext(ioDispatcher) {
         val existing = serverDao.getServerByIdSync(serverId) ?: return@withContext
         val updated = existing.copy(
             name = name.trim().ifEmpty { existing.name },
             description = description.trim(),
             category = category.trim().ifEmpty { existing.category },
-            avatarResName = avatarResName.ifEmpty { existing.avatarResName }
+            avatarResName = avatarResName.ifEmpty { existing.avatarResName },
+            bannerResName = bannerResName ?: existing.bannerResName
         )
         serverDao.insertServer(updated)
     }
@@ -337,10 +349,6 @@ class ServerRepository(
         memberDao.updateMemberRole(serverId, userId, role.name, roleTitle, roleColorHex)
     }
 
-    suspend fun removeMember(serverId: String, userId: String) = withContext(ioDispatcher) {
-        memberDao.removeMember(serverId, userId)
-    }
-
     // ==========================================
     // 5. INVITATIONS & JOINING
     // ==========================================
@@ -359,8 +367,8 @@ class ServerRepository(
 
     suspend fun createInvite(
         serverId: String,
-        inviterId: String = "user_student",
-        inviterName: String = "Student",
+        inviterId: String = "",
+        inviterName: String = "Campus Member",
         maxUses: Int = 0
     ): ServerInvite = withContext(ioDispatcher) {
         val server = serverDao.getServerByIdSync(serverId) ?: throw IllegalArgumentException("Server not found")
@@ -385,8 +393,8 @@ class ServerRepository(
 
     suspend fun joinServerByInvite(
         inviteCode: String,
-        userId: String = "user_student",
-        displayName: String = "Student",
+        userId: String = "",
+        displayName: String = "Campus Student",
         handle: String = "@student",
         avatarUrl: String? = null,
         avatarResName: String = ""
@@ -411,8 +419,8 @@ class ServerRepository(
             ?: return@withContext Result.failure(IllegalArgumentException("Target server no longer exists"))
 
         // Check if member already in server
-        val existingMember = memberDao.getMemberSync(server.id, userId)
-        if (existingMember == null) {
+        val existingMember = if (userId.isNotBlank()) memberDao.getMemberSync(server.id, userId) else null
+        if (existingMember == null && userId.isNotBlank()) {
             val newMember = ServerMember(
                 userId = userId,
                 serverId = server.id,
@@ -438,8 +446,8 @@ class ServerRepository(
 
     suspend fun joinServerDirectly(
         serverId: String,
-        userId: String = "user_student",
-        displayName: String = "Student",
+        userId: String = "",
+        displayName: String = "Campus Student",
         handle: String = "@student",
         avatarUrl: String? = null,
         avatarResName: String = ""
@@ -447,8 +455,8 @@ class ServerRepository(
         val serverEntity = serverDao.getServerByIdSync(serverId)
             ?: return@withContext Result.failure(IllegalArgumentException("Server not found"))
 
-        val existingMember = memberDao.getMemberSync(serverId, userId)
-        if (existingMember == null) {
+        val existingMember = if (userId.isNotBlank()) memberDao.getMemberSync(serverId, userId) else null
+        if (existingMember == null && userId.isNotBlank()) {
             val newMember = ServerMember(
                 userId = userId,
                 serverId = serverId,
@@ -466,8 +474,38 @@ class ServerRepository(
             )
             memberDao.insertMember(ServerMemberEntity.fromDomain(newMember))
             serverDao.incrementMemberCount(serverId)
+
+            supabaseClient?.let { client ->
+                runCatching {
+                    val payload = org.json.JSONObject().apply {
+                        put("id", "${serverId}:${userId}")
+                        put("server_id", serverId)
+                        put("user_id", userId)
+                        put("display_name", displayName)
+                        put("handle", handle)
+                        put("role", "MEMBER")
+                        put("role_title", "Member")
+                        put("role_color_hex", 0xFF5C6470)
+                        if (avatarUrl != null) put("avatar_url", avatarUrl)
+                        put("avatar_res_name", avatarResName)
+                        put("is_online", true)
+                        put("joined_at_epoch_ms", System.currentTimeMillis())
+                    }.toString()
+                    client.insertRecord("server_members", payload)
+                }
+            }
         }
         Result.success(serverEntity.toDomain())
+    }
+
+    suspend fun removeMember(serverId: String, userId: String) = withContext(ioDispatcher) {
+        memberDao.removeMember(serverId, userId)
+        supabaseClient?.let { client ->
+            runCatching {
+                val memberId = "${serverId}:${userId}"
+                client.deleteRecord("server_members?id=eq.$memberId")
+            }
+        }
     }
 
     suspend fun updateMemberProfileForUser(
@@ -491,6 +529,47 @@ class ServerRepository(
     ) = withContext(ioDispatcher) {
         if (serverId.isNotBlank() && displayName.isNotBlank()) {
             memberDao.updateServerOwnerProfile(serverId, displayName, handle, avatarUrl, avatarResName)
+        }
+    }
+
+    suspend fun syncRemoteMemberships(userId: String, email: String = "") = withContext(ioDispatcher) {
+        val client = supabaseClient ?: return@withContext
+        val cleanUserId = userId.trim()
+        val cleanEmail = email.trim()
+        val filter = when {
+            cleanUserId.isNotBlank() && cleanEmail.isNotBlank() -> "or=(user_id.eq.$cleanUserId,user_id.eq.$cleanEmail)"
+            cleanUserId.isNotBlank() -> "user_id=eq.$cleanUserId"
+            cleanEmail.isNotBlank() -> "user_id=eq.$cleanEmail"
+            else -> return@withContext
+        }
+        val result = client.queryTable("server_members?$filter")
+        result.onSuccess { jsonStr ->
+            runCatching {
+                val array = org.json.JSONArray(jsonStr)
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val srvId = obj.optString("server_id")
+                    val uId = obj.optString("user_id")
+                    if (srvId.isNotBlank() && uId.isNotBlank()) {
+                        val member = ServerMember(
+                            userId = uId,
+                            serverId = srvId,
+                            displayName = obj.optString("display_name", "Member"),
+                            handle = obj.optString("handle", "@student"),
+                            role = runCatching { ServerMemberRole.valueOf(obj.optString("role", "MEMBER")) }.getOrDefault(ServerMemberRole.MEMBER),
+                            roleTitle = obj.optString("role_title", "Member"),
+                            roleColorHex = obj.optLong("role_color_hex", 0xFF5C6470),
+                            avatarUrl = obj.optString("avatar_url").takeIf { it.isNotBlank() },
+                            avatarResName = obj.optString("avatar_res_name", ""),
+                            isOnline = obj.optBoolean("is_online", true),
+                            customStatus = obj.optString("custom_status", "Campus Member"),
+                            joinedAtEpochMs = obj.optLong("joined_at_epoch_ms", System.currentTimeMillis()),
+                            badge = obj.optString("badge").takeIf { it.isNotBlank() }
+                        )
+                        memberDao.insertMember(ServerMemberEntity.fromDomain(member))
+                    }
+                }
+            }
         }
     }
 

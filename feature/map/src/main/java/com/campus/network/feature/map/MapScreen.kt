@@ -112,7 +112,6 @@ import com.campus.network.feature.map.components.PlaceMarkerCallout
 import com.campus.network.core.ui.components.CampusSuccessSnackBanner
 import com.campus.network.feature.map.components.ShareLocationDrawerSheet
 import com.campus.network.feature.map.components.TriggerFlashMeetFriendsSheet
-import com.campus.network.feature.map.components.defaultCampusFriends
 import com.campus.network.feature.map.events.CreateEventDrawerSheet
 import com.campus.network.feature.map.events.EventDetailScreen
 import com.campus.network.feature.map.events.EventsScreen
@@ -891,7 +890,7 @@ private fun MapExplorationContent(
                         TriggerFlashMeetFriendsSheet(
                             locationName = myLocationName,
                             address = myLocationAddress,
-                            friends = defaultCampusFriends,
+                            friends = uiState.friends,
                             onBackClick = {
                                 myLocationStep = MyLocationSheetStep.LOCATION_REVIEW
                             },

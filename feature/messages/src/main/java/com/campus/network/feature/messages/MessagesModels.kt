@@ -52,7 +52,9 @@ data class DirectMessageItem(
     val imageUri: String? = null,
     val imageUrl: String? = null,
     val gifUrl: String? = null,
-    val replyToText: String? = null
+    val replyToText: String? = null,
+    val reaction: String? = null,
+    val timestampEpochMs: Long = System.currentTimeMillis()
 )
 
 enum class CallType {
@@ -128,8 +130,12 @@ sealed interface MessagesEvent {
         val text: String,
         val imageUri: String? = null,
         val imageUrl: String? = null,
-        val gifUrl: String? = null
+        val gifUrl: String? = null,
+        val replyToText: String? = null
     ) : MessagesEvent
+    data class DeleteMessage(val messageId: String) : MessagesEvent
+    data class ToggleMessageReaction(val messageId: String, val reaction: String) : MessagesEvent
+    data class ClearChat(val threadId: String) : MessagesEvent
     data class InitiateSettlement(val amount: Double, val purpose: String) : MessagesEvent
     data class ConfirmSettlement(val transactionId: String) : MessagesEvent
     data class ToggleSettlementDialog(val open: Boolean) : MessagesEvent

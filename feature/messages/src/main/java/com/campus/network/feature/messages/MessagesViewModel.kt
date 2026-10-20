@@ -1,13 +1,18 @@
 package com.campus.network.feature.messages
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.campus.network.core.database.dao.ChatMessageDao
+import com.campus.network.core.database.entity.ChatMessageEntity
+import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.PeerTransactionPayload
 import com.campus.network.core.model.SettlementStatus
-import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.firstName
 import com.campus.network.core.network.StreamChatEngine
+import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.feature.messages.audio.CallRingtoneManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,8 +24,15 @@ import kotlinx.coroutines.launch
 class MessagesViewModel(
     private val streamChatEngine: StreamChatEngine? = null,
     private val telecomCallManager: CampusTelecomCallManager? = null,
-    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository(),
+    private val chatMessageDao: ChatMessageDao? = null,
+    private val supabaseClient: SupabaseClientProvider? = null,
+    context: Context? = null
 ) : ViewModel() {
+
+    private val ringtoneManager: CallRingtoneManager? = context?.let {
+        CallRingtoneManager(it.applicationContext, viewModelScope)
+    }
 
     private var callTimerJob: Job? = null
     private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
@@ -148,6 +160,36 @@ class MessagesViewModel(
                             isVoiceFlowActive = false
                         )
                     }
+
+                    if (chatMessageDao != null) {
+                        viewModelScope.launch {
+                            chatMessageDao.getMessagesForChannel(thread.id).collect { entities ->
+                                if (entities.isNotEmpty()) {
+                                    val mapped = entities.map { e ->
+                                        val timeStr = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(e.timestampEpochMs))
+                                        DirectMessageItem(
+                                            id = e.id,
+                                            senderName = e.senderName,
+                                            isMine = e.isMine,
+                                            text = e.text,
+                                            timestamp = timeStr,
+                                            isDelivered = e.isDelivered,
+                                            isRead = e.isRead,
+                                            imageUri = e.imageUri,
+                                            imageUrl = e.imageUrl,
+                                            gifUrl = e.gifUrl,
+                                            replyToText = e.replyToText,
+                                            timestampEpochMs = e.timestampEpochMs
+                                        )
+                                    }
+                                    threadMessagesMap[thread.id] = mapped
+                                    if (_uiState.value.selectedThread?.id == thread.id) {
+                                        _uiState.update { it.copy(messages = mapped) }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -237,15 +279,18 @@ class MessagesViewModel(
             is MessagesEvent.SendMessage -> {
                 if (event.text.isBlank() && event.imageUri == null && event.imageUrl == null && event.gifUrl == null) return
                 val activeThread = _uiState.value.selectedThread ?: return
+                val nowTime = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date())
                 val newMsg = DirectMessageItem(
                     id = "msg-${System.currentTimeMillis()}",
                     senderName = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You",
                     isMine = true,
                     text = event.text.trim(),
-                    timestamp = "Just now",
+                    timestamp = nowTime,
                     imageUri = event.imageUri,
                     imageUrl = event.imageUrl,
-                    gifUrl = event.gifUrl
+                    gifUrl = event.gifUrl,
+                    replyToText = event.replyToText,
+                    timestampEpochMs = System.currentTimeMillis()
                 )
                 val currentList = threadMessagesMap[activeThread.id] ?: emptyList()
                 val updatedList = currentList + newMsg
@@ -273,11 +318,104 @@ class MessagesViewModel(
                     )
                 }
 
+                val authorId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: "user_self"
+                val entity = ChatMessageEntity(
+                    id = newMsg.id,
+                    channelId = activeThread.id,
+                    senderId = authorId,
+                    senderName = newMsg.senderName,
+                    text = newMsg.text,
+                    timestampEpochMs = newMsg.timestampEpochMs,
+                    isOptimistic = false,
+                    imageUri = newMsg.imageUri,
+                    imageUrl = newMsg.imageUrl,
+                    gifUrl = newMsg.gifUrl,
+                    replyToText = newMsg.replyToText,
+                    isMine = true,
+                    isDelivered = true,
+                    isRead = false
+                )
+
                 viewModelScope.launch {
+                    chatMessageDao?.insertMessage(entity)
+                    supabaseClient?.let { client ->
+                        runCatching {
+                            val payload = org.json.JSONObject().apply {
+                                put("id", newMsg.id)
+                                put("channel_id", activeThread.id)
+                                put("sender_id", authorId)
+                                put("sender_name", newMsg.senderName)
+                                put("text", newMsg.text)
+                                put("timestamp_epoch_ms", newMsg.timestampEpochMs)
+                                put("is_optimistic", false)
+                                val mediaLink = newMsg.imageUrl ?: newMsg.imageUri
+                                if (!mediaLink.isNullOrBlank()) put("image_url", mediaLink)
+                                if (!newMsg.gifUrl.isNullOrBlank()) put("gif_url", newMsg.gifUrl)
+                                if (!newMsg.replyToText.isNullOrBlank()) put("reply_to_text", newMsg.replyToText)
+                                put("is_delivered", true)
+                                put("is_read", false)
+                            }.toString()
+                            client.insertRecord("campus_chat_messages", payload)
+                        }
+                    }
                     streamChatEngine?.sendDirectMessage(
                         channelId = activeThread.id,
                         text = event.text.trim()
                     )
+                }
+            }
+
+            is MessagesEvent.DeleteMessage -> {
+                val activeThread = _uiState.value.selectedThread ?: return
+                val currentList = threadMessagesMap[activeThread.id] ?: _uiState.value.messages
+                val updated = currentList.filter { it.id != event.messageId }
+                threadMessagesMap[activeThread.id] = updated
+                _uiState.update { it.copy(messages = updated) }
+                viewModelScope.launch {
+                    chatMessageDao?.deleteMessage(event.messageId)
+                    supabaseClient?.runCatching {
+                        deleteRecord("campus_chat_messages?id=eq.${event.messageId}")
+                    }
+                }
+            }
+
+            is MessagesEvent.ToggleMessageReaction -> {
+                val activeThread = _uiState.value.selectedThread ?: return
+                val currentList = threadMessagesMap[activeThread.id] ?: _uiState.value.messages
+                var chosenReaction: String? = null
+                val updated = currentList.map { msg ->
+                    if (msg.id == event.messageId) {
+                        val newReaction = if (msg.reaction == event.reaction) null else event.reaction
+                        chosenReaction = newReaction
+                        msg.copy(reaction = newReaction)
+                    } else msg
+                }
+                threadMessagesMap[activeThread.id] = updated
+                _uiState.update { it.copy(messages = updated) }
+                viewModelScope.launch {
+                    supabaseClient?.runCatching {
+                        val payload = org.json.JSONObject().apply {
+                            if (chosenReaction == null) {
+                                put("reaction", org.json.JSONObject.NULL)
+                            } else {
+                                put("reaction", chosenReaction)
+                            }
+                        }.toString()
+                        updateRecord("campus_chat_messages?id=eq.${event.messageId}", payload)
+                    }
+                }
+            }
+
+            is MessagesEvent.ClearChat -> {
+                threadMessagesMap[event.threadId] = emptyList()
+                if (_uiState.value.selectedThread?.id == event.threadId) {
+                    _uiState.update { it.copy(messages = emptyList()) }
+                }
+                viewModelScope.launch {
+                    chatMessageDao?.clearChannelMessages(event.threadId)
+                    supabaseClient?.runCatching {
+                        deleteRecord("campus_chat_messages?channel_id=eq.${event.threadId}")
+                    }
                 }
             }
 
@@ -389,6 +527,7 @@ class MessagesViewModel(
             }
 
             is MessagesEvent.AcceptCall -> {
+                ringtoneManager?.stop()
                 telecomCallManager?.setCallConnected()
                 _uiState.update { state ->
                     state.callState?.let { call ->
@@ -542,6 +681,9 @@ class MessagesViewModel(
             )
         }
 
+        // Play real cellular / WhatsApp-style acoustic ringback tone
+        ringtoneManager?.startOutgoingRingback()
+
         telecomCallManager?.startOutgoingCall(
             peerName = thread.peerName,
             peerHandle = thread.peerHandle,
@@ -560,6 +702,7 @@ class MessagesViewModel(
                 _uiState.update { state ->
                     state.callState?.let { call ->
                         if (call.status == CallStatus.CONNECTED) {
+                            ringtoneManager?.stop()
                             state.copy(callState = call.copy(durationSeconds = call.durationSeconds + 1))
                         } else {
                             state
@@ -571,6 +714,7 @@ class MessagesViewModel(
     }
 
     private fun stopCall() {
+        ringtoneManager?.stop()
         voiceTransformerEngine.stopLoopback()
         telecomCallManager?.endCall()
         callTimerJob?.cancel()
@@ -585,6 +729,7 @@ class MessagesViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        ringtoneManager?.stop()
         voiceTransformerEngine.release()
         telecomCallManager?.endCall()
         callTimerJob?.cancel()

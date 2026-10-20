@@ -82,20 +82,6 @@ import com.campus.network.core.ui.components.rememberCampusNetworkState
 import com.campus.network.core.ui.theme.BrandBlueInteractive
 import kotlinx.coroutines.delay
 
-data class MessageRailServer(
-    val id: String,
-    val name: String,
-    val iconResName: String,
-    val hasUnread: Boolean = false
-)
-
-private val defaultMessageRailServers = listOf(
-    MessageRailServer("srv_codesistency", "Codesistency", "server_curly"),
-    MessageRailServer("srv_owl", "Owls & Coders", "server_avatar2", hasUnread = true),
-    MessageRailServer("srv_basi", "Basi", "server_dragon"),
-    MessageRailServer("srv_eureka", "Eureka Research", "server_eureka")
-)
-
 /**
  * Pixel-Perfect Direct Messages Hub matching the patriarch / Discord mobile server UI layout:
  * - 72dp Left Server Rail with active DM Chat Bubble icon and server navigation
@@ -157,8 +143,7 @@ fun MessageThreadsScreen(
                 avatarUrl = uiState.studentProfile?.avatarUrl,
                 activeFriends = activeFriends,
                 onNavigateToServers = {
-                    val serverId = defaultMessageRailServers.firstOrNull()?.id ?: "codesistency"
-                    onNavigateToServer?.invoke(serverId)
+                    onNavigateToServer?.invoke("")
                 },
                 onAddNoteClick = { onEvent(MessagesEvent.OpenAddNote) },
                 onSelectFriend = { threadId -> onEvent(MessagesEvent.SelectThread(threadId)) },

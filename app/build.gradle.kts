@@ -86,6 +86,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:security"))
     implementation(project(":core:database"))
+    implementation(libs.androidx.room.runtime)
     implementation(project(":core:network"))
     implementation(project(":core:data"))
     implementation(project(":core:ui"))

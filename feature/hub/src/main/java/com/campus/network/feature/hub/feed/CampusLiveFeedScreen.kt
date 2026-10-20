@@ -60,6 +60,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -187,100 +189,7 @@ private data class HeartParticle(
 /**
  * Curated Campus Feeds & Livestreams (Starting with Student Founders).
  */
-val defaultCampusLiveStories = listOf(
-    // 1. Celebrating Student Founders (First Item)
-    CampusLiveFeedStory(
-        id = "founders",
-        broadcasterName = "Sara.HM",
-        broadcasterHandle = "sara.hm",
-        broadcasterAvatarRes = 0,
-        viewerCount = "1",
-        isLive = true,
-        title = "Celebrating Student Founders Demo Day",
-        description = "Live pitch: Building peer solar charging stations across student hostels. Ask questions in comments!",
-        backdropImageRes = R.drawable.card_student_founder,
-        location = "Strathmore University, Nairobi",
-        joinedDate = "Jan 2025",
-        hoursLive = 0,
-        followers = "0",
-        topTopics = listOf(StreamTopic.TECH, StreamTopic.ACADEMICS, StreamTopic.MARKET),
-        bestDay = "Friday",
-        streamsPerWeek = 0,
-        weeklyActivity = List(56) { 0 },
-        pastStreams = emptyList(),
-        servers = emptyList(),
-        initialComments = emptyList()
-    ),
-    // 2. Guild Presidential Debate 2026
-    CampusLiveFeedStory(
-        id = "guild_debate",
-        broadcasterName = "UoN.Guild",
-        broadcasterHandle = "uon.guild",
-        broadcasterAvatarRes = 0,
-        viewerCount = "1",
-        isLive = true,
-        title = "Guild Presidential Debate 2026",
-        description = "Live from Taifa Hall Auditorium. Real-time candidate cross-examinations and student policy polling.",
-        backdropImageRes = R.drawable.hero_campus_scenic,
-        location = "University of Nairobi",
-        joinedDate = "Sep 2024",
-        hoursLive = 0,
-        followers = "0",
-        topTopics = listOf(StreamTopic.POLITICS, StreamTopic.ACADEMICS),
-        bestDay = "Wednesday",
-        streamsPerWeek = 0,
-        weeklyActivity = List(56) { 0 },
-        pastStreams = emptyList(),
-        servers = emptyList(),
-        initialComments = emptyList()
-    ),
-    // 3. GDSC AI Hackathon: Final Pitches
-    CampusLiveFeedStory(
-        id = "gdsc_hackathon",
-        broadcasterName = "GDSC.Build",
-        broadcasterHandle = "gdsc.build",
-        broadcasterAvatarRes = 0,
-        viewerCount = "1",
-        isLive = true,
-        title = "GDSC AI Hackathon: Final Pitches",
-        description = "Top 6 finalist student teams showcase live on-device Android AI models. Voting is now live!",
-        backdropImageRes = R.drawable.event_hero_trees,
-        location = "Strathmore University, Nairobi",
-        joinedDate = "Feb 2025",
-        hoursLive = 0,
-        followers = "0",
-        topTopics = listOf(StreamTopic.TECH, StreamTopic.ACADEMICS),
-        bestDay = "Saturday",
-        streamsPerWeek = 0,
-        weeklyActivity = List(56) { 0 },
-        pastStreams = emptyList(),
-        servers = emptyList(),
-        initialComments = emptyList()
-    ),
-    // 4. SafeTrade Quad Rendezvous & Flea Market
-    CampusLiveFeedStory(
-        id = "safetrade_quad",
-        broadcasterName = "SafeTrade.Hub",
-        broadcasterHandle = "safetrade.hub",
-        broadcasterAvatarRes = 0,
-        viewerCount = "1",
-        isLive = true,
-        title = "SafeTrade Quad Meetup & Market",
-        description = "Streaming live from the Student Center Quad. Free item checkups, textbook drop-offs, and safe payments.",
-        backdropImageRes = R.drawable.card_campus_landmark,
-        location = "Student Center Quad, UoN",
-        joinedDate = "Mar 2025",
-        hoursLive = 0,
-        followers = "0",
-        topTopics = listOf(StreamTopic.MARKET, StreamTopic.ACADEMICS),
-        bestDay = "Monday",
-        streamsPerWeek = 0,
-        weeklyActivity = List(56) { 0 },
-        pastStreams = emptyList(),
-        servers = emptyList(),
-        initialComments = emptyList()
-    )
-)
+val defaultCampusLiveStories: List<CampusLiveFeedStory> = emptyList()
 
 /**
  * TikTok / Instagram Live Fullscreen Campus Feed Screen.
@@ -326,7 +235,7 @@ fun CampusLiveFeedScreen(
         streamStories + remainingDefaults
     }
 
-    val initialIndex = combinedStories.indexOfFirst { it.id.equals(initialStoryId, ignoreCase = true) }.coerceAtLeast(0)
+    val initialIndex = if (combinedStories.isEmpty()) 0 else combinedStories.indexOfFirst { it.id.equals(initialStoryId, ignoreCase = true) }.coerceAtLeast(0)
     val pagerState = rememberPagerState(
         initialPage = initialIndex,
         pageCount = { combinedStories.size }
@@ -338,18 +247,82 @@ fun CampusLiveFeedScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        VerticalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { pageIndex ->
-            val story = combinedStories[pageIndex]
-            SingleLiveFeedPage(
-                story = story,
-                activeProfile = activeProfile,
-                liveStreamRepository = liveStreamRepository,
-                onClose = onNavigateBack,
-                onBroadcasterClick = { profileStory = story }
-            )
+        if (combinedStories.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF0F172A))
+                    .statusBarsPadding()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.08f),
+                        modifier = Modifier.size(80.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "No Live Broadcasts Right Now",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        text = "No students are currently broadcasting live on campus. Check back later or go live from the Hub!",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Button(
+                        onClick = onNavigateBack,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6366F1)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Return to Hub", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        } else {
+            VerticalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { pageIndex ->
+                val story = combinedStories[pageIndex]
+                SingleLiveFeedPage(
+                    story = story,
+                    activeProfile = activeProfile,
+                    liveStreamRepository = liveStreamRepository,
+                    onClose = onNavigateBack,
+                    onBroadcasterClick = { profileStory = story }
+                )
+            }
         }
 
         profileStory?.let { story ->
