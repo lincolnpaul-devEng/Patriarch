@@ -91,12 +91,13 @@ class SupabaseClientProvider(
     }
 
     /**
-     * Upserts records into a Supabase table using merge-duplicates.
+     * Upserts records into a Supabase table with configurable conflict resolution.
      */
     suspend fun upsertRecord(
         tableName: String,
         jsonPayload: String,
         onConflict: String? = null,
+        ignoreDuplicates: Boolean = false,
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
@@ -105,10 +106,31 @@ class SupabaseClientProvider(
             } else {
                 "$supabaseUrl/rest/v1/$tableName?on_conflict=$onConflict"
             }
+            val resolution = if (ignoreDuplicates) "resolution=ignore-duplicates" else "resolution=merge-duplicates"
             val response: HttpResponse = client.post(endpoint) {
                 header("apikey", anonKey)
                 header("Authorization", "Bearer ${userJwt ?: anonKey}")
-                header("Prefer", "resolution=merge-duplicates,return=representation")
+                header("Prefer", "$resolution,return=representation")
+                contentType(ContentType.Application.Json)
+                setBody(jsonPayload)
+            }
+            response.bodyOrThrow()
+        }
+    }
+
+    /**
+     * Calls a PostgreSQL RPC stored procedure in Supabase.
+     */
+    suspend fun callRpc(
+        functionName: String,
+        jsonPayload: String = "{}",
+        userJwt: String? = null
+    ): Result<String> = withContext(ioDispatcher) {
+        runCatching {
+            val response: HttpResponse = client.post("$supabaseUrl/rest/v1/rpc/$functionName") {
+                header("apikey", anonKey)
+                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Content-Type", "application/json")
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
             }

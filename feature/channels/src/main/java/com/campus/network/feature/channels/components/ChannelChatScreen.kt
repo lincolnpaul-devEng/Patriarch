@@ -497,9 +497,22 @@ fun ChannelChatScreen(
                         if (mediaToSend.isNotEmpty()) {
                             coroutineScope.launch {
                                 val uploader = com.campus.network.core.network.CloudinaryUploader()
-                                val uploaded = mediaToSend.map { uri ->
+                                val uploaded = mutableListOf<String>()
+                                var hasError = false
+                                var errorMessage = ""
+                                for (uri in mediaToSend) {
                                     val res = uploader.uploadFromUri(context, uri)
-                                    if (res.isSuccess) res.getOrThrow() else uri.toString()
+                                    if (res.isSuccess) {
+                                        uploaded.add(res.getOrThrow())
+                                    } else {
+                                        hasError = true
+                                        errorMessage = res.exceptionOrNull()?.localizedMessage ?: "Network error during media upload"
+                                        break
+                                    }
+                                }
+                                if (hasError) {
+                                    viewModel.onEvent(ChannelsEvent.ShowFeedback("Failed to send: $errorMessage"))
+                                    return@launch
                                 }
                                 viewModel.onEvent(
                                     ChannelsEvent.SendChannelMessage(
@@ -564,7 +577,7 @@ fun ChannelChatScreen(
 
 /**
  * Top bar matching patriarch mobile:
- * [Back + '99' badge] # channel-name > [Search]
+ * [Back + real unread badge when count > 0] # channel-name > [Search]
  */
 @Composable
 private fun ChannelTopBar(
@@ -583,7 +596,7 @@ private fun ChannelTopBar(
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back arrow button with red notification badge
+            // Back arrow — red unread badge only when there are real unread messages
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -598,22 +611,22 @@ private fun ChannelTopBar(
                     modifier = Modifier.size(24.dp)
                 )
 
-                Spacer(modifier = Modifier.width(2.dp))
-
-                // Red badge with unread count
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFDA373C))
-                        .padding(horizontal = 5.dp, vertical = 1.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (unreadCount > 99) "99+" else if (unreadCount > 0) "$unreadCount" else "99",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
+                if (unreadCount > 0) {
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFDA373C))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (unreadCount > 99) "99+" else "$unreadCount",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                    }
                 }
             }
 

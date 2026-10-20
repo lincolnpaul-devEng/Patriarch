@@ -211,6 +211,10 @@ fun CampusLiveFeedScreen(
     val realAllStreams by (liveStreamRepository?.getAllStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
     val realServers by (serverRepository?.getServers()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
 
+    LaunchedEffect(liveStreamRepository) {
+        liveStreamRepository?.syncRemoteLiveStreams()
+    }
+
     val combinedStories = remember(stories, realActiveStreams, activeProfile) {
         val streamStories = realActiveStreams.map { s ->
             val isMyStream = s.broadcasterId == (activeProfile?.studentId ?: "") ||

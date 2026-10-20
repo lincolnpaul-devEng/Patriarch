@@ -76,7 +76,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.CircularProgressIndicator
+import com.campus.network.core.model.PaymentMethodOption
+import com.campus.network.core.model.PaymentResult
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Visibility
@@ -130,7 +135,12 @@ data class ProductBasketConfig(
     val quantity: Int,
     val buyerNote: String,
     val isOrderConfirmedInEscrow: Boolean = false,
-    val orderReference: String = "ORD-${(1000..9999).random()}"
+    val orderReference: String = "ORD-${(1000..9999).random()}",
+    /** Populated only after PaymentProvider successfully creates a hold. */
+    val escrowOrderId: String? = null,
+    val providerHoldId: String? = null,
+    val paymentMethodId: String? = null,
+    val escrowStatus: String? = null
 ) {
     val unitPriceWithOptions: Double
         get() = item.price + handoverFee + packageExtraPrice
@@ -172,8 +182,9 @@ fun MarketProductDetailsFullScreen(
     onOpenOptionsSheet: () -> Unit,
     onOpenCheckoutSheet: () -> Unit,
     onOpenQrScanner: () -> Unit,
-    onMessageSeller: (sellerName: String, initialOrderMessage: String?) -> Unit,
+    onMessageSeller: (sellerId: String, sellerName: String, initialOrderMessage: String?) -> Unit,
     onOpenMapLocation: (Double, Double, String) -> Unit,
+    currentUserId: String = "",
     currentUserName: String = "Student",
     onSecurityNotice: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -198,29 +209,25 @@ fun MarketProductDetailsFullScreen(
     val isOrderPurchased = basketConfig?.isOrderConfirmedInEscrow == true
     val isInBasket = basketConfig != null && !basketConfig.isOrderConfirmedInEscrow
 
-    val naturalOwnerMatch = remember(item.sellerName, currentUserName) {
-        val u = currentUserName.trim().lowercase()
-        val s = item.sellerName.trim().lowercase()
-        u.isNotEmpty() && (s == u || s.startsWith(u.substringBefore(" ")) || u.startsWith(s.substringBefore(" ")))
-    }
-    var forceSellerPerspective by remember(item.id, naturalOwnerMatch) {
-        mutableStateOf(naturalOwnerMatch)
+    // Ownership is ID-only. previewAsBuyer lets a verified owner temporarily see the buyer UI.
+    var previewAsBuyer by remember(item.id, item.sellerUserId, currentUserId) {
+        mutableStateOf(false)
     }
     var isSellerReleaseCodeRevealed by remember(item.id) { mutableStateOf(false) }
     var isSellerQrModalOpen by remember(item.id) { mutableStateOf(false) }
 
     val accessControl = remember(
         item,
-        currentUserName,
+        currentUserId,
         isOrderPurchased,
-        forceSellerPerspective,
+        previewAsBuyer,
         isSellerReleaseCodeRevealed
     ) {
         CampusSecurityPolicy.evaluateMarketplacePermissions(
             item = item,
-            currentUserName = currentUserName,
+            currentUserId = currentUserId,
             isOrderPurchased = isOrderPurchased,
-            forceSellerPerspective = forceSellerPerspective,
+            previewAsBuyer = previewAsBuyer,
             isSellerCodeRevealed = isSellerReleaseCodeRevealed
         )
     }
@@ -422,9 +429,12 @@ fun MarketProductDetailsFullScreen(
                     MarketplaceRoleSecurityCard(
                         accessControl = accessControl,
                         item = item,
-                        onTogglePerspective = { isSeller ->
-                            forceSellerPerspective = isSeller
-                            if (!isSeller) isSellerReleaseCodeRevealed = false
+                        onTogglePreviewAsBuyer = { preview ->
+                            // Only listing owners may toggle. Non-owners never elevate to seller view.
+                            if (accessControl.isListingOwner) {
+                                previewAsBuyer = preview
+                                if (preview) isSellerReleaseCodeRevealed = false
+                            }
                         }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -455,6 +465,7 @@ fun MarketProductDetailsFullScreen(
                             config = basketConfig,
                             onMessageSeller = {
                                 onMessageSeller(
+                                    item.sellerUserId,
                                     item.sellerName,
                                     "Hi ${item.sellerName.substringBefore(" ")}, I have reserved '${item.title}' (${basketConfig.orderReference}) in SafeTrade Escrow for ${item.currency} ${"%,.0f".format(basketConfig.totalAmount)}. When can we meet at ${item.pickupSpotName}?"
                                 )
@@ -706,6 +717,7 @@ fun MarketProductDetailsFullScreen(
                         } else OutlinedButton(
                             onClick = {
                                 onMessageSeller(
+                                    item.sellerUserId,
                                     item.sellerName,
                                     "Hi ${item.sellerName.substringBefore(" ")}, I'm interested in your listing '${item.title}' (${item.currency} ${"%,.0f".format(item.price)}) at ${item.pickupSpotName}. Is it still available?"
                                 )
@@ -979,6 +991,7 @@ fun MarketProductDetailsFullScreen(
                                 OutlinedButton(
                                     onClick = {
                                         onMessageSeller(
+                                            item.sellerUserId,
                                             item.sellerName,
                                             "Hi ${item.sellerName.substringBefore(" ")}, I'm heading to ${item.pickupSpotName} for '${item.title}' (${basketConfig?.orderReference})."
                                         )
@@ -1090,12 +1103,12 @@ fun MarketProductDetailsFullScreen(
     }
 }
 
-/** Role banner: shows who the viewer is (buyer/seller) and lets a listing owner preview the buyer view. */
+/** Role banner: shows who the viewer is (buyer/seller). Only listing owners may preview as buyer. */
 @Composable
 private fun MarketplaceRoleSecurityCard(
     accessControl: MarketplaceAccessControl,
-    item: MarketItem,
-    onTogglePerspective: (isSeller: Boolean) -> Unit
+    @Suppress("UNUSED_PARAMETER") item: MarketItem,
+    onTogglePreviewAsBuyer: (previewAsBuyer: Boolean) -> Unit
 ) {
     val isSeller = accessControl.isSellerOwner
     Surface(
@@ -1123,19 +1136,28 @@ private fun MarketplaceRoleSecurityCard(
                     color = TextDarkPrimary
                 )
                 Text(
-                    text = if (isSeller) "You can see your release QR; buyers cannot." else "Release code is hidden: ${accessControl.maskedOrVisibleReleaseCode}",
+                    text = if (isSeller) {
+                        "You can see your release QR; buyers cannot."
+                    } else {
+                        "Release code is hidden: ${accessControl.maskedOrVisibleReleaseCode}"
+                    },
                     fontSize = 11.5.sp,
                     color = TextMuted
                 )
             }
-            Text(
-                text = if (isSeller) "Preview as buyer" else "Seller view",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = BrandBluePrimary,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable { onTogglePerspective(!isSeller) }
-            )
+            // Buyers must NEVER see a "Seller view" toggle — that previously elevated any buyer.
+            if (accessControl.isListingOwner) {
+                Text(
+                    text = if (isSeller) "Preview as buyer" else "Back to seller view",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandBluePrimary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable {
+                        onTogglePreviewAsBuyer(isSeller) // if currently seller UI → preview buyer
+                    }
+                )
+            }
         }
     }
 }
@@ -1814,15 +1836,39 @@ fun BasketEscrowCheckoutSheet(
     config: ProductBasketConfig?,
     isOpen: Boolean,
     onDismiss: () -> Unit,
-    onConfirmEscrowPurchase: (ProductBasketConfig) -> Unit,
-    onMessageSeller: (sellerName: String, initialOrderMessage: String) -> Unit,
-    onOpenQrScanner: () -> Unit
+    /**
+     * Invokes the pluggable payment socket. Must return Success only when funds are
+     * actually held (or pending provider action with a hold id) — never fake-confirm.
+     */
+    onConfirmEscrowPurchase: suspend (basket: ProductBasketConfig, paymentMethodId: String, buyerPhone: String?) -> PaymentResult<ProductBasketConfig>,
+    onMessageSeller: (sellerId: String, sellerName: String, initialOrderMessage: String) -> Unit,
+    onOpenQrScanner: () -> Unit,
+    paymentProviderReady: Boolean = false,
+    paymentProviderName: String = "Payment provider not connected",
+    paymentMethods: List<PaymentMethodOption> = emptyList()
 ) {
     if (!isOpen || config == null) return
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
     val item = config.item
-    var selectedPaymentMethod by remember { mutableStateOf("M-Pesa Express (STK Push)") }
+    val methods = paymentMethods.ifEmpty {
+        listOf(
+            PaymentMethodOption(
+                id = "pending_provider",
+                kind = com.campus.network.core.model.PaymentMethodKind.OTHER,
+                title = "Connect a payment API",
+                subtitle = "Add PAYMENT_API_* secrets to enable SafeTrade escrow"
+            )
+        )
+    }
+    var selectedPaymentMethodId by remember(methods) {
+        mutableStateOf(methods.firstOrNull()?.id.orEmpty())
+    }
+    var buyerPhone by remember { mutableStateOf("") }
+    var isLocking by remember { mutableStateOf(false) }
+    var lockError by remember { mutableStateOf<String?>(null) }
+    val selectedMethod = methods.firstOrNull { it.id == selectedPaymentMethodId } ?: methods.first()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1991,25 +2037,31 @@ fun BasketEscrowCheckoutSheet(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Payment Method Selection
+                // Payment Method Selection (from pluggable PaymentProvider socket)
                 Text(
                     text = "Escrow Funding Method",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextDarkPrimary
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val paymentMethods = listOf(
-                    "M-Pesa Express (STK Push)" to "Instant mobile money lock • Zero fee",
-                    "Campus SafePay Wallet" to "Available balance • Instant settlement",
-                    "Student Debit / Virtual Card" to "Visa / Mastercard protected"
+                Text(
+                    text = if (paymentProviderReady) {
+                        "Provider: $paymentProviderName"
+                    } else {
+                        "Payment API not connected yet — lock is disabled until you plug in credentials"
+                    },
+                    fontSize = 12.sp,
+                    color = if (paymentProviderReady) TextMuted else RoseRareAccent,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                 )
 
-                paymentMethods.forEach { (method, desc) ->
-                    val selected = selectedPaymentMethod == method
+                methods.forEach { method ->
+                    val selected = selectedPaymentMethodId == method.id
                     Surface(
-                        onClick = { selectedPaymentMethod = method },
+                        onClick = {
+                            selectedPaymentMethodId = method.id
+                            lockError = null
+                        },
                         shape = RoundedCornerShape(12.dp),
                         color = if (selected) BrandBlueSoft.copy(alpha = 0.4f) else Color.White,
                         border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) BrandBluePrimary else DividerLight),
@@ -2022,16 +2074,35 @@ fun BasketEscrowCheckoutSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(method, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextDarkPrimary)
-                                Text(desc, fontSize = 12.sp, color = TextMuted)
+                                Text(method.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextDarkPrimary)
+                                Text(method.subtitle, fontSize = 12.sp, color = TextMuted)
                             }
                             RadioButton(
                                 selected = selected,
-                                onClick = { selectedPaymentMethod = method },
+                                onClick = {
+                                    selectedPaymentMethodId = method.id
+                                    lockError = null
+                                },
                                 colors = RadioButtonDefaults.colors(selectedColor = BrandBluePrimary)
                             )
                         }
                     }
+                }
+
+                if (selectedMethod.requiresPhoneNumber) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = buyerPhone,
+                        onValueChange = { buyerPhone = it; lockError = null },
+                        label = { Text("Mobile money number (E.164)") },
+                        placeholder = { Text("+2547...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BrandBluePrimary,
+                            cursorColor = BrandBluePrimary
+                        )
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -2055,7 +2126,7 @@ fun BasketEscrowCheckoutSheet(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Your ${item.currency} ${"%,.0f".format(config.totalAmount)} is held securely in Campus SafePay Escrow. ${item.sellerName} only receives payout after you meet, inspect the item, and scan their QR code.",
+                            text = "Funds are locked only after the connected payment API confirms a hold. ${item.sellerName} is paid after you meet, inspect the item, and scan their QR code.",
                             fontSize = 12.5.sp,
                             color = Color(0xFF065F46),
                             lineHeight = 17.sp
@@ -2063,31 +2134,91 @@ fun BasketEscrowCheckoutSheet(
                     }
                 }
 
+                if (lockError != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = lockError.orEmpty(),
+                        fontSize = 12.5.sp,
+                        color = RoseRareAccent,
+                        lineHeight = 16.sp
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
 
                 Button(
                     onClick = {
-                        onConfirmEscrowPurchase(config.copy(isOrderConfirmedInEscrow = true))
+                        if (isLocking) return@Button
+                        if (!paymentProviderReady) {
+                            lockError = "No payment API configured. Set PAYMENT_API_BASE_URL + keys in secrets.properties, rebuild, and retry."
+                            return@Button
+                        }
+                        if (selectedMethod.requiresPhoneNumber && buyerPhone.trim().length < 9) {
+                            lockError = "Enter a valid mobile money number for STK / mobile money holds."
+                            return@Button
+                        }
+                        scope.launch {
+                            isLocking = true
+                            lockError = null
+                            when (
+                                val result = onConfirmEscrowPurchase(
+                                    config,
+                                    selectedPaymentMethodId,
+                                    buyerPhone.trim().ifBlank { null }
+                                )
+                            ) {
+                                is PaymentResult.Failure -> {
+                                    lockError = result.message
+                                }
+                                is PaymentResult.Success -> {
+                                    // Parent updates basket; sheet re-composes into confirmed step.
+                                }
+                            }
+                            isLocking = false
+                        }
                     },
+                    enabled = !isLocking && paymentProviderReady,
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BrandBluePrimary,
+                        disabledContainerColor = BrandBluePrimary.copy(alpha = 0.45f)
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Confirm & Lock Escrow • ${item.currency} ${"%,.0f".format(config.totalAmount)}",
-                        fontSize = 15.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (isLocking) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Contacting payment API…",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (paymentProviderReady) {
+                                "Confirm & Lock Escrow • ${item.currency} ${"%,.0f".format(config.totalAmount)}"
+                            } else {
+                                "Payment API not connected"
+                            },
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -2191,6 +2322,7 @@ fun BasketEscrowCheckoutSheet(
                         onClick = {
                             val noteSuffix = if (config.buyerNote.isNotBlank()) " Note: ${config.buyerNote}" else ""
                             onMessageSeller(
+                                item.sellerUserId,
                                 item.sellerName,
                                 "Hi ${item.sellerName.substringBefore(" ")}, I just locked ${item.currency} ${"%,.0f".format(config.totalAmount)} in SafeTrade Escrow for '${config.packageOptionTitle}' (${config.orderReference}). Handover option: ${config.handoverOptionTitle}.$noteSuffix When can we meet?"
                             )

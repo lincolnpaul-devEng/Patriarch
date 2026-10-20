@@ -39,10 +39,13 @@ data class ConversationThread(
 data class DirectMessageItem(
     val id: String,
     val senderName: String,
+    /** Stable sender identity used to recompute isMine on every device. */
+    val senderId: String = "",
     val isMine: Boolean,
     val text: String,
     val timestamp: String,
     val settlementPayload: PeerTransactionPayload? = null,
+    val isPending: Boolean = false,
     val isDelivered: Boolean = true,
     val isRead: Boolean = true,
     val isEdited: Boolean = false,
@@ -63,9 +66,14 @@ enum class CallType {
 }
 
 enum class CallStatus(val label: String) {
+    /** Local user is dialing; waiting for signaling ack. */
     CALLING("Calling"),
+    /** Outgoing: remote device is ringing. */
     RINGING("Ringing"),
-    CONNECTED("Connected")
+    /** Incoming invite — show Answer / Decline. */
+    INCOMING("Incoming"),
+    CONNECTED("Connected"),
+    FAILED("Failed")
 }
 
 data class CallUiState(
@@ -80,8 +88,12 @@ data class CallUiState(
     val isVideoEnabled: Boolean = true,
     val isFrontCamera: Boolean = true,
     val isPeerOnline: Boolean = true,
-    val connectionQuality: String = "HD 1080p • 60 FPS",
-    val connectionState: String = "Connected • Stream WebRTC",
+    /** Honest media status — never claim WebRTC until CallMediaProvider is configured. */
+    val connectionQuality: String = "Signaling only",
+    val connectionState: String = "Connecting…",
+    val callSessionId: String? = null,
+    val isIncoming: Boolean = false,
+    val mediaProviderReady: Boolean = false,
     val activeVoiceFilter: com.campus.network.feature.messages.audio.VoiceFilterPreset = com.campus.network.feature.messages.audio.VoiceFilterPreset.NATURAL,
     val customPitchShift: Float = 0f,
     val customFormantScale: Float = 1.0f,
@@ -141,7 +153,15 @@ sealed interface MessagesEvent {
     data class ToggleSettlementDialog(val open: Boolean) : MessagesEvent
     data class StartAudioCall(val thread: ConversationThread) : MessagesEvent
     data class StartVideoCall(val thread: ConversationThread) : MessagesEvent
+    /** Present an incoming invite (from poll, FCM deep link, or notification Answer). */
+    data class PresentIncomingCall(
+        val sessionId: String,
+        val peerId: String,
+        val peerName: String,
+        val isVideo: Boolean
+    ) : MessagesEvent
     object EndCall : MessagesEvent
+    object DeclineCall : MessagesEvent
     object ToggleMute : MessagesEvent
     object ToggleSpeaker : MessagesEvent
     object ToggleVideo : MessagesEvent
@@ -156,4 +176,5 @@ sealed interface MessagesEvent {
     object OpenVoiceChatSelection : MessagesEvent
     data class SaveUserNote(val note: String) : MessagesEvent
     data class SendBroadcast(val peerIds: List<String>, val text: String) : MessagesEvent
+    data object FlushPendingMessages : MessagesEvent
 }

@@ -35,6 +35,9 @@ interface ServerDao {
     @Query("UPDATE servers SET memberCount = memberCount + 1 WHERE id = :serverId")
     suspend fun incrementMemberCount(serverId: String)
 
+    @Query("UPDATE servers SET memberCount = :count WHERE id = :serverId")
+    suspend fun updateMemberCount(serverId: String, count: Int)
+
     @Query("DELETE FROM servers WHERE id = :serverId")
     suspend fun deleteServer(serverId: String)
 

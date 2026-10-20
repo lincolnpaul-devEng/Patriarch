@@ -1,5 +1,6 @@
 package com.campus.network.feature.channels.components
 
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -93,7 +94,7 @@ fun CreateServerModalSheet(
     onNavigateToCreate: () -> Unit,
     onCreateServer: (serverName: String, category: String) -> Unit,
     onJoinInvite: (inviteCode: String) -> Unit,
-    onCreateServerFull: ((serverName: String, category: String, description: String, avatarResName: String, bannerResName: String?) -> Unit)? = null
+    onCreateServerFull: ((serverName: String, category: String, description: String, avatarResName: String, bannerResName: String?, onResult: (Result<Unit>) -> Unit) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var currentMode by remember(mode) { mutableStateOf(mode) }
@@ -126,11 +127,13 @@ fun CreateServerModalSheet(
                     initialCategory = selectedCategory,
                     onBackClick = { currentMode = ServerSheetMode.CREATE_SERVER },
                     onDismiss = onDismiss,
-                    onCreateServer = { name, category, description, avatarResName, bannerResName ->
+                    onCreateServer = { name, category, description, avatarResName, bannerResName, onResult ->
                         if (onCreateServerFull != null) {
-                            onCreateServerFull(name, category, description, avatarResName, bannerResName)
+                            onCreateServerFull(name, category, description, avatarResName, bannerResName, onResult)
                         } else {
                             onCreateServer(name, category)
+                            onResult(Result.success(Unit))
+                            onDismiss()
                         }
                     }
                 )
@@ -357,7 +360,7 @@ fun CustomizeServerContent(
     initialCategory: String,
     onBackClick: () -> Unit,
     onDismiss: () -> Unit,
-    onCreateServer: (name: String, category: String, description: String, avatarResName: String, bannerResName: String?) -> Unit,
+    onCreateServer: (name: String, category: String, description: String, avatarResName: String, bannerResName: String?, onResult: (Result<Unit>) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -367,28 +370,18 @@ fun CustomizeServerContent(
     var serverDescription by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(initialCategory) }
     var selectedAvatar by remember { mutableStateOf("server_gradient") }
-    var isUploadingAvatar by remember { mutableStateOf(false) }
-    var avatarUploadError by remember { mutableStateOf<String?>(null) }
-
+    var selectedAvatarUri by remember { mutableStateOf<Uri?>(null) }
     var selectedBanner by remember { mutableStateOf<String?>("banner_gradient_cyber") }
-    var isUploadingBanner by remember { mutableStateOf(false) }
-    var bannerUploadError by remember { mutableStateOf<String?>(null) }
+    var selectedBannerUri by remember { mutableStateOf<Uri?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var submitError by remember { mutableStateOf<String?>(null) }
 
     val avatarPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            isUploadingAvatar = true
-            avatarUploadError = null
-            coroutineScope.launch {
-                val result = CloudinaryUploader().uploadFromUri(context, uri)
-                isUploadingAvatar = false
-                if (result.isSuccess) {
-                    selectedAvatar = result.getOrThrow()
-                } else {
-                    avatarUploadError = "Upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Unknown error"}"
-                }
-            }
+            selectedAvatarUri = uri
+            submitError = null
         }
     }
 
@@ -396,17 +389,8 @@ fun CustomizeServerContent(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            isUploadingBanner = true
-            bannerUploadError = null
-            coroutineScope.launch {
-                val result = CloudinaryUploader().uploadFromUri(context, uri)
-                isUploadingBanner = false
-                if (result.isSuccess) {
-                    selectedBanner = result.getOrThrow()
-                } else {
-                    bannerUploadError = "Upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Unknown error"}"
-                }
-            }
+            selectedBannerUri = uri
+            submitError = null
         }
     }
 
@@ -518,7 +502,14 @@ fun CustomizeServerContent(
                     .border(2.dp, Color(0xFF5865F2).copy(alpha = 0.5f), RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (selectedAvatar.startsWith("http")) {
+                if (selectedAvatarUri != null) {
+                    AsyncImage(
+                        model = selectedAvatarUri,
+                        contentDescription = "Selected Server Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (selectedAvatar.startsWith("http")) {
                     AsyncImage(
                         model = selectedAvatar,
                         contentDescription = "Selected Server Avatar",
@@ -535,7 +526,7 @@ fun CustomizeServerContent(
                     )
                 }
 
-                if (isUploadingAvatar) {
+                if (isSubmitting) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -589,19 +580,10 @@ fun CustomizeServerContent(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = if (selectedAvatar.startsWith("http")) "Custom Icon Uploaded" else "Upload Custom Icon",
+                text = if (selectedAvatarUri != null || selectedAvatar.startsWith("http")) "Custom Icon Selected" else "Upload Custom Icon",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF5865F2)
-            )
-        }
-
-        avatarUploadError?.let { err ->
-            Text(
-                text = err,
-                fontSize = 11.sp,
-                color = Color(0xFFDA373C),
-                modifier = Modifier.padding(top = 4.dp)
             )
         }
 
@@ -636,7 +618,10 @@ fun CustomizeServerContent(
                             color = if (isSelected) Color(0xFF5865F2) else Color(0xFFE3E5E8),
                             shape = RoundedCornerShape(14.dp)
                         )
-                        .clickable { selectedAvatar = avatarName }
+                        .clickable {
+                            selectedAvatar = avatarName
+                            selectedAvatarUri = null
+                        }
                         .padding(2.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -690,7 +675,14 @@ fun CustomizeServerContent(
                 .background(Color(0xFF2B2D31))
                 .clickable { bannerPickerLauncher.launch("image/*") }
         ) {
-            if (selectedBanner?.startsWith("http") == true) {
+            if (selectedBannerUri != null) {
+                AsyncImage(
+                    model = selectedBannerUri,
+                    contentDescription = "Server Banner",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (selectedBanner?.startsWith("http") == true) {
                 AsyncImage(
                     model = selectedBanner,
                     contentDescription = "Server Banner",
@@ -744,7 +736,7 @@ fun CustomizeServerContent(
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        text = if (isUploadingBanner) "Uploading..." else "Upload Banner",
+                        text = "Upload Banner",
                         color = Color.White,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold
@@ -752,7 +744,7 @@ fun CustomizeServerContent(
                 }
             }
 
-            if (isUploadingBanner) {
+            if (isSubmitting) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -766,17 +758,6 @@ fun CustomizeServerContent(
                     )
                 }
             }
-        }
-
-        bannerUploadError?.let { err ->
-            Text(
-                text = err,
-                fontSize = 11.sp,
-                color = Color(0xFFDA373C),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp)
-            )
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -793,7 +774,10 @@ fun CustomizeServerContent(
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = if (isSelected) Color(0xFF5865F2) else Color(0xFFF2F3F5),
-                    modifier = Modifier.clickable { selectedBanner = presetKey }
+                    modifier = Modifier.clickable {
+                        selectedBanner = presetKey
+                        selectedBannerUri = null
+                    }
                 ) {
                     Text(
                         text = label,
@@ -959,26 +943,91 @@ fun CustomizeServerContent(
             modifier = Modifier.padding(horizontal = 8.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        if (submitError != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = submitError!!,
+                fontSize = 12.5.sp,
+                color = Color(0xFFDA373C),
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         Button(
             onClick = {
                 val finalName = serverName.trim().ifEmpty { "New Campus Server" }
-                onCreateServer(finalName, selectedCategory, serverDescription.trim(), selectedAvatar, selectedBanner)
+                isSubmitting = true
+                submitError = null
+                coroutineScope.launch {
+                    var finalAvatar = selectedAvatar
+                    var finalBanner = selectedBanner
+
+                    if (selectedAvatarUri != null) {
+                        val upRes = CloudinaryUploader().uploadFromUri(context, selectedAvatarUri!!)
+                        if (upRes.isSuccess) {
+                            finalAvatar = upRes.getOrThrow()
+                        } else {
+                            isSubmitting = false
+                            submitError = "Failed to upload avatar: ${upRes.exceptionOrNull()?.localizedMessage ?: "Network error"}"
+                            return@launch
+                        }
+                    }
+
+                    if (selectedBannerUri != null) {
+                        val upRes = CloudinaryUploader().uploadFromUri(context, selectedBannerUri!!)
+                        if (upRes.isSuccess) {
+                            finalBanner = upRes.getOrThrow()
+                        } else {
+                            isSubmitting = false
+                            submitError = "Failed to upload banner: ${upRes.exceptionOrNull()?.localizedMessage ?: "Network error"}"
+                            return@launch
+                        }
+                    }
+
+                    onCreateServer(finalName, selectedCategory, serverDescription.trim(), finalAvatar, finalBanner) { result ->
+                        isSubmitting = false
+                        if (result.isSuccess) {
+                            onDismiss()
+                        } else {
+                            submitError = "Failed to create server on cloud: ${result.exceptionOrNull()?.localizedMessage ?: "Unknown error"}"
+                        }
+                    }
+                }
             },
-            enabled = !isUploadingAvatar && !isUploadingBanner,
+            enabled = !isSubmitting,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            Text(
-                text = if (isUploadingAvatar || isUploadingBanner) "Uploading Media..." else "Create Server",
-                color = Color.White,
-                fontSize = 15.5.sp,
-                fontWeight = FontWeight.Bold
-            )
+            if (isSubmitting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Creating Server...",
+                    color = Color.White,
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text(
+                    text = "Create Server",
+                    color = Color.White,
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

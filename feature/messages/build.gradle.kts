@@ -57,6 +57,9 @@ dependencies {
     implementation(libs.stream.chat.compose)
     implementation(libs.stream.chat.client)
 
+    // Stream Video Compose (peer A/V renderers)
+    implementation(libs.stream.video.compose)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)

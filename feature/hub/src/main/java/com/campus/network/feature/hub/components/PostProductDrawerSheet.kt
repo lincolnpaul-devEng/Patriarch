@@ -271,6 +271,7 @@ fun PostProductDrawerSheet(
     var requiresQrReleaseCode by remember { mutableStateOf(true) }
     var payoutDestination by remember { mutableStateOf("Campus Student Wallet") }
     var isUploadingPhotos by remember { mutableStateOf(false) }
+    var isPublishing by remember { mutableStateOf(false) }
     var uploadStatusText by remember { mutableStateOf<String?>(null) }
 
     // Real Multi-Photo Upload State (Up to 8 product photos)
@@ -1542,11 +1543,12 @@ fun PostProductDrawerSheet(
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                         .navigationBarsPadding()
                 ) {
-                    val buttonEnabled = canPublish && !isUploadingPhotos
+                    val buttonEnabled = canPublish && !isUploadingPhotos && !isPublishing
                     Button(
                         onClick = {
                             if (buttonEnabled) {
                                 scope.launch {
+                                    isPublishing = true
                                     isUploadingPhotos = true
                                     val uploader = CloudinaryUploader()
                                     val uploadedUrls = mutableListOf<String>()
@@ -1557,7 +1559,10 @@ fun PostProductDrawerSheet(
                                             if (uploadResult.isSuccess) {
                                                 uploadedUrls.add(uploadResult.getOrThrow())
                                             } else {
-                                                uploadedUrls.add(uri.toString())
+                                                isUploadingPhotos = false
+                                                isPublishing = false
+                                                uploadStatusText = "Photo upload failed: ${uploadResult.exceptionOrNull()?.localizedMessage ?: "Network error"}"
+                                                return@launch
                                             }
                                         }
                                     }
@@ -1581,6 +1586,7 @@ fun PostProductDrawerSheet(
                                         uploadedUrls
                                     )
                                     isUploadingPhotos = false
+                                    isPublishing = false
                                     sheetState.hide()
                                     onDismiss()
                                 }
@@ -1601,7 +1607,7 @@ fun PostProductDrawerSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            if (isUploadingPhotos) {
+                            if (isUploadingPhotos || isPublishing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(18.dp),
                                     color = Color.White,
@@ -1609,7 +1615,7 @@ fun PostProductDrawerSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = uploadStatusText ?: "Uploading to Cloudinary...",
+                                    text = uploadStatusText ?: "Processing...",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )

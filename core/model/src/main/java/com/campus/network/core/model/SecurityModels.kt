@@ -74,6 +74,9 @@ enum class LocationPrivacyScope(
  */
 data class MarketplaceAccessControl(
     val rolePerspective: MarketplaceRolePerspective,
+    /** True when currentUserId == listing.sellerUserId (ID match only). */
+    val isListingOwner: Boolean,
+    /** True when the viewer is currently seeing the seller UI (owner and not previewing as buyer). */
     val isSellerOwner: Boolean,
     val canReserveOrBuy: Boolean,
     val canViewExactPickupCoordinates: Boolean,
@@ -181,22 +184,30 @@ object CampusSecurityPolicy {
     /**
      * Evaluates what the current user is allowed to see and do on a Marketplace listing
      * based on whether they are the Seller Owner, a Browsing Buyer, or an Escrow-Locked Buyer.
+     *
+     * Ownership is determined ONLY by stable user id match ([currentUserId] vs [MarketItem.sellerUserId]).
+     * Display-name / first-name matching is intentionally not used — it falsely grants seller
+     * privileges to unrelated students who share a first name.
+     *
+     * [previewAsBuyer] lets a verified listing owner temporarily see the buyer UI; it must never
+     * elevate a non-owner into seller privileges.
      */
     fun evaluateMarketplacePermissions(
         item: MarketItem,
-        currentUserName: String,
+        currentUserId: String,
         isOrderPurchased: Boolean,
-        forceSellerPerspective: Boolean = false,
-        isSellerCodeRevealed: Boolean = false
+        previewAsBuyer: Boolean = false,
+        isSellerCodeRevealed: Boolean = false,
+        @Suppress("UNUSED_PARAMETER") currentUserName: String = ""
     ): MarketplaceAccessControl {
-        val normalizedUser = currentUserName.trim().lowercase()
-        val normalizedSeller = item.sellerName.trim().lowercase()
-        val isNaturalOwner = normalizedUser.isNotEmpty() &&
-            (normalizedSeller == normalizedUser ||
-                normalizedSeller.startsWith(normalizedUser.substringBefore(" ")) ||
-                normalizedUser.startsWith(normalizedSeller.substringBefore(" ")))
+        val viewerId = currentUserId.trim()
+        val ownerId = item.sellerUserId.trim()
+        val isListingOwner = viewerId.isNotBlank() &&
+            ownerId.isNotBlank() &&
+            viewerId.equals(ownerId, ignoreCase = true)
 
-        val isSellerOwner = forceSellerPerspective || isNaturalOwner
+        // Only real owners can occupy the seller perspective. previewAsBuyer is an owner-only toggle.
+        val isSellerOwner = isListingOwner && !previewAsBuyer
 
         val perspective = when {
             isSellerOwner -> MarketplaceRolePerspective.SELLER_OWNER
@@ -214,16 +225,19 @@ object CampusSecurityPolicy {
                 "Location Protected: Exact GPS coordinates & dormitory bay are locked until SafePay Escrow is reserved."
         }
 
+        val canSeeSecret = isSellerOwner && item.qrReleaseCode.isNotBlank()
+
         return MarketplaceAccessControl(
             rolePerspective = perspective,
+            isListingOwner = isListingOwner,
             isSellerOwner = isSellerOwner,
-            canReserveOrBuy = !isSellerOwner && !isOrderPurchased,
+            canReserveOrBuy = !isListingOwner && !isOrderPurchased,
             canViewExactPickupCoordinates = canViewExactCoords,
-            canViewSellerSecretQrTicket = isSellerOwner,
+            canViewSellerSecretQrTicket = canSeeSecret,
             canOpenBuyerQrScanner = !isSellerOwner && isOrderPurchased,
             maskedOrVisibleReleaseCode = maskReleaseCode(
                 rawCode = item.qrReleaseCode,
-                isSellerOwner = isSellerOwner,
+                isSellerOwner = canSeeSecret,
                 isRevealedBySeller = isSellerCodeRevealed
             ),
             pickupLocationSecurityNotice = securityNotice

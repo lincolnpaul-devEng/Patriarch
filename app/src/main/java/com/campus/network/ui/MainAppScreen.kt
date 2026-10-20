@@ -69,7 +69,10 @@ fun MainAppScreen(
                 return MessagesViewModel(
                     streamChatEngine = streamChatEngine,
                     telecomCallManager = telecomCallManager,
-                    studentProfileRepository = studentProfileRepository
+                    studentProfileRepository = studentProfileRepository,
+                    chatMessageDao = database.chatMessageDao(),
+                    supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+                    context = context.applicationContext
                 ) as T
             }
         }
@@ -79,7 +82,10 @@ fun MainAppScreen(
         AcademicChannelsRepository(database)
     }
     val serverRepository = remember(database) {
-        com.campus.network.core.data.ServerRepository(database)
+        com.campus.network.core.data.ServerRepository(
+            database = database,
+            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+        )
     }
     val channelsViewModel: ChannelsViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -109,23 +115,22 @@ fun MainAppScreen(
                     }
                 }
                 is com.campus.network.core.ui.notifications.CampusNotificationDeepLink.OpenIncomingCall -> {
+                    // Answer path must present INCOMING UI + ringtone accept — never Start*Call (outgoing).
                     messagesViewModel.onEvent(
                         com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
                             peerId = deepLink.peerId,
                             peerName = deepLink.peerName
                         )
                     )
-                    messagesViewModel.uiState.value.selectedThread?.let { activeThread ->
-                        if (deepLink.isVideo) {
-                            messagesViewModel.onEvent(
-                                com.campus.network.feature.messages.MessagesEvent.StartVideoCall(activeThread)
-                            )
-                        } else {
-                            messagesViewModel.onEvent(
-                                com.campus.network.feature.messages.MessagesEvent.StartAudioCall(activeThread)
-                            )
-                        }
-                    }
+                    messagesViewModel.onEvent(
+                        com.campus.network.feature.messages.MessagesEvent.PresentIncomingCall(
+                            sessionId = deepLink.callSessionId?.takeIf { it.isNotBlank() }
+                                ?: deepLink.peerId,
+                            peerId = deepLink.peerId,
+                            peerName = deepLink.peerName,
+                            isVideo = deepLink.isVideo
+                        )
+                    )
                     navController.navigate(Screen.Messages.route) {
                         launchSingleTop = true
                     }

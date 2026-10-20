@@ -158,7 +158,8 @@ sealed interface ChannelsEvent {
         val category: String = "Community",
         val description: String = "",
         val avatarResName: String = "server_gradient",
-        val bannerResName: String? = null
+        val bannerResName: String? = null,
+        val onResult: ((Result<Unit>) -> Unit)? = null
     ) : ChannelsEvent
     data class JoinServerByInvite(val inviteCode: String) : ChannelsEvent
     data class PreviewCommunityServer(val serverName: String) : ChannelsEvent
@@ -189,6 +190,7 @@ sealed interface ChannelsEvent {
     data class OpenStudentProfile(val student: CourseMate) : ChannelsEvent
     data object BackToPreviousMode : ChannelsEvent
     data class ToggleLikeStudent(val studentId: String) : ChannelsEvent
+    data class ShowFeedback(val message: String) : ChannelsEvent
     data class ClearFeedback(val message: String? = null) : ChannelsEvent
     data object ClearSelectedChannel : ChannelsEvent
     data class OpenCreateChannelSheet(val categoryName: String = "TEXT CHANNELS") : ChannelsEvent
@@ -329,22 +331,30 @@ class ChannelsViewModel(
 
         viewModelScope.launch {
             _currentProfile.collectLatest { profile ->
-                val studentId = profile?.studentId?.ifBlank { profile.universityEmail } ?: ""
+                val studentId = profile?.studentId?.ifBlank { profile.universityEmail }.orEmpty().trim()
                 val email = profile?.universityEmail.orEmpty().trim().lowercase()
-                if (serverRepository != null && (studentId.isNotBlank() || email.isNotBlank())) {
-                    _joinedServerIds.value = emptySet()
-                    // Sync any memberships tracked remotely in Supabase
+                if (serverRepository != null) {
                     runCatching {
-                        serverRepository.syncRemoteMemberships(studentId, email)
+                        serverRepository.syncRemoteServers()
+                        if (studentId.isNotBlank() || email.isNotBlank()) {
+                            serverRepository.syncRemoteMemberships(studentId, email)
+                        }
                     }
-                    serverRepository.getJoinedServerIds(studentId, email).collect { ids ->
-                        _joinedServerIds.value = ids.toSet()
+                    if (studentId.isNotBlank() || email.isNotBlank()) {
+                        serverRepository.getJoinedServerIds(studentId, email).collect { ids ->
+                            _joinedServerIds.value = ids.toSet()
+                        }
                     }
                 }
             }
         }
 
         if (serverRepository != null) {
+            viewModelScope.launch {
+                runCatching {
+                    serverRepository.syncRemoteServers()
+                }
+            }
             viewModelScope.launch {
                 serverRepository.getServers().collect { dbServers ->
                     val mapped = dbServers.map { srv ->
@@ -384,8 +394,11 @@ class ChannelsViewModel(
             }
             viewModelScope.launch {
                 combine(_selectedServerId, _previewServerId) { sel, prev -> prev ?: sel }
-                    .collect { serverId ->
+                    .collectLatest { serverId ->
                         if (serverId.isNotEmpty()) {
+                            runCatching {
+                                serverRepository.syncRemoteChannels(serverId)
+                            }
                             serverRepository.getChannelsForServer(serverId).collect { dbChannels ->
                                 if (dbChannels.isNotEmpty()) {
                                     val mappedChannels = dbChannels.map { ch ->
@@ -416,8 +429,11 @@ class ChannelsViewModel(
             }
             viewModelScope.launch {
                 combine(_selectedServerId, _previewServerId) { sel, prev -> prev ?: sel }
-                    .collect { serverId ->
+                    .collectLatest { serverId ->
                         if (serverId.isNotEmpty()) {
+                            runCatching {
+                                serverRepository.syncRemoteRules(serverId)
+                            }
                             serverRepository.getRulesForServer(serverId).collect { rules ->
                                 if (rules.isNotEmpty()) {
                                     _currentServerRules.value = rules
@@ -428,8 +444,11 @@ class ChannelsViewModel(
             }
             viewModelScope.launch {
                 combine(_selectedServerId, _previewServerId) { sel, prev -> prev ?: sel }
-                    .collect { serverId ->
+                    .collectLatest { serverId ->
                         if (serverId.isNotEmpty()) {
+                            runCatching {
+                                serverRepository.syncRemoteMembers(serverId)
+                            }
                             serverRepository.getMembersForServer(serverId).collect { dbMembers ->
                                 if (dbMembers.isNotEmpty()) {
                                     val currentAuthor = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student"
@@ -650,10 +669,13 @@ class ChannelsViewModel(
 
         val allServers = currentServers
         val profile = slice1.studentProfile
-        val currentUserId = profile?.studentId?.ifBlank { profile.universityEmail } ?: ""
+        val currentUserId = profile?.studentId?.ifBlank { profile.universityEmail }.orEmpty().trim()
+        val currentEmail = profile?.universityEmail.orEmpty().trim().lowercase()
 
         val joinedServersList = allServers.filter { srv ->
-            slice1.joinedServerIds.contains(srv.id) || (currentUserId.isNotBlank() && srv.ownerId == currentUserId)
+            slice1.joinedServerIds.contains(srv.id) ||
+            (currentUserId.isNotBlank() && srv.ownerId.equals(currentUserId, ignoreCase = true)) ||
+            (currentEmail.isNotBlank() && srv.ownerId.equals(currentEmail, ignoreCase = true))
         }.map { it.copy(isPreview = false) }
 
         val previewServerItem = slice1.previewServerId?.let { pId ->
@@ -702,7 +724,9 @@ class ChannelsViewModel(
             activeUserAvatar = resolvedAvatar,
             studentProfile = profile,
             activeUserStatus = "Online",
-            activeUserUnreadCount = joinedServersList.sumOf { srv -> srv.channels.count { it.isUnread } },
+            activeUserUnreadCount = joinedServersList.sumOf { srv ->
+                srv.channels.sumOf { ch -> ch.unreadBadgeCount.coerceAtLeast(if (ch.isUnread) 1 else 0) }
+            },
             activeChatServer = currentServer,
             activeChatChannel = activeChannel,
             chatMessages = currentMessages,
@@ -757,6 +781,26 @@ class ChannelsViewModel(
         _viewMode.value = ChannelViewMode.CHANNELS_HUB
     }
 
+    fun refreshServers() {
+        val prof = _currentProfile.value ?: studentProfileRepository.studentProfile.value
+        val studentId = prof?.studentId?.ifBlank { prof.universityEmail }.orEmpty().trim()
+        val email = prof?.universityEmail.orEmpty().trim().lowercase()
+        viewModelScope.launch {
+            serverRepository?.let { repo ->
+                runCatching {
+                    repo.syncRemoteServers()
+                    if (studentId.isNotBlank() || email.isNotBlank()) {
+                        repo.syncRemoteMemberships(studentId, email)
+                    }
+                    val currentId = _previewServerId.value ?: _selectedServerId.value
+                    if (currentId.isNotBlank()) {
+                        repo.syncRemoteMembers(currentId)
+                    }
+                }
+            }
+        }
+    }
+
     fun onEvent(event: ChannelsEvent) {
         when (event) {
             is ChannelsEvent.SelectServer -> {
@@ -781,6 +825,23 @@ class ChannelsViewModel(
                 _selectedChannelId.value = event.channel.id
                 _isMediaDrawerOpen.value = false
                 _viewMode.value = ChannelViewMode.CHANNEL_CHAT
+                // Clear unread for the channel the student just opened
+                _serversList.value = _serversList.value.map { server ->
+                    server.copy(
+                        channels = server.channels.map { ch ->
+                            if (ch.id == event.channel.id) {
+                                ch.copy(isUnread = false, unreadBadgeCount = 0)
+                            } else ch
+                        },
+                        badgeCount = server.channels
+                            .filter { it.id != event.channel.id }
+                            .sumOf { it.unreadBadgeCount.coerceAtLeast(if (it.isUnread) 1 else 0) },
+                        hasUnread = server.channels.any { it.id != event.channel.id && (it.isUnread || it.unreadBadgeCount > 0) }
+                    )
+                }
+                viewModelScope.launch {
+                    serverRepository?.markChannelRead(event.channel.id)
+                }
             }
             is ChannelsEvent.CloseChannelChat -> {
                 _viewMode.value = ChannelViewMode.CHANNELS_HUB
@@ -800,6 +861,12 @@ class ChannelsViewModel(
             }
             is ChannelsEvent.OpenServerProfileDrawer -> {
                 _isServerProfileDrawerOpen.value = true
+                val srvId = _previewServerId.value ?: _selectedServerId.value
+                if (srvId.isNotBlank()) {
+                    viewModelScope.launch {
+                        serverRepository?.syncRemoteMembers(srvId)
+                    }
+                }
             }
             is ChannelsEvent.CloseServerProfileDrawer -> {
                 _isServerProfileDrawerOpen.value = false
@@ -878,12 +945,6 @@ class ChannelsViewModel(
                     hasUnread = false,
                     channels = defaultChannels
                 )
-                _serversList.value = (_serversList.value + newServer).distinctBy { it.id }
-                _joinedServerIds.value = _joinedServerIds.value + newId
-                _selectedServerId.value = newId
-                _selectedChannelId.value = "ch_${newId}_general"
-                _previewServerId.value = null
-                _feedbackMessage.value = "Created server: ${event.name}"
                 val newMember = ServerMemberItem(
                     id = "mem_${authorId}_$newId",
                     serverId = newId,
@@ -901,24 +962,36 @@ class ChannelsViewModel(
                     friendStatus = FriendRequestStatus.NONE,
                     isSelf = true
                 )
-                _serverMembers.value = _serverMembers.value + (newId to listOf(newMember))
-                _perServerProfiles.value = _perServerProfiles.value + (newId to PerServerProfile(newId, author, "OWNER", 0xFFEAB308, "Server Owner"))
+
+                _feedbackMessage.value = "Creating server ${event.name} on cloud..."
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
-                        runCatching {
-                            repo.createServer(
-                                name = event.name,
-                                category = event.category,
-                                description = event.description,
-                                avatarResName = cleanAvatar,
-                                bannerResName = event.bannerResName,
-                                customServerId = newId,
-                                ownerId = authorId,
-                                ownerDisplayName = author,
-                                ownerHandle = authorHandle,
-                                ownerAvatarUrl = authorAvatar
-                            )
+                        val result = repo.createServer(
+                            name = event.name,
+                            category = event.category,
+                            description = event.description,
+                            avatarResName = cleanAvatar,
+                            bannerResName = event.bannerResName,
+                            customServerId = newId,
+                            ownerId = authorId,
+                            ownerDisplayName = author,
+                            ownerHandle = authorHandle,
+                            ownerAvatarUrl = authorAvatar
+                        )
+                        result.onSuccess {
+                            _serversList.value = (_serversList.value + newServer).distinctBy { it.id }
+                            _joinedServerIds.value = _joinedServerIds.value + newId
+                            _selectedServerId.value = newId
+                            _selectedChannelId.value = "ch_${newId}_general"
+                            _previewServerId.value = null
+                            _serverMembers.value = _serverMembers.value + (newId to listOf(newMember))
+                            _perServerProfiles.value = _perServerProfiles.value + (newId to PerServerProfile(newId, author, "OWNER", 0xFFEAB308, "Server Owner"))
+                            _feedbackMessage.value = "Created server ${event.name}!"
+                            event.onResult?.invoke(Result.success(Unit))
+                        }.onFailure { err ->
+                            _feedbackMessage.value = "Failed to create server on cloud: ${err.localizedMessage ?: "Unknown error"}"
+                            event.onResult?.invoke(Result.failure(err))
                         }
                     }
                 }
@@ -937,39 +1010,40 @@ class ChannelsViewModel(
             is ChannelsEvent.CreateChannel -> {
                 _isCreateChannelSheetOpen.value = false
                 val cleanSlug = event.name.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "-").ifEmpty { "channel" }
-                val uniqueSuffix = System.currentTimeMillis().toString().takeLast(4)
-                val channelId = "ch_${event.serverId}_${cleanSlug.take(14)}_$uniqueSuffix"
-                val newChannelItem = ServerChannelItem(
-                    id = channelId,
-                    name = cleanSlug,
-                    channelType = event.channelType,
-                    categoryName = event.categoryName,
-                    isUnread = false
-                )
-                _serversList.value = _serversList.value.map { server ->
-                    if (server.id == event.serverId) {
-                        server.copy(channels = (server.channels + newChannelItem).distinctBy { it.id })
-                    } else server
-                }
-                _selectedChannelId.value = channelId
-                _feedbackMessage.value = "Created #$cleanSlug"
+                _feedbackMessage.value = "Creating #${cleanSlug} on cloud..."
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
-                        runCatching {
-                            val cType = when (event.channelType.lowercase()) {
-                                "announcements" -> ServerChannelType.ANNOUNCEMENT
-                                "rules" -> ServerChannelType.RULES
-                                "voice" -> ServerChannelType.VOICE
-                                else -> ServerChannelType.TEXT
-                            }
-                            repo.createChannel(
-                                serverId = event.serverId,
-                                name = event.name,
-                                categoryName = event.categoryName,
-                                channelType = cType,
-                                topic = event.topic
+                        val cType = when (event.channelType.lowercase()) {
+                            "announcements" -> ServerChannelType.ANNOUNCEMENT
+                            "rules" -> ServerChannelType.RULES
+                            "voice" -> ServerChannelType.VOICE
+                            else -> ServerChannelType.TEXT
+                        }
+                        val result = repo.createChannel(
+                            serverId = event.serverId,
+                            name = event.name,
+                            categoryName = event.categoryName,
+                            channelType = cType,
+                            topic = event.topic
+                        )
+                        result.onSuccess { createdChannel ->
+                            val channelItem = ServerChannelItem(
+                                id = createdChannel.id,
+                                name = createdChannel.name,
+                                channelType = createdChannel.channelType.name.lowercase(),
+                                categoryName = createdChannel.categoryName,
+                                isUnread = false
                             )
+                            _serversList.value = _serversList.value.map { server ->
+                                if (server.id == event.serverId) {
+                                    server.copy(channels = (server.channels + channelItem).distinctBy { it.id })
+                                } else server
+                            }
+                            _selectedChannelId.value = createdChannel.id
+                            _feedbackMessage.value = "Created #${createdChannel.name}"
+                        }.onFailure { err ->
+                            _feedbackMessage.value = "Failed to create channel: ${err.localizedMessage ?: "Network error"}"
                         }
                     }
                 }
@@ -994,8 +1068,9 @@ class ChannelsViewModel(
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
-                        runCatching {
-                            repo.createRule(event.serverId, event.title, event.description)
+                        val result = repo.createRule(event.serverId, event.title, event.description)
+                        result.onFailure { err ->
+                            _feedbackMessage.value = "Failed to sync rule to cloud: ${err.localizedMessage ?: "Network error"}"
                         }
                     }
                 }
@@ -1006,8 +1081,9 @@ class ChannelsViewModel(
 
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
-                        runCatching {
-                            repo.deleteRule(event.ruleId)
+                        val result = repo.deleteRule(event.ruleId)
+                        result.onFailure { err ->
+                            _feedbackMessage.value = "Failed to delete rule remotely: ${err.localizedMessage ?: "Network error"}"
                         }
                     }
                 }
@@ -1045,6 +1121,10 @@ class ChannelsViewModel(
                             _selectedServerId.value = srv.id
                             _previewServerId.value = null
                             _feedbackMessage.value = "Joined ${srv.name}!"
+                            viewModelScope.launch {
+                                repo.syncRemoteMembers(srv.id)
+                                repo.syncRemoteServers()
+                            }
                         }.onFailure { err ->
                             _feedbackMessage.value = err.message ?: "Failed to join server"
                         }
@@ -1130,6 +1210,11 @@ class ChannelsViewModel(
                             avatarResName = authorAvatar ?: ""
                         )
 
+                        runCatching {
+                            serverRepository?.syncRemoteMembers(previewId)
+                            serverRepository?.syncRemoteServers()
+                        }
+
                         kotlinx.coroutines.delay(450)
                         _isJoiningServer.value = false
                         _feedbackMessage.value = "Joined ${targetServer?.name ?: "server"}!"
@@ -1208,6 +1293,7 @@ class ChannelsViewModel(
                 }
                 _likedStudentIds.value = current
             }
+            is ChannelsEvent.ShowFeedback -> _feedbackMessage.value = event.message
             is ChannelsEvent.ClearFeedback -> _feedbackMessage.value = null
             is ChannelsEvent.ClearSelectedChannel -> _selectedChannel.value = null
 
@@ -1338,18 +1424,20 @@ class ChannelsViewModel(
                         )
                     } else srv
                 }
-                _feedbackMessage.value = "Server settings updated"
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
-                        runCatching {
-                            repo.updateServerProfile(
-                                serverId = event.serverId,
-                                name = event.name,
-                                description = event.description,
-                                category = event.category,
-                                avatarResName = event.avatarResName,
-                                bannerResName = event.bannerResName
-                            )
+                        val result = repo.updateServerProfile(
+                            serverId = event.serverId,
+                            name = event.name,
+                            description = event.description,
+                            category = event.category,
+                            avatarResName = event.avatarResName,
+                            bannerResName = event.bannerResName
+                        )
+                        result.onSuccess {
+                            _feedbackMessage.value = "Server settings updated"
+                        }.onFailure { err ->
+                            _feedbackMessage.value = "Settings saved locally, but cloud update failed: ${err.localizedMessage ?: "Network error"}"
                         }
                     }
                 }
@@ -1399,6 +1487,11 @@ class ChannelsViewModel(
             is ChannelsEvent.OpenServerMembersSheet -> {
                 _currentMemberFilterChannelId.value = event.channelId
                 _isServerMembersSheetOpen.value = true
+                if (event.serverId.isNotBlank()) {
+                    viewModelScope.launch {
+                        serverRepository?.syncRemoteMembers(event.serverId)
+                    }
+                }
             }
 
             is ChannelsEvent.CloseServerMembersSheet -> {

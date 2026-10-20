@@ -45,17 +45,19 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
             }
 
             CampusPushType.INCOMING_CALL -> {
-                val peerId = data["peerId"] ?: "thread_faith"
+                val peerId = data["peerId"] ?: data["callerId"] ?: "unknown_peer"
                 val callerName = data["callerName"] ?: title
                 val callerRole = data["callerRole"] ?: "Verified Student"
                 val isVideo = data["isVideo"]?.toBooleanStrictOrNull() ?: true
+                val callSessionId = data["callSessionId"] ?: data["sessionId"]
 
                 CampusSystemNotificationCenter.showIncomingCallNotification(
                     context = applicationContext,
                     peerId = peerId,
                     callerName = callerName,
                     callerRoleOrHandle = callerRole,
-                    isVideoCall = isVideo
+                    isVideoCall = isVideo,
+                    callSessionId = callSessionId
                 )
             }
 
@@ -107,6 +109,16 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
                     guildName = title,
                     headline = body,
                     digestLines = listOf(body)
+                )
+            }
+
+            CampusPushType.FRIEND_REQUEST -> {
+                CampusSystemNotificationCenter.showFriendRequestNotification(
+                    context = applicationContext,
+                    peerUserId = data["peerId"] ?: data["actorUserId"] ?: "unknown_peer",
+                    peerName = data["senderName"] ?: data["peerName"] ?: title,
+                    serverId = data["serverId"],
+                    body = body
                 )
             }
         }

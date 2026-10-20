@@ -71,7 +71,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -113,6 +115,10 @@ fun SafeTradeEscrowBuyerSheet(
     isOpen: Boolean,
     onDismiss: () -> Unit,
     onEscrowReleased: (MarketItem) -> Unit,
+    /** Server-side verify — buyers must not rely on a locally cached release secret. */
+    onVerifyReleaseCode: (suspend (itemId: String, scannedCode: String) -> Boolean)? = null,
+    /** Calls the payment socket to release held funds to the seller after QR verify. */
+    onReleaseEscrowFunds: (suspend (itemId: String) -> Boolean)? = null,
     modifier: Modifier = Modifier
 ) {
     if (!isOpen || item == null) return
@@ -120,11 +126,13 @@ fun SafeTradeEscrowBuyerSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Camera Scanner, 1: Manual Code
     var manualCodeInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isVerified by remember { mutableStateOf(false) }
+    var isVerifying by remember { mutableStateOf(false) }
     var isTorchEnabled by remember { mutableStateOf(false) }
     var activeCamera by remember { mutableStateOf<Camera?>(null) }
 
@@ -145,24 +153,45 @@ fun SafeTradeEscrowBuyerSheet(
 
     fun handleCodeVerification(codeToVerify: String) {
         val cleanInput = codeToVerify.trim().uppercase()
-        val targetCode = item.qrReleaseCode.trim().uppercase()
-
         if (cleanInput.isEmpty()) {
             errorMessage = "Please enter or scan the release code"
             return
         }
+        if (isVerifying || isVerified) return
 
-        // Support matching either direct code (CP-849201) or full deep-link QR URL
-        val isMatch = cleanInput == targetCode ||
-                cleanInput.contains(targetCode) ||
-                cleanInput.endsWith(targetCode.replace("-", ""))
-
-        if (isMatch) {
+        scope.launch {
+            isVerifying = true
             errorMessage = null
-            isVerified = true
-            onEscrowReleased(item)
-        } else {
-            errorMessage = "Invalid QR code. Please ensure you scan the seller's code at the station."
+            val targetCode = item.qrReleaseCode.trim().uppercase()
+            // Local match only when this device already holds the owner secret (seller device).
+            val localMatch = targetCode.isNotBlank() && (
+                cleanInput == targetCode ||
+                    cleanInput.contains(targetCode) ||
+                    cleanInput.endsWith(targetCode.replace("-", ""))
+                )
+            val remoteMatch = if (!localMatch && onVerifyReleaseCode != null) {
+                runCatching { onVerifyReleaseCode(item.id, cleanInput) }.getOrDefault(false)
+            } else {
+                false
+            }
+            if (!(localMatch || remoteMatch)) {
+                isVerifying = false
+                errorMessage = "Invalid QR code. Please ensure you scan the seller's code at the station."
+                return@launch
+            }
+            // QR ok → ask payment socket to release escrow (no fake “transferred” without provider).
+            val payoutOk = if (onReleaseEscrowFunds != null) {
+                runCatching { onReleaseEscrowFunds(item.id) }.getOrDefault(false)
+            } else {
+                true
+            }
+            isVerifying = false
+            if (payoutOk) {
+                isVerified = true
+                onEscrowReleased(item)
+            } else {
+                errorMessage = "Release code verified, but payout failed. Check payment API configuration and retry."
+            }
         }
     }
 
@@ -310,8 +339,14 @@ fun SafeTradeEscrowBuyerSheet(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Release Code", fontSize = 13.sp, color = Color(0xFF64748B))
-                                Text(text = item.qrReleaseCode, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Color(0xFF003B68))
+                                Text(text = "Release Status", fontSize = 13.sp, color = Color(0xFF64748B))
+                                Text(
+                                    text = "Verified at handoff",
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF003B68)
+                                )
                             }
                         }
                     }

@@ -79,7 +79,10 @@ import com.campus.network.core.ui.theme.BrandGreen
 import com.campus.network.core.ui.theme.TextWhite
 import com.campus.network.feature.messages.audio.VoiceFilterPreset
 import com.campus.network.feature.messages.components.InCallMoreOptionsSheet
+import com.campus.network.feature.messages.components.StreamLocalParticipantVideo
+import com.campus.network.feature.messages.components.StreamRemoteParticipantVideo
 import com.campus.network.feature.messages.components.VoiceMorphSheet
+import com.campus.network.feature.messages.components.peekActiveStreamCall
 
 @Composable
 fun VideoCallScreen(
@@ -93,6 +96,9 @@ fun VideoCallScreen(
     var isLocalFullscreen by remember { mutableStateOf(false) }
     var isMoreOptionsOpen by remember { mutableStateOf(false) }
     var isVoiceFilterOpen by remember { mutableStateOf(false) }
+    val useStreamMedia = callState.status == CallStatus.CONNECTED &&
+        callState.mediaProviderReady &&
+        peekActiveStreamCall() != null
 
     Box(
         modifier = modifier
@@ -103,17 +109,25 @@ fun VideoCallScreen(
         val showLocalInFullscreen = (callState.status != CallStatus.CONNECTED) || isLocalFullscreen
 
         if (showLocalInFullscreen) {
-            CameraPreviewSurface(
-                isFrontCamera = callState.isFrontCamera,
-                isVideoEnabled = callState.isVideoEnabled,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (useStreamMedia) {
+                StreamLocalParticipantVideo(modifier = Modifier.fillMaxSize())
+            } else {
+                CameraPreviewSurface(
+                    isFrontCamera = callState.isFrontCamera,
+                    isVideoEnabled = callState.isVideoEnabled,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         } else {
-            RemoteParticipantSurface(
-                callState = callState,
-                isPip = false,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (useStreamMedia) {
+                StreamRemoteParticipantVideo(modifier = Modifier.fillMaxSize())
+            } else {
+                RemoteParticipantSurface(
+                    callState = callState,
+                    isPip = false,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         // 2. Picture-in-Picture (PiP) Window
@@ -142,11 +156,15 @@ fun VideoCallScreen(
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (isLocalFullscreen) {
                         // Remote is in PiP
-                        RemoteParticipantSurface(
-                            callState = callState,
-                            isPip = true,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        if (useStreamMedia) {
+                            StreamRemoteParticipantVideo(modifier = Modifier.fillMaxSize())
+                        } else {
+                            RemoteParticipantSurface(
+                                callState = callState,
+                                isPip = true,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = Color(0x99000000),
@@ -164,11 +182,15 @@ fun VideoCallScreen(
                         }
                     } else {
                         // Local Camera is in PiP
-                        CameraPreviewSurface(
-                            isFrontCamera = callState.isFrontCamera,
-                            isVideoEnabled = callState.isVideoEnabled,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        if (useStreamMedia) {
+                            StreamLocalParticipantVideo(modifier = Modifier.fillMaxSize())
+                        } else {
+                            CameraPreviewSurface(
+                                isFrontCamera = callState.isFrontCamera,
+                                isVideoEnabled = callState.isVideoEnabled,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = Color(0x99000000),
@@ -238,7 +260,9 @@ fun VideoCallScreen(
                 text = when (callState.status) {
                     CallStatus.CALLING -> "Calling"
                     CallStatus.RINGING -> "Ringing"
+                    CallStatus.INCOMING -> "Incoming call"
                     CallStatus.CONNECTED -> formatCallDuration(callState.durationSeconds)
+                    CallStatus.FAILED -> callState.connectionState.ifBlank { "Call ended" }
                 },
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
@@ -321,109 +345,116 @@ fun VideoCallScreen(
             }
         }
 
-        // 6. Bottom Dock: WhatsApp Floating Pill Capsule
-        Surface(
-            shape = RoundedCornerShape(36.dp),
-            color = Color(0xF0181F26),
-            shadowElevation = 12.dp,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                .fillMaxWidth()
-                .height(72.dp)
-        ) {
-            Row(
+        // 6. Bottom dock — Answer/Decline for incoming, otherwise in-call controls
+        if (callState.status == CallStatus.INCOMING || callState.isIncoming) {
+            IncomingCallActions(
+                onDecline = { onEvent(MessagesEvent.DeclineCall) },
+                onAccept = { onEvent(MessagesEvent.AcceptCall) },
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 28.dp)
+                    .fillMaxWidth()
+            )
+        } else {
+            Surface(
+                shape = RoundedCornerShape(36.dp),
+                color = Color(0xF0181F26),
+                shadowElevation = 12.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 24.dp)
+                    .fillMaxWidth()
+                    .height(72.dp)
             ) {
-                // More options (...)
-                IconButton(
-                    onClick = { isMoreOptionsOpen = true },
+                Row(
                     modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isMoreOptionsOpen || isVoiceFilterOpen || (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL)) {
-                                Color(0xFFDD2476).copy(alpha = 0.4f)
-                            } else {
-                                Color(0x33FFFFFF)
-                            }
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { isMoreOptionsOpen = true },
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isMoreOptionsOpen || isVoiceFilterOpen || (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL)) {
+                                    Color(0xFFDD2476).copy(alpha = 0.4f)
+                                } else {
+                                    Color(0x33FFFFFF)
+                                }
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreHoriz,
+                            contentDescription = "More Options",
+                            tint = TextWhite,
+                            modifier = Modifier.size(24.dp)
                         )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreHoriz,
-                        contentDescription = "More Options",
-                        tint = TextWhite,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                    }
 
-                // Speaker (Solid white circle when on, dark when off)
-                IconButton(
-                    onClick = { onEvent(MessagesEvent.ToggleSpeaker) },
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(if (callState.isSpeakerOn) Color.White else Color(0x33FFFFFF))
-                ) {
-                    Icon(
-                        imageVector = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                        contentDescription = "Speaker",
-                        tint = if (callState.isSpeakerOn) Color(0xFF181F26) else TextWhite,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                    IconButton(
+                        onClick = { onEvent(MessagesEvent.ToggleSpeaker) },
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(if (callState.isSpeakerOn) Color.White else Color(0x33FFFFFF))
+                    ) {
+                        Icon(
+                            imageVector = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                            contentDescription = "Speaker",
+                            tint = if (callState.isSpeakerOn) Color(0xFF181F26) else TextWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
-                // Video toggle
-                IconButton(
-                    onClick = { onEvent(MessagesEvent.ToggleVideo) },
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(if (callState.isVideoEnabled) Color(0x33FFFFFF) else AlertRed.copy(alpha = 0.85f))
-                ) {
-                    Icon(
-                        imageVector = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                        contentDescription = "Toggle Video",
-                        tint = TextWhite,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                    IconButton(
+                        onClick = { onEvent(MessagesEvent.ToggleVideo) },
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(if (callState.isVideoEnabled) Color(0x33FFFFFF) else AlertRed.copy(alpha = 0.85f))
+                    ) {
+                        Icon(
+                            imageVector = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                            contentDescription = "Toggle Video",
+                            tint = TextWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
-                // Mic toggle
-                IconButton(
-                    onClick = { onEvent(MessagesEvent.ToggleMute) },
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x33FFFFFF))
-                ) {
-                    Icon(
-                        imageVector = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = "Toggle Microphone",
-                        tint = TextWhite,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                    IconButton(
+                        onClick = { onEvent(MessagesEvent.ToggleMute) },
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x33FFFFFF))
+                    ) {
+                        Icon(
+                            imageVector = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = "Toggle Microphone",
+                            tint = TextWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
-                // Red Call End Button
-                IconButton(
-                    onClick = { onEvent(MessagesEvent.EndCall) },
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape)
-                        .background(AlertRed)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CallEnd,
-                        contentDescription = "End Call",
-                        tint = TextWhite,
-                        modifier = Modifier.size(26.dp)
-                    )
+                    IconButton(
+                        onClick = { onEvent(MessagesEvent.EndCall) },
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .background(AlertRed)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallEnd,
+                            contentDescription = "End Call",
+                            tint = TextWhite,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
                 }
             }
         }
@@ -659,7 +690,11 @@ private fun RemoteParticipantSurface(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Live Stream HD • 60 FPS",
+                            text = if (callState.mediaProviderReady) {
+                                "Stream Video • Connected"
+                            } else {
+                                "Signaling only • media pending"
+                            },
                             fontSize = 11.sp,
                             color = Color(0xCCFFFFFF)
                         )

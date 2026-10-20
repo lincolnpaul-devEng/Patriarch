@@ -812,20 +812,17 @@ fun ProfileScreen(
             profile = targetProfile,
             onDismiss = { showEditProfileDialog = false },
             onSave = { name, university, program, year, residence, phone, bio, interests, avatarUrl ->
-                viewModel.onEvent(
-                    ProfileEvent.UpdateProfile(
-                        fullName = name,
-                        universityName = university,
-                        degreeProgram = program,
-                        academicYear = year,
-                        campusResidence = residence,
-                        phoneNumber = phone,
-                        bio = bio,
-                        interests = interests,
-                        avatarUrl = avatarUrl
-                    )
+                viewModel.saveProfile(
+                    fullName = name,
+                    universityName = university,
+                    degreeProgram = program,
+                    academicYear = year,
+                    campusResidence = residence,
+                    phoneNumber = phone,
+                    bio = bio,
+                    interests = interests,
+                    avatarUrl = avatarUrl
                 )
-                showEditProfileDialog = false
             }
         )
     }
@@ -1636,7 +1633,7 @@ private fun SetStatusNoteDialog(
 private fun EditProfileDrawerSheet(
     profile: StudentProfile,
     onDismiss: () -> Unit,
-    onSave: (
+    onSave: suspend (
         name: String,
         university: String,
         program: String,
@@ -1646,7 +1643,7 @@ private fun EditProfileDrawerSheet(
         bio: String,
         interests: List<String>,
         avatarUrl: String?
-    ) -> Unit
+    ) -> Result<Unit>
 ) {
     var fullName by remember { mutableStateOf(profile.fullName) }
     var avatarUrl by remember { mutableStateOf(profile.avatarUrl ?: "") }
@@ -1658,6 +1655,9 @@ private fun EditProfileDrawerSheet(
     var bio by remember { mutableStateOf(profile.bio) }
     val interests = remember { mutableStateListOf(*profile.interests.toTypedArray()) }
     var newInterestInput by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    val sheetScope = rememberCoroutineScope()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1985,6 +1985,24 @@ private fun EditProfileDrawerSheet(
                 }
             }
 
+            if (saveError != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFFEF2F2))
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = saveError!!,
+                        color = Color(0xFFDC2626),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Actions Bottom Row
@@ -1996,6 +2014,7 @@ private fun EditProfileDrawerSheet(
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
+                    enabled = !isSaving,
                     shape = CircleShape,
                     modifier = Modifier
                         .weight(1f)
@@ -2006,18 +2025,32 @@ private fun EditProfileDrawerSheet(
 
                 Button(
                     onClick = {
-                        onSave(
-                            fullName,
-                            universityName,
-                            degreeProgram,
-                            academicYear,
-                            campusResidence,
-                            phoneNumber,
-                            bio,
-                            interests.toList(),
-                            avatarUrl.ifBlank { null }
-                        )
+                        if (!isSaving) {
+                            sheetScope.launch {
+                                isSaving = true
+                                saveError = null
+                                val result = onSave(
+                                    fullName,
+                                    universityName,
+                                    degreeProgram,
+                                    academicYear,
+                                    campusResidence,
+                                    phoneNumber,
+                                    bio,
+                                    interests.toList(),
+                                    avatarUrl.ifBlank { null }
+                                )
+                                isSaving = false
+                                if (result.isSuccess) {
+                                    onDismiss()
+                                } else {
+                                    saveError = result.exceptionOrNull()?.localizedMessage
+                                        ?: "Failed to save profile changes. Please check network connection and try again."
+                                }
+                            }
+                        }
                     },
+                    enabled = !isSaving,
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = DarkCardBg,
@@ -2027,7 +2060,17 @@ private fun EditProfileDrawerSheet(
                         .weight(1.5f)
                         .height(52.dp)
                 ) {
-                    Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.White)
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Saving...", fontWeight = FontWeight.Bold, color = Color.White)
+                    } else {
+                        Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }

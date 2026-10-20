@@ -31,7 +31,7 @@ import java.util.UUID
  */
 class ServerRepository(
     private val database: CampusDatabase,
-    private val supabaseClient: com.campus.network.core.network.SupabaseClientProvider? = null,
+    private val supabaseClient: com.campus.network.core.network.SupabaseClientProvider = com.campus.network.core.network.SupabaseClientProvider(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val serverDao = database.serverDao()
@@ -90,127 +90,140 @@ class ServerRepository(
         avatarResName: String = "server_codesistency",
         bannerResName: String? = null,
         customServerId: String? = null
-    ): Server = withContext(ioDispatcher) {
-        val serverId = customServerId ?: "srv_${UUID.randomUUID().toString().take(8)}"
-        val cleanName = name.trim().ifEmpty { "New Server" }
-        val slug = cleanName.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(12)
-        val inviteCode = "$slug-${UUID.randomUUID().toString().take(6).uppercase()}"
-        val now = System.currentTimeMillis()
+    ): Result<Server> = withContext(ioDispatcher) {
+        runCatching {
+            val serverId = customServerId ?: "srv_${UUID.randomUUID().toString().take(8)}"
+            val cleanName = name.trim().ifEmpty { "New Server" }
+            val slug = cleanName.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(12)
+            val inviteCode = "$slug-${UUID.randomUUID().toString().take(6).uppercase()}"
+            val now = System.currentTimeMillis()
 
-        val server = Server(
-            id = serverId,
-            name = cleanName,
-            description = description,
-            category = category.ifEmpty { "Community" },
-            ownerId = ownerId,
-            avatarResName = avatarResName,
-            bannerResName = bannerResName,
-            isVerified = false,
-            memberCount = 1,
-            inviteCode = inviteCode,
-            createdAtEpochMs = now
-        )
-
-        // 1. Save Server
-        serverDao.insertServer(ServerEntity.fromDomain(server))
-
-        // 2. Add Owner Member with real student profile details
-        val ownerMember = ServerMember(
-            userId = ownerId,
-            serverId = serverId,
-            displayName = ownerDisplayName,
-            handle = ownerHandle,
-            role = ServerMemberRole.OWNER,
-            roleTitle = "Server Owner",
-            roleColorHex = 0xFF003B68,
-            avatarUrl = ownerAvatarUrl,
-            avatarResName = ownerAvatarUrl ?: "",
-            isOnline = true,
-            customStatus = "Server Founder",
-            joinedAtEpochMs = now,
-            badge = "Owner"
-        )
-        memberDao.insertMember(ServerMemberEntity.fromDomain(ownerMember))
-
-        // 3. Create Default Welcome Channels & General Chat
-        val defaultChannels = listOf(
-            ServerChannel(
-                id = "ch_${serverId}_rules",
-                serverId = serverId,
-                name = "rules",
-                categoryName = "WELCOME",
-                channelType = ServerChannelType.RULES,
-                topic = "Official server rules and safety policies.",
-                unreadCount = 0,
-                isPinned = true,
-                orderIndex = 1
-            ),
-            ServerChannel(
-                id = "ch_${serverId}_announcements",
-                serverId = serverId,
-                name = "announcements",
-                categoryName = "WELCOME",
-                channelType = ServerChannelType.ANNOUNCEMENT,
-                topic = "Updates, events, and broadcast announcements.",
-                unreadCount = 0,
-                isPinned = true,
-                orderIndex = 2
-            ),
-            ServerChannel(
-                id = "ch_${serverId}_general",
-                serverId = serverId,
-                name = "general",
-                categoryName = "TEXT CHANNELS",
-                channelType = ServerChannelType.TEXT,
-                topic = "General discussion and hangout lounge.",
-                unreadCount = 0,
-                isPinned = false,
-                orderIndex = 3
+            val server = Server(
+                id = serverId,
+                name = cleanName,
+                description = description,
+                category = category.ifEmpty { "Community" },
+                ownerId = ownerId,
+                avatarResName = avatarResName,
+                bannerResName = bannerResName,
+                isVerified = false,
+                memberCount = 1,
+                inviteCode = inviteCode,
+                createdAtEpochMs = now
             )
-        )
-        channelDao.insertChannels(defaultChannels.map { ServerChannelEntity.fromDomain(it) })
 
-        // 4. Create Default Starter Rules
-        val defaultRules = listOf(
-            ServerRule(
-                id = "rule_${serverId}_1",
+            // 1. Execute atomic server creation in ONE remote Supabase RPC call
+            val rpcPayload = org.json.JSONObject().apply {
+                put("p_server_id", serverId)
+                put("p_name", cleanName)
+                put("p_category", category.ifEmpty { "Community" })
+                put("p_description", description)
+                put("p_owner_id", ownerId)
+                put("p_owner_display_name", ownerDisplayName)
+                put("p_owner_handle", ownerHandle)
+                if (!ownerAvatarUrl.isNullOrBlank()) put("p_owner_avatar_url", ownerAvatarUrl)
+                put("p_avatar_res_name", avatarResName)
+                if (!bannerResName.isNullOrBlank()) put("p_banner_res_name", bannerResName)
+                put("p_invite_code", inviteCode)
+            }.toString()
+            supabaseClient.callRpc("create_server_atomic", rpcPayload).getOrThrow()
+
+            // 2. Cache confirmed server, owner member, channels, rules and invite in Room SQLite
+            serverDao.insertServer(ServerEntity.fromDomain(server))
+            val ownerMember = ServerMember(
+                userId = ownerId,
                 serverId = serverId,
-                ruleIndex = 1,
-                title = "Be Respectful",
-                description = "Maintain civility and respect toward all campus peers and community members."
-            ),
-            ServerRule(
-                id = "rule_${serverId}_2",
-                serverId = serverId,
-                ruleIndex = 2,
-                title = "No Spam or Unsolicited Promotion",
-                description = "Keep chat channels relevant to the server's topics and avoid spamming links."
-            ),
-            ServerRule(
-                id = "rule_${serverId}_3",
-                serverId = serverId,
-                ruleIndex = 3,
-                title = "Follow Moderation Directions",
-                description = "Direct any concerns to server admins or moderators."
+                displayName = ownerDisplayName,
+                handle = ownerHandle,
+                role = ServerMemberRole.OWNER,
+                roleTitle = "Server Owner",
+                roleColorHex = 0xFF003B68,
+                avatarUrl = ownerAvatarUrl,
+                avatarResName = ownerAvatarUrl ?: "",
+                isOnline = true,
+                customStatus = "Server Founder",
+                joinedAtEpochMs = now,
+                badge = "Owner"
             )
-        )
-        ruleDao.insertRules(defaultRules.map { ServerRuleEntity.fromDomain(it) })
+            memberDao.insertMember(ServerMemberEntity.fromDomain(ownerMember))
 
-        // 5. Create Default Permanent Invite Link
-        val invite = ServerInvite(
-            code = inviteCode,
-            serverId = serverId,
-            serverName = cleanName,
-            inviterId = ownerId,
-            inviterName = ownerDisplayName,
-            expiresAtEpochMs = Long.MAX_VALUE,
-            maxUses = 0,
-            usesCount = 1,
-            isRevoked = false
-        )
-        inviteDao.insertInvite(ServerInviteEntity.fromDomain(invite))
+            val defaultChannels = listOf(
+                ServerChannel(
+                    id = "ch_${serverId}_rules",
+                    serverId = serverId,
+                    name = "rules",
+                    categoryName = "WELCOME",
+                    channelType = ServerChannelType.RULES,
+                    topic = "Official server rules and safety policies.",
+                    unreadCount = 0,
+                    isPinned = true,
+                    orderIndex = 1
+                ),
+                ServerChannel(
+                    id = "ch_${serverId}_announcements",
+                    serverId = serverId,
+                    name = "announcements",
+                    categoryName = "WELCOME",
+                    channelType = ServerChannelType.ANNOUNCEMENT,
+                    topic = "Updates, events, and broadcast announcements.",
+                    unreadCount = 0,
+                    isPinned = true,
+                    orderIndex = 2
+                ),
+                ServerChannel(
+                    id = "ch_${serverId}_general",
+                    serverId = serverId,
+                    name = "general",
+                    categoryName = "TEXT CHANNELS",
+                    channelType = ServerChannelType.TEXT,
+                    topic = "General discussion and hangout lounge.",
+                    unreadCount = 0,
+                    isPinned = false,
+                    orderIndex = 3
+                )
+            )
+            channelDao.insertChannels(defaultChannels.map { ServerChannelEntity.fromDomain(it) })
 
-        server
+            val defaultRules = listOf(
+                ServerRule(
+                    id = "rule_${serverId}_1",
+                    serverId = serverId,
+                    ruleIndex = 1,
+                    title = "Be Respectful",
+                    description = "Maintain civility and respect toward all campus peers and community members."
+                ),
+                ServerRule(
+                    id = "rule_${serverId}_2",
+                    serverId = serverId,
+                    ruleIndex = 2,
+                    title = "No Spam or Unsolicited Promotion",
+                    description = "Keep chat channels relevant to the server's topics and avoid spamming links."
+                ),
+                ServerRule(
+                    id = "rule_${serverId}_3",
+                    serverId = serverId,
+                    ruleIndex = 3,
+                    title = "Follow Moderation Directions",
+                    description = "Direct any concerns to server admins or moderators."
+                )
+            )
+            ruleDao.insertRules(defaultRules.map { ServerRuleEntity.fromDomain(it) })
+
+            val invite = ServerInvite(
+                code = inviteCode,
+                serverId = serverId,
+                serverName = cleanName,
+                inviterId = ownerId,
+                inviterName = ownerDisplayName,
+                expiresAtEpochMs = Long.MAX_VALUE,
+                maxUses = 0,
+                usesCount = 1,
+                isRevoked = false
+            )
+            inviteDao.insertInvite(ServerInviteEntity.fromDomain(invite))
+
+            server
+        }
     }
 
     suspend fun updateServerProfile(
@@ -220,20 +233,36 @@ class ServerRepository(
         category: String,
         avatarResName: String,
         bannerResName: String? = null
-    ) = withContext(ioDispatcher) {
-        val existing = serverDao.getServerByIdSync(serverId) ?: return@withContext
-        val updated = existing.copy(
-            name = name.trim().ifEmpty { existing.name },
-            description = description.trim(),
-            category = category.trim().ifEmpty { existing.category },
-            avatarResName = avatarResName.ifEmpty { existing.avatarResName },
-            bannerResName = bannerResName ?: existing.bannerResName
-        )
-        serverDao.insertServer(updated)
+    ): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            val existing = serverDao.getServerByIdSync(serverId)
+                ?: throw IllegalStateException("Server not found.")
+            val updated = existing.copy(
+                name = name.trim().ifEmpty { existing.name },
+                description = description.trim(),
+                category = category.trim().ifEmpty { existing.category },
+                avatarResName = avatarResName.ifEmpty { existing.avatarResName },
+                bannerResName = bannerResName ?: existing.bannerResName
+            )
+
+            val payload = org.json.JSONObject().apply {
+                put("name", updated.name)
+                put("description", updated.description)
+                put("category", updated.category)
+                put("avatar_res_name", updated.avatarResName)
+                if (updated.bannerResName != null) put("banner_res_name", updated.bannerResName)
+            }.toString()
+            supabaseClient.updateRecord("servers?id=eq.$serverId", payload).getOrThrow()
+
+            serverDao.insertServer(updated)
+        }
     }
 
-    suspend fun deleteServer(serverId: String) = withContext(ioDispatcher) {
-        serverDao.deleteServer(serverId)
+    suspend fun deleteServer(serverId: String): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            supabaseClient.deleteRecord("servers?id=eq.$serverId").getOrThrow()
+            serverDao.deleteServer(serverId)
+        }
     }
 
     // ==========================================
@@ -258,30 +287,48 @@ class ServerRepository(
         categoryName: String = "TEXT CHANNELS",
         channelType: ServerChannelType = ServerChannelType.TEXT,
         topic: String = ""
-    ): ServerChannel = withContext(ioDispatcher) {
-        val cleanName = name.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "-")
-        val channelId = "ch_${serverId}_${cleanName.take(16)}_${UUID.randomUUID().toString().take(4)}"
-        val existingChannels = channelDao.getChannelsForServer(serverId).firstOrNull().orEmpty()
-        val nextOrder = (existingChannels.maxOfOrNull { it.orderIndex } ?: 0) + 1
+    ): Result<ServerChannel> = withContext(ioDispatcher) {
+        runCatching {
+            val cleanName = name.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "-")
+            val channelId = "ch_${serverId}_${cleanName.take(16)}_${UUID.randomUUID().toString().take(4)}"
+            val existingChannels = channelDao.getChannelsForServer(serverId).firstOrNull().orEmpty()
+            val nextOrder = (existingChannels.maxOfOrNull { it.orderIndex } ?: 0) + 1
 
-        val channel = ServerChannel(
-            id = channelId,
-            serverId = serverId,
-            name = cleanName,
-            categoryName = categoryName.trim().ifEmpty { "TEXT CHANNELS" },
-            channelType = channelType,
-            topic = topic.trim(),
-            unreadCount = 0,
-            isPinned = false,
-            orderIndex = nextOrder
-        )
+            val channel = ServerChannel(
+                id = channelId,
+                serverId = serverId,
+                name = cleanName,
+                categoryName = categoryName.trim().ifEmpty { "TEXT CHANNELS" },
+                channelType = channelType,
+                topic = topic.trim(),
+                unreadCount = 0,
+                isPinned = false,
+                orderIndex = nextOrder
+            )
 
-        channelDao.insertChannel(ServerChannelEntity.fromDomain(channel))
-        channel
+            val payload = org.json.JSONObject().apply {
+                put("id", channelId)
+                put("server_id", serverId)
+                put("name", cleanName)
+                put("category_name", channel.categoryName)
+                put("channel_type", channelType.name.lowercase())
+                put("topic", topic.trim())
+                put("is_unread", false)
+                put("order_index", nextOrder)
+                put("created_at_epoch_ms", System.currentTimeMillis())
+            }.toString()
+            supabaseClient.upsertRecord("server_channels", payload, onConflict = "id").getOrThrow()
+
+            channelDao.insertChannel(ServerChannelEntity.fromDomain(channel))
+            channel
+        }
     }
 
-    suspend fun deleteChannel(channelId: String) = withContext(ioDispatcher) {
-        channelDao.deleteChannel(channelId)
+    suspend fun deleteChannel(channelId: String): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            supabaseClient.deleteRecord("server_channels?id=eq.$channelId").getOrThrow()
+            channelDao.deleteChannel(channelId)
+        }
     }
 
     suspend fun markChannelRead(channelId: String) = withContext(ioDispatcher) {
@@ -302,25 +349,39 @@ class ServerRepository(
         serverId: String,
         title: String,
         description: String
-    ): ServerRule = withContext(ioDispatcher) {
-        val existingRules = ruleDao.getRulesForServer(serverId).firstOrNull().orEmpty()
-        val nextIndex = (existingRules.maxOfOrNull { it.ruleIndex } ?: 0) + 1
-        val ruleId = "rule_${serverId}_$nextIndex"
+    ): Result<ServerRule> = withContext(ioDispatcher) {
+        runCatching {
+            val existingRules = ruleDao.getRulesForServer(serverId).firstOrNull().orEmpty()
+            val nextIndex = (existingRules.maxOfOrNull { it.ruleIndex } ?: 0) + 1
+            val ruleId = "rule_${serverId}_$nextIndex"
 
-        val rule = ServerRule(
-            id = ruleId,
-            serverId = serverId,
-            ruleIndex = nextIndex,
-            title = title.trim(),
-            description = description.trim()
-        )
+            val rule = ServerRule(
+                id = ruleId,
+                serverId = serverId,
+                ruleIndex = nextIndex,
+                title = title.trim(),
+                description = description.trim()
+            )
 
-        ruleDao.insertRule(ServerRuleEntity.fromDomain(rule))
-        rule
+            val payload = org.json.JSONObject().apply {
+                put("id", ruleId)
+                put("server_id", serverId)
+                put("rule_index", nextIndex)
+                put("title", rule.title)
+                put("description", rule.description)
+            }.toString()
+            supabaseClient.upsertRecord("server_rules", payload, onConflict = "id").getOrThrow()
+
+            ruleDao.insertRule(ServerRuleEntity.fromDomain(rule))
+            rule
+        }
     }
 
-    suspend fun deleteRule(ruleId: String) = withContext(ioDispatcher) {
-        ruleDao.deleteRule(ruleId)
+    suspend fun deleteRule(ruleId: String): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            supabaseClient.deleteRecord("server_rules?id=eq.$ruleId").getOrThrow()
+            ruleDao.deleteRule(ruleId)
+        }
     }
 
     // ==========================================
@@ -420,7 +481,26 @@ class ServerRepository(
 
         // Check if member already in server
         val existingMember = if (userId.isNotBlank()) memberDao.getMemberSync(server.id, userId) else null
-        if (existingMember == null && userId.isNotBlank()) {
+        if (userId.isNotBlank()) {
+            val payload = org.json.JSONObject().apply {
+                put("id", "${server.id}:${userId}")
+                put("server_id", server.id)
+                put("user_id", userId)
+                put("display_name", displayName)
+                put("handle", handle)
+                put("role", "MEMBER")
+                put("role_title", "Member")
+                put("role_color_hex", 0xFF5C6470)
+                if (avatarUrl != null) put("avatar_url", avatarUrl)
+                put("avatar_res_name", avatarResName)
+                put("is_online", true)
+                put("joined_at_epoch_ms", System.currentTimeMillis())
+            }.toString()
+            val res = supabaseClient.upsertRecord("server_members", payload, onConflict = "id", ignoreDuplicates = true)
+            if (res.isFailure) {
+                return@withContext Result.failure(res.exceptionOrNull() ?: IllegalStateException("Failed to join server on cloud"))
+            }
+
             val newMember = ServerMember(
                 userId = userId,
                 serverId = server.id,
@@ -437,8 +517,10 @@ class ServerRepository(
                 badge = null
             )
             memberDao.insertMember(ServerMemberEntity.fromDomain(newMember))
-            serverDao.incrementMemberCount(server.id)
-            inviteDao.incrementInviteUsage(code)
+            if (existingMember == null) {
+                serverDao.incrementMemberCount(server.id)
+                inviteDao.incrementInviteUsage(code)
+            }
         }
 
         Result.success(server)
@@ -456,7 +538,26 @@ class ServerRepository(
             ?: return@withContext Result.failure(IllegalArgumentException("Server not found"))
 
         val existingMember = if (userId.isNotBlank()) memberDao.getMemberSync(serverId, userId) else null
-        if (existingMember == null && userId.isNotBlank()) {
+        if (userId.isNotBlank()) {
+            val payload = org.json.JSONObject().apply {
+                put("id", "${serverId}:${userId}")
+                put("server_id", serverId)
+                put("user_id", userId)
+                put("display_name", displayName.ifBlank { "Campus Student" })
+                put("handle", handle.ifBlank { "@student" })
+                put("role", "MEMBER")
+                put("role_title", "Member")
+                put("role_color_hex", 0xFF5C6470)
+                if (avatarUrl != null) put("avatar_url", avatarUrl)
+                put("avatar_res_name", avatarResName)
+                put("is_online", true)
+                put("joined_at_epoch_ms", System.currentTimeMillis())
+            }.toString()
+            val res = supabaseClient.upsertRecord("server_members", payload, onConflict = "id", ignoreDuplicates = true)
+            if (res.isFailure) {
+                return@withContext Result.failure(res.exceptionOrNull() ?: IllegalStateException("Failed to join server on cloud"))
+            }
+
             val newMember = ServerMember(
                 userId = userId,
                 serverId = serverId,
@@ -473,29 +574,101 @@ class ServerRepository(
                 badge = null
             )
             memberDao.insertMember(ServerMemberEntity.fromDomain(newMember))
-            serverDao.incrementMemberCount(serverId)
-
-            supabaseClient?.let { client ->
-                runCatching {
-                    val payload = org.json.JSONObject().apply {
-                        put("id", "${serverId}:${userId}")
-                        put("server_id", serverId)
-                        put("user_id", userId)
-                        put("display_name", displayName)
-                        put("handle", handle)
-                        put("role", "MEMBER")
-                        put("role_title", "Member")
-                        put("role_color_hex", 0xFF5C6470)
-                        if (avatarUrl != null) put("avatar_url", avatarUrl)
-                        put("avatar_res_name", avatarResName)
-                        put("is_online", true)
-                        put("joined_at_epoch_ms", System.currentTimeMillis())
-                    }.toString()
-                    client.insertRecord("server_members", payload)
-                }
+            if (existingMember == null) {
+                serverDao.incrementMemberCount(serverId)
             }
         }
         Result.success(serverEntity.toDomain())
+    }
+
+    suspend fun syncRemoteServers() = withContext(ioDispatcher) {
+        val result = supabaseClient.queryTable("servers?select=*")
+        result.onSuccess { jsonStr ->
+            runCatching {
+                val array = org.json.JSONArray(jsonStr)
+                val servers = mutableListOf<ServerEntity>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val srv = ServerEntity(
+                        id = obj.getString("id"),
+                        name = obj.getString("name"),
+                        description = obj.optString("description", ""),
+                        category = obj.optString("category", "Community"),
+                        ownerId = obj.optString("owner_id", ""),
+                        avatarResName = obj.optString("avatar_res_name", "server_codesistency"),
+                        bannerResName = obj.optString("banner_res_name").takeIf { it.isNotBlank() },
+                        isVerified = obj.optBoolean("is_verified", false),
+                        memberCount = obj.optInt("member_count", 1),
+                        inviteCode = obj.optString("invite_code", ""),
+                        createdAtEpochMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis())
+                    )
+                    servers.add(srv)
+                }
+                if (servers.isNotEmpty()) {
+                    serverDao.insertServers(servers)
+                }
+            }
+        }
+    }
+
+    suspend fun syncRemoteChannels(serverId: String) = withContext(ioDispatcher) {
+        if (serverId.isBlank()) return@withContext
+        val result = supabaseClient.queryTable("server_channels?server_id=eq.$serverId&order=order_index.asc")
+        result.onSuccess { jsonStr ->
+            runCatching {
+                val array = org.json.JSONArray(jsonStr)
+                val channels = mutableListOf<ServerChannelEntity>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val cType = when (obj.optString("channel_type", "text").lowercase()) {
+                        "rules" -> ServerChannelType.RULES
+                        "announcements" -> ServerChannelType.ANNOUNCEMENT
+                        "voice" -> ServerChannelType.VOICE
+                        else -> ServerChannelType.TEXT
+                    }
+                    val ch = ServerChannelEntity(
+                        id = obj.getString("id"),
+                        serverId = obj.getString("server_id"),
+                        name = obj.getString("name"),
+                        categoryName = obj.optString("category_name", "TEXT CHANNELS"),
+                        channelType = cType.name,
+                        topic = obj.optString("topic", ""),
+                        unreadCount = if (obj.optBoolean("is_unread", false)) 1 else 0,
+                        isPinned = false,
+                        orderIndex = obj.optInt("order_index", 0)
+                    )
+                    channels.add(ch)
+                }
+                if (channels.isNotEmpty()) {
+                    channelDao.insertChannels(channels)
+                }
+            }
+        }
+    }
+
+    suspend fun syncRemoteRules(serverId: String) = withContext(ioDispatcher) {
+        if (serverId.isBlank()) return@withContext
+        val result = supabaseClient.queryTable("server_rules?server_id=eq.$serverId&order=rule_index.asc")
+        result.onSuccess { jsonStr ->
+            runCatching {
+                val array = org.json.JSONArray(jsonStr)
+                val rules = mutableListOf<ServerRuleEntity>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val r = ServerRuleEntity(
+                        id = obj.getString("id"),
+                        serverId = obj.getString("server_id"),
+                        ruleIndex = obj.getInt("rule_index"),
+                        title = obj.getString("title"),
+                        description = obj.optString("description", "")
+                    )
+                    rules.add(r)
+                }
+                if (rules.isNotEmpty()) {
+                    ruleDao.insertRules(rules)
+                }
+            }
+        }
     }
 
     suspend fun removeMember(serverId: String, userId: String) = withContext(ioDispatcher) {
@@ -529,6 +702,46 @@ class ServerRepository(
     ) = withContext(ioDispatcher) {
         if (serverId.isNotBlank() && displayName.isNotBlank()) {
             memberDao.updateServerOwnerProfile(serverId, displayName, handle, avatarUrl, avatarResName)
+        }
+    }
+
+    suspend fun syncRemoteMembers(serverId: String) = withContext(ioDispatcher) {
+        val client = supabaseClient ?: return@withContext
+        val cleanServerId = serverId.trim()
+        if (cleanServerId.isBlank()) return@withContext
+        val result = client.queryTable("server_members?server_id=eq.$cleanServerId")
+        result.onSuccess { jsonStr ->
+            runCatching {
+                val array = org.json.JSONArray(jsonStr)
+                val members = mutableListOf<ServerMemberEntity>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val srvId = obj.optString("server_id")
+                    val uId = obj.optString("user_id")
+                    if (srvId.isNotBlank() && uId.isNotBlank()) {
+                        val member = ServerMember(
+                            userId = uId,
+                            serverId = srvId,
+                            displayName = obj.optString("display_name", "Member"),
+                            handle = obj.optString("handle", "@student"),
+                            role = runCatching { ServerMemberRole.valueOf(obj.optString("role", "MEMBER")) }.getOrDefault(ServerMemberRole.MEMBER),
+                            roleTitle = obj.optString("role_title", "Member"),
+                            roleColorHex = obj.optLong("role_color_hex", 0xFF5C6470),
+                            avatarUrl = obj.optString("avatar_url").takeIf { it.isNotBlank() },
+                            avatarResName = obj.optString("avatar_res_name", ""),
+                            isOnline = obj.optBoolean("is_online", true),
+                            customStatus = obj.optString("custom_status", "Campus Member"),
+                            joinedAtEpochMs = obj.optLong("joined_at_epoch_ms", System.currentTimeMillis()),
+                            badge = obj.optString("badge").takeIf { it.isNotBlank() }
+                        )
+                        members.add(ServerMemberEntity.fromDomain(member))
+                    }
+                }
+                if (members.isNotEmpty()) {
+                    memberDao.insertMembers(members)
+                    serverDao.updateMemberCount(cleanServerId, members.size)
+                }
+            }
         }
     }
 
@@ -594,9 +807,12 @@ class ServerRepository(
         friendUserId: String,
         friendDisplayName: String,
         friendHandle: String,
-        friendAvatarResName: String = ""
+        friendAvatarResName: String = "",
+        senderDisplayName: String = "Campus peer",
+        serverId: String? = null
     ) = withContext(ioDispatcher) {
         val id = "$userId:$friendUserId"
+        val reverseId = "$friendUserId:$userId"
         val existing = friendDao.getFriendRelationshipSync(userId, friendUserId)
         val now = System.currentTimeMillis()
 
@@ -615,6 +831,39 @@ class ServerRepository(
             friendDao.insertFriend(FriendEntity.fromDomain(relationship))
         } else {
             friendDao.updateFriendStatus(id, FriendStatus.PENDING_SENT.name, now)
+        }
+
+        // Mirror both sides to Supabase so the recipient device can see PENDING_RECEIVED
+        val client = supabaseClient
+        if (client != null && userId.isNotBlank() && friendUserId.isNotBlank()) {
+            val outbound = org.json.JSONObject().apply {
+                put("id", id)
+                put("user_id", userId)
+                put("friend_user_id", friendUserId)
+                put("friend_display_name", friendDisplayName)
+                put("friend_handle", friendHandle)
+                put("friend_avatar_res_name", friendAvatarResName)
+                put("status", FriendStatus.PENDING_SENT.name)
+                put("last_interaction_epoch_ms", now)
+            }.toString()
+            val inbound = org.json.JSONObject().apply {
+                put("id", reverseId)
+                put("user_id", friendUserId)
+                put("friend_user_id", userId)
+                put("friend_display_name", senderDisplayName)
+                put("friend_handle", "")
+                put("friend_avatar_res_name", "")
+                put("status", FriendStatus.PENDING_RECEIVED.name)
+                put("last_interaction_epoch_ms", now)
+            }.toString()
+            client.upsertRecord("campus_friends", outbound, onConflict = "id")
+            client.upsertRecord("campus_friends", inbound, onConflict = "id")
+            CampusInboxNotifier(client).notifyFriendRequest(
+                recipientUserId = friendUserId,
+                senderUserId = userId,
+                senderName = senderDisplayName,
+                serverId = serverId
+            )
         }
     }
 

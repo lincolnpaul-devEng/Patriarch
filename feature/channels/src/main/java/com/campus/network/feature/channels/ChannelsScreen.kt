@@ -155,6 +155,10 @@ fun ChannelsScreen(
         viewModel.onEvent(ChannelsEvent.ExitServerPreview)
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshServers()
+    }
+
     LaunchedEffect(uiState.feedbackMessage) {
         uiState.feedbackMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
@@ -360,20 +364,22 @@ private fun patriarchServersHubContent(
                 shape = RoundedCornerShape(topStart = 20.dp),
                 color = Color.White
             ) {
-                val currentUserId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail } ?: ""
+                val currentUserId = uiState.studentProfile?.studentId?.ifBlank { uiState.studentProfile?.universityEmail }.orEmpty().trim()
+                val currentUserEmail = uiState.studentProfile?.universityEmail.orEmpty().trim().lowercase()
                 if (uiState.isAddServerSelected || currentServer == null) {
                     DiscoverServersPanel(
                         discoverableServers = uiState.discoverableServers,
                         joinedServerIds = uiState.joinedServerIds,
                         currentUserId = currentUserId,
+                        currentUserEmail = currentUserEmail,
                         onSelectServer = { serverId ->
                             viewModel.onEvent(ChannelsEvent.SelectServer(serverId))
                         },
                         onCreateServerSubmit = { name, category ->
                             viewModel.onEvent(ChannelsEvent.CreateServer(name, category))
                         },
-                        onCreateServerFullSubmit = { name, category, description, avatarResName, bannerResName ->
-                            viewModel.onEvent(ChannelsEvent.CreateServer(name, category, description, avatarResName, bannerResName))
+                        onCreateServerFullSubmit = { name, category, description, avatarResName, bannerResName, onResult ->
+                            viewModel.onEvent(ChannelsEvent.CreateServer(name, category, description, avatarResName, bannerResName, onResult))
                         },
                         onJoinInviteSubmit = { inviteCode ->
                             viewModel.onEvent(ChannelsEvent.JoinServerByInvite(inviteCode))
@@ -386,7 +392,8 @@ private fun patriarchServersHubContent(
                 } else {
                     val currentMembers = uiState.serverMembers[currentServer.id].orEmpty()
                     val currentMember = currentMembers.find { it.isSelf }
-                    val isOwner = currentUserId.isNotBlank() && currentServer.ownerId == currentUserId
+                    val isOwner = (currentUserId.isNotBlank() && currentServer.ownerId.equals(currentUserId, ignoreCase = true)) ||
+                            (currentUserEmail.isNotBlank() && currentServer.ownerId.equals(currentUserEmail, ignoreCase = true))
                     val isAdmin = isOwner || currentMember?.role?.roleType in listOf(ServerRoleType.OWNER, ServerRoleType.ADMIN)
                     val isMember = uiState.joinedServerIds.contains(currentServer.id) || isOwner
                     ServerDetailsPanel(

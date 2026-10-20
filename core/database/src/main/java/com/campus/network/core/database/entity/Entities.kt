@@ -80,6 +80,7 @@ data class MarketItemEntity(
     val category: String,
     val condition: String,
     val sellerName: String,
+    val sellerUserId: String = "",
     val sellerRating: Float,
     val isCampusVerifiedSeller: Boolean,
     val campusHallLocation: String,
@@ -93,7 +94,8 @@ data class MarketItemEntity(
     val pickupTiming: String = "Immediate (within 1 hr)",
     val payoutMethod: String = "Campus SafePay Escrow",
     val requiresQrReleaseCode: Boolean = true,
-    val qrReleaseCode: String = "CP-849201"
+    /** Empty for non-owners; only populated for the listing owner. */
+    val qrReleaseCode: String = ""
 )
 
 @Entity(tableName = "micro_gigs")

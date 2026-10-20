@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Concurrency & Real-Time Stream Engine Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -73,11 +74,21 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
             android:windowSoftInputMode="adjustNothing"
             android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Stream Video CallService notification actions (signaling still owned by Campus) -->
+            <intent-filter android:priority="1">
+                <action android:name="io.getstream.video.android.action.INCOMING_CALL" />
+                <action android:name="io.getstream.video.android.action.ONGOING_CALL" />
+                <action android:name="io.getstream.video.android.action.ACCEPT_CALL" />
+                <action android:name="io.getstream.video.android.action.OUTGOING_CALL" />
+                <action android:name="io.getstream.video.android.action.NOTIFICATION" />
             </intent-filter>
         </activity>
 
@@ -101,6 +112,14 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Remove legacy PushDelegateProvider ContentProvider from stream-chat 6.0.8.
+             In stream-android-push-delegate 1.3.4 (from stream-video), this was refactored
+             into an interface and replaced by AndroidPushDelegateProvider. -->
+        <provider
+            android:name="io.getstream.android.push.delegate.PushDelegateProvider"
+            android:authorities="${applicationId}.io.getstream.android.push"
+            tools:node="remove" />
     </application>
 
 </manifest>

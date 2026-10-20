@@ -44,6 +44,28 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE channelId = :channelId ORDER BY timestampEpochMs ASC")
     fun getMessagesForChannel(channelId: String): Flow<List<ChatMessageEntity>>
 
+    @Query("SELECT * FROM chat_messages ORDER BY timestampEpochMs DESC")
+    fun observeAllMessages(): Flow<List<ChatMessageEntity>>
+
+    @Query("SELECT DISTINCT channelId FROM chat_messages")
+    suspend fun getDistinctChannelIds(): List<String>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM chat_messages
+        WHERE channelId = :channelId AND isMine = 0 AND isRead = 0
+        """
+    )
+    suspend fun countUnreadForChannel(channelId: String): Int
+
+    @Query(
+        """
+        UPDATE chat_messages SET isRead = 1
+        WHERE channelId = :channelId AND isMine = 0 AND isRead = 0
+        """
+    )
+    suspend fun markChannelMessagesRead(channelId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessageEntity)
 
@@ -55,6 +77,12 @@ interface ChatMessageDao {
 
     @Query("UPDATE chat_messages SET isOptimistic = 0 WHERE id = :messageId")
     suspend fun markMessageSynced(messageId: String)
+
+    @Query("UPDATE chat_messages SET isOptimistic = 0, isDelivered = 1 WHERE id = :messageId")
+    suspend fun markMessageDelivered(messageId: String)
+
+    @Query("SELECT * FROM chat_messages WHERE isOptimistic = 1 OR isDelivered = 0 ORDER BY timestampEpochMs ASC")
+    suspend fun getPendingMessages(): List<ChatMessageEntity>
 
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteMessage(messageId: String)

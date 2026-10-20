@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -57,6 +58,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
@@ -141,6 +143,8 @@ fun DirectChatScreen(
     onEvent: (MessagesEvent) -> Unit,
     initialActivateVoice: Boolean = false,
     onConsumeVoiceActivation: () -> Unit = {},
+    /** Real unread across other threads — shown on back only when > 0. */
+    otherThreadsUnreadCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -231,6 +235,14 @@ fun DirectChatScreen(
         }
     }
 
+    val networkState = com.campus.network.core.ui.components.rememberCampusNetworkState()
+
+    LaunchedEffect(networkState.isOnline) {
+        if (networkState.isOnline) {
+            onEvent(MessagesEvent.FlushPendingMessages)
+        }
+    }
+
     val reversedMessages = remember(messages) { messages.asReversed() }
 
     Box(
@@ -248,29 +260,53 @@ fun DirectChatScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Back Button
-                Surface(
-                    shape = CircleShape,
-                    color = Color.White,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(0.5.dp, Color(0x12000000)),
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clickable {
-                            if (isVoiceRecordingActive) {
-                                transcriber.cancel()
-                                isVoiceRecordingActive = false
+                // Back button with real unread badge (hidden when zero)
+                Box {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        shadowElevation = 3.dp,
+                        border = BorderStroke(0.5.dp, Color(0x12000000)),
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clickable {
+                                if (isVoiceRecordingActive) {
+                                    transcriber.cancel()
+                                    isVoiceRecordingActive = false
+                                }
+                                onEvent(MessagesEvent.BackToThreads)
                             }
-                            onEvent(MessagesEvent.BackToThreads)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = "Back",
+                                tint = Color(0xFF0F172A),
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "Back",
-                            tint = Color(0xFF0F172A),
-                            modifier = Modifier.size(24.dp)
-                        )
+                    }
+                    if (otherThreadsUnreadCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 4.dp, y = (-2).dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFDA373C))
+                                .padding(horizontal = 5.dp, vertical = 1.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (otherThreadsUnreadCount > 99) {
+                                    "99+"
+                                } else {
+                                    "$otherThreadsUnreadCount"
+                                },
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
 
@@ -328,24 +364,45 @@ fun DirectChatScreen(
                         }
                     }
 
-                    // Online Presence Indicator
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF22C55E))
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Online",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF16A34A)
-                        )
+                    // Online Presence / Waiting for Network Indicator
+                    if (!networkState.isOnline) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFEAB308))
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Waiting for network...",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFD97706)
+                            )
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF22C55E))
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Online",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF16A34A)
+                            )
+                        }
                     }
                 }
 
@@ -876,17 +933,26 @@ fun DirectChatScreen(
 
 /**
  * Message Receipt Tick rendering WhatsApp / Telegram delivery and read receipts:
- * - Unsent / pending: single gray tick
+ * - Pending / queued (offline): clock icon
+ * - Sent: single tick
  * - Delivered: double gray tick
  * - Read: double cyan / blue tick
  */
 @Composable
 private fun MessageReceiptTick(
+    isPending: Boolean = false,
     isDelivered: Boolean,
     isRead: Boolean,
     tint: Color
 ) {
-    if (!isDelivered && !isRead) {
+    if (isPending) {
+        Icon(
+            imageVector = Icons.Default.AccessTime,
+            contentDescription = "Pending / Queued",
+            tint = tint.copy(alpha = 0.75f),
+            modifier = Modifier.size(12.dp)
+        )
+    } else if (!isDelivered && !isRead) {
         Icon(
             imageVector = Icons.Default.Check,
             contentDescription = "Sent",
@@ -987,6 +1053,7 @@ private fun DirectChatBubble(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 MessageReceiptTick(
+                    isPending = message.isPending,
                     isDelivered = message.isDelivered,
                     isRead = message.isRead,
                     tint = Color(0xFF8E8E93)
@@ -1088,6 +1155,7 @@ private fun DirectChatBubble(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         MessageReceiptTick(
+                            isPending = message.isPending,
                             isDelivered = message.isDelivered,
                             isRead = message.isRead,
                             tint = Color.White.copy(alpha = 0.75f)

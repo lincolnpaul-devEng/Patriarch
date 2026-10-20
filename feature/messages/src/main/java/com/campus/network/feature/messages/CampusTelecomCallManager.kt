@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import android.util.Log
 import kotlinx.coroutines.launch
 
 class CampusTelecomCallManager(
@@ -22,6 +23,7 @@ class CampusTelecomCallManager(
     private val callsManager = CallsManager(context.applicationContext)
     private var activeCallJob: Job? = null
     private var activeCallScope: CallControlScope? = null
+    private var telecomRegistered: Boolean = false
 
     private val _currentEndpoint = MutableStateFlow<CallEndpointCompat?>(null)
     val currentEndpoint: StateFlow<CallEndpointCompat?> = _currentEndpoint.asStateFlow()
@@ -35,7 +37,12 @@ class CampusTelecomCallManager(
     init {
         try {
             callsManager.registerAppWithTelecom(CallsManager.CAPABILITY_BASELINE)
-        } catch (_: Exception) {}
+            telecomRegistered = true
+            Log.i(TAG, "Registered with Telecom (CAPABILITY_BASELINE)")
+        } catch (t: Throwable) {
+            telecomRegistered = false
+            Log.e(TAG, "Telecom registration failed — calls continue without system UI", t)
+        }
     }
 
     fun startOutgoingCall(
@@ -46,6 +53,10 @@ class CampusTelecomCallManager(
     ) {
         endCall()
         _isHeldByCarrier.value = false
+        if (!telecomRegistered) {
+            Log.w(TAG, "Skipping addCall — Telecom not registered")
+            return
+        }
 
         val attributes = CallAttributesCompat(
             displayName = peerName,
@@ -68,7 +79,6 @@ class CampusTelecomCallManager(
                         _isHeldByCarrier.value = false
                     },
                     onSetInactive = {
-                        // Incoming carrier call or user put call on hold
                         _isHeldByCarrier.value = true
                     }
                 ) {
@@ -84,7 +94,10 @@ class CampusTelecomCallManager(
                         }
                     }
                 }
-            } catch (_: Exception) {}
+                Log.i(TAG, "Outgoing Telecom call added for $peerName")
+            } catch (t: Throwable) {
+                Log.e(TAG, "addCall failed for $peerName", t)
+            }
         }
     }
 
@@ -92,7 +105,9 @@ class CampusTelecomCallManager(
         scope.launch {
             try {
                 activeCallScope?.setActive()
-            } catch (_: Exception) {}
+            } catch (t: Throwable) {
+                Log.e(TAG, "setActive failed", t)
+            }
         }
     }
 
@@ -110,8 +125,12 @@ class CampusTelecomCallManager(
                     ?: endpoints.find { it.type == CallEndpointCompat.TYPE_STREAMING }
                 if (targetEndpoint != null) {
                     callScope.requestEndpointChange(targetEndpoint)
+                } else {
+                    Log.w(TAG, "No endpoint for speaker=$isSpeakerOn (available=${endpoints.size})")
                 }
-            } catch (_: Exception) {}
+            } catch (t: Throwable) {
+                Log.e(TAG, "setSpeakerOn failed", t)
+            }
         }
     }
 
@@ -125,8 +144,14 @@ class CampusTelecomCallManager(
             scope.launch {
                 try {
                     callScope.disconnect(DisconnectCause(DisconnectCause.LOCAL))
-                } catch (_: Exception) {}
+                } catch (t: Throwable) {
+                    Log.e(TAG, "disconnect failed", t)
+                }
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "CampusTelecomCall"
     }
 }

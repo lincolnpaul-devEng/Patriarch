@@ -53,7 +53,7 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         ServerInviteEntity::class,
         StudentProfileEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class CampusDatabase : RoomDatabase() {

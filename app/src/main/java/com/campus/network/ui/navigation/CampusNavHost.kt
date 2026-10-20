@@ -24,6 +24,7 @@ import com.campus.network.core.data.CampusHubRepository
 import com.campus.network.core.data.FlashMeetRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.database.CampusDatabase
+import com.campus.network.core.model.stableUserId
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.feature.channels.ChannelsScreen
 import com.campus.network.feature.channels.ChannelsViewModel
@@ -205,33 +206,18 @@ fun CampusNavHost(
                             return@launch
                         }
 
-                        // Validate that the user ACTUALLY still exists in the Supabase database!
-                        val userExistsResult = studentProfileRepository.validateUserExistsInDatabase(email)
-                        val exists = userExistsResult.getOrNull()
+                        // Sync latest profile state from Supabase
+                        studentProfileRepository.syncProfileWithRemote(email)
 
-                        if (exists == false) {
-                            // User was deleted from the remote database! Purge local session
-                            authClient.signOut()
-                            studentProfileRepository.signOut()
-                            serverRepository.clearLocalCache()
-                            resolvedChannelsViewModel.clearSession()
-                            android.widget.Toast.makeText(
-                                context,
-                                "Your account was not found in the campus database. Please sign in again.",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                            navController.navigate(Screen.Auth.route) {
-                                popUpTo(Screen.Splash.route) { inclusive = true }
-                            }
-                            return@launch
+                        runCatching {
+                            serverRepository.syncRemoteServers()
+                            val sId = localProfile?.studentId?.ifBlank { email }.orEmpty()
+                            serverRepository.syncRemoteMemberships(sId, email)
+                            resolvedChannelsViewModel.refreshServers()
                         }
 
-                        // If user exists, sync latest profile state
-                        val isSurveyDone = if (exists == true) {
-                            studentProfileRepository.syncProfileWithRemote(email)
-                        } else {
-                            authClient.isSurveyCompleted(email) || (localProfile?.onboardingPreferences?.hasCompletedSurvey == true)
-                        }
+                        val isSurveyDone = authClient.isSurveyCompleted(email) ||
+                            (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
 
                         val targetRoute = if (isSurveyDone) {
                             Screen.Hub.route
@@ -289,6 +275,12 @@ fun CampusNavHost(
                         )
                         studentProfileRepository.syncProfileWithRemote(email)
                         studentProfileRepository.setAvatarFallbackIfMissing(avatarUrl)
+                        runCatching {
+                            serverRepository.syncRemoteServers()
+                            val sId = studentProfileRepository.getProfileSync()?.studentId?.ifBlank { email }.orEmpty()
+                            serverRepository.syncRemoteMemberships(sId, email)
+                            resolvedChannelsViewModel.refreshServers()
+                        }
 
                         val isSurveyDone = authClient.isSurveyCompleted(email) ||
                             (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
@@ -463,26 +455,37 @@ fun CampusNavHost(
         composable(route = Screen.Hub.route) {
             HubScreen(
                 viewModel = hubViewModel,
-                onNavigateToChat = { sellerName ->
-                    val cleanId = sellerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
+                onNavigateToChat = { peerId, peerName ->
+                    val resolvedPeerId = peerId.trim().ifBlank {
+                        peerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
+                    }
                     resolvedMessagesViewModel.onEvent(
                         com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
-                            peerId = "seller_$cleanId",
-                            peerName = sellerName,
-                            peerHandle = "@$cleanId",
+                            peerId = resolvedPeerId,
+                            peerName = peerName,
+                            peerHandle = "@${resolvedPeerId.lowercase().replace(Regex("[^a-z0-9_]"), "")}",
                             serverName = "Campus Market",
                             serverTag = "MARKET"
                         )
                     )
                     navController.navigate(Screen.Messages.route)
                 },
-                onMessageSeller = { sellerName, initialOrderMessage ->
-                    val cleanId = sellerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
+                onMessageSeller = { sellerId, sellerName, initialOrderMessage ->
+                    val myId = resolvedMessagesViewModel.uiState.value.studentProfile
+                        ?.stableUserId()
+                        .orEmpty()
+                    val peerId = sellerId.trim()
+                    val channelPeerId = when {
+                        peerId.isNotBlank() && myId.isNotBlank() ->
+                            com.campus.network.core.model.directMessageChannelId(myId, peerId)
+                        peerId.isNotBlank() -> peerId
+                        else -> sellerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
+                    }
                     resolvedMessagesViewModel.onEvent(
                         com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
-                            peerId = "seller_$cleanId",
+                            peerId = channelPeerId,
                             peerName = sellerName,
-                            peerHandle = "@$cleanId",
+                            peerHandle = "@${peerId.ifBlank { sellerName }.lowercase().replace(Regex("[^a-z0-9]"), "")}",
                             serverName = "Campus Market",
                             serverTag = "SAFETRADE"
                         )

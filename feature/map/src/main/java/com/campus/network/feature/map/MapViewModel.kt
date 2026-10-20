@@ -148,6 +148,9 @@ class MapViewModel(
                 _currentProfile.value = profile
             }
         }
+        viewModelScope.launch {
+            flashMeetRepository.syncRemoteFlashMeets()
+        }
     }
 
     val uiState: StateFlow<MapUiState> = combine(
@@ -360,6 +363,19 @@ class MapViewModel(
                 viewModelScope.launch {
                     val updatedEvents = listOf(event.event) + _events.value
                     _events.value = updatedEvents
+
+                    // Persist campus event to remote Supabase database
+                    flashMeetRepository.createCampusEvent(
+                        id = event.event.id,
+                        title = event.event.title,
+                        description = event.event.description,
+                        locationName = event.event.locationName,
+                        latitude = event.event.latitude,
+                        longitude = event.event.longitude,
+                        startTimeIso = java.time.Instant.now().toString(),
+                        category = event.event.category,
+                        attendeeCount = event.event.guestCount
+                    )
 
                     if (event.alsoPublishAsFlashMeet) {
                         flashMeetRepository.createFlashMeet(

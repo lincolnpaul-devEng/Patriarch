@@ -82,31 +82,7 @@ class SupabaseGoogleAuthClient(
                 saveSession(body, sessionUser)
                 sessionUser
             } else {
-                // If Supabase project hasn't enabled Google provider or client ID mismatch on server,
-                // still honor the verified Google account from Google Play Services if available
-                if (!fallbackEmail.isNullOrBlank()) {
-                    val localGoogleUser = AuthenticatedSessionUser(
-                        userId = java.util.UUID.nameUUIDFromBytes("google:${fallbackEmail.trim().lowercase()}".toByteArray(Charsets.UTF_8)).toString(),
-                        email = fallbackEmail.trim().lowercase(),
-                        fullName = fallbackName,
-                        avatarUrl = fallbackAvatarUrl,
-                        accessToken = idToken,
-                        refreshToken = null
-                    )
-                    saveSession(
-                        rawJson = JSONObject().apply {
-                            put("access_token", idToken)
-                            put("user_id", localGoogleUser.userId)
-                            put("email", localGoogleUser.email)
-                            put("full_name", fallbackName ?: "")
-                            put("avatar_url", fallbackAvatarUrl ?: "")
-                        }.toString(),
-                        user = localGoogleUser
-                    )
-                    localGoogleUser
-                } else {
-                    throw IllegalStateException(extractSupabaseError(body))
-                }
+                throw IllegalStateException(extractSupabaseError(body))
             }
         }
     }
@@ -122,29 +98,30 @@ class SupabaseGoogleAuthClient(
     ): Result<AuthenticatedSessionUser> = withContext(ioDispatcher) {
         runCatching {
             val cleanEmail = email.trim().lowercase()
-            val validUuid = if (googleId != null && runCatching { java.util.UUID.fromString(googleId) }.isSuccess) {
-                googleId
-            } else {
-                java.util.UUID.nameUUIDFromBytes("google:$cleanEmail".toByteArray(Charsets.UTF_8)).toString()
-            }
-            val sessionUser = AuthenticatedSessionUser(
-                userId = validUuid,
+            val userId = "usr_g_${googleId ?: cleanEmail.hashCode().toString().replace("-", "")}"
+            val user = AuthenticatedSessionUser(
+                userId = userId,
                 email = cleanEmail,
-                fullName = fullName?.trim(),
-                avatarUrl = avatarUrl?.trim(),
-                accessToken = "google_session_${System.currentTimeMillis()}",
-                refreshToken = null
+                fullName = fullName?.trim()?.takeIf { it.isNotBlank() } ?: cleanEmail.substringBefore("@"),
+                avatarUrl = avatarUrl,
+                accessToken = "local_g_token_$userId",
+                refreshToken = "local_g_refresh_$userId",
+                requiresEmailConfirmation = false
             )
-            saveSession(
-                rawJson = JSONObject().apply {
-                    put("user_id", sessionUser.userId)
-                    put("email", sessionUser.email)
-                    put("full_name", sessionUser.fullName ?: "")
-                    put("avatar_url", sessionUser.avatarUrl ?: "")
-                }.toString(),
-                user = sessionUser
-            )
-            sessionUser
+            val json = JSONObject().apply {
+                put("access_token", user.accessToken)
+                put("refresh_token", user.refreshToken)
+                put("user", JSONObject().apply {
+                    put("id", user.userId)
+                    put("email", user.email)
+                    put("user_metadata", JSONObject().apply {
+                        put("full_name", user.fullName)
+                        put("avatar_url", user.avatarUrl)
+                    })
+                })
+            }
+            saveSession(json.toString(), user)
+            user
         }
     }
 
@@ -209,6 +186,12 @@ class SupabaseGoogleAuthClient(
             val body = response.bodyAsText()
             if (!response.status.isSuccess()) {
                 throw IllegalStateException(extractSupabaseError(body))
+            }
+            val responseJson = JSONObject(body)
+            val userJson = responseJson.optJSONObject("user") ?: responseJson
+            val identities = userJson.optJSONArray("identities")
+            if (identities != null && identities.length() == 0) {
+                throw IllegalStateException("User already registered")
             }
             val sessionUser = parseAuthResponse(
                 body = body,
@@ -398,7 +381,7 @@ class SupabaseGoogleAuthClient(
                 val jsonArray = org.json.JSONArray(body)
                 jsonArray.length() > 0
             } else {
-                false
+                throw IllegalStateException(extractSupabaseError(response.bodyAsText()))
             }
         }
     }
@@ -430,23 +413,20 @@ class SupabaseGoogleAuthClient(
                 header("Authorization", "Bearer $anonKey")
                 header("Accept", "application/json")
             }
-            val existingProfiles = if (checkRes.status.isSuccess()) {
-                org.json.JSONArray(checkRes.bodyAsText().trim())
-            } else org.json.JSONArray()
+            val checkBody = checkRes.bodyAsText()
+            check(checkRes.status.isSuccess()) {
+                "Unable to check whether this email is already registered: ${extractSupabaseError(checkBody)}"
+            }
+            val existingProfiles = org.json.JSONArray(checkBody.trim())
 
             if (existingProfiles.length() > 0) {
-                val patchPayload = JSONObject().apply {
-                    if (cleanName.isNotBlank() && !cleanName.equals("Student", ignoreCase = true)) put("full_name", cleanName)
-                    if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
-                    if (validUuid != null) put("user_id", validUuid)
+                val existingUserId = existingProfiles.getJSONObject(0)
+                    .optString("user_id")
+                    .takeIf { it.isNotBlank() }
+                check(validUuid != null && existingUserId == validUuid) {
+                    "An account with this email already exists. Sign in using its original method."
                 }
-                val updateRes = client.patch("$supabaseUrl/rest/v1/campusprofile?university_email=ilike.$encodedEmail") {
-                    header("apikey", anonKey)
-                    header("Authorization", "Bearer $anonKey")
-                    contentType(ContentType.Application.Json)
-                    setBody(patchPayload.toString())
-                }
-                updateRes.bodyAsText()
+                checkBody
             } else {
                 val payload = JSONObject().apply {
                     if (validUuid != null) put("user_id", validUuid)
@@ -462,7 +442,11 @@ class SupabaseGoogleAuthClient(
                     contentType(ContentType.Application.Json)
                     setBody(payload.toString())
                 }
-                response.bodyAsText()
+                val responseBody = response.bodyAsText()
+                check(response.status.isSuccess()) {
+                    "Unable to create profile: ${extractSupabaseError(responseBody)}"
+                }
+                responseBody
             }
         }
     }

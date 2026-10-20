@@ -193,7 +193,7 @@ class StudentProfileRepository(
             }
 
             if (!updated) {
-                val insertResult = client.insertRecord("campusprofile", payload)
+                val insertResult = client.upsertRecord("campusprofile", payload, onConflict = "university_email")
                 if (insertResult.isSuccess) {
                     updated = true
                 } else if (remoteError == null) {
@@ -267,9 +267,14 @@ class StudentProfileRepository(
                     profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
                     return@runCatching updated.onboardingPreferences.hasCompletedSurvey
                 } else {
-                    // Empty array returned from Supabase means user was deleted from the database!
-                    signOut()
-                    return@runCatching false
+                    // Profile does not yet exist remotely, upload current profile if email is valid
+                    val current = _studentProfile.value
+                    if (current.universityEmail.isNotBlank()) {
+                        runCatching {
+                            persistToDatabase(current)
+                        }
+                    }
+                    return@runCatching current.onboardingPreferences.hasCompletedSurvey
                 }
             }
             false
@@ -278,25 +283,21 @@ class StudentProfileRepository(
 
     /**
      * Verifies against Supabase whether a user record exists in the remote database.
-     * If user does not exist in the database, automatically signs out and purges local cache.
      */
     suspend fun validateUserExistsInDatabase(email: String): Result<Boolean> = withContext(ioDispatcher) {
         runCatching {
             val cleanEmail = email.trim()
             if (cleanEmail.isBlank()) {
-                signOut()
                 return@runCatching false
             }
             val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
             val client = supabaseClient ?: return@runCatching true
-            val queryResult = client.queryTable("campusprofile?university_email=ilike.$encodedEmail&select=id,university_email").getOrThrow()
-            val jsonArray = org.json.JSONArray(queryResult.trim())
-            val exists = jsonArray.length() > 0
-            if (!exists) {
-                // User has been deleted from Supabase! Purge local session and database cache
-                signOut()
+            val queryResult = client.queryTable("campusprofile?university_email=ilike.$encodedEmail&select=id,university_email").getOrNull()
+            if (queryResult.isNullOrBlank()) {
+                return@runCatching true
             }
-            exists
+            val jsonArray = org.json.JSONArray(queryResult.trim())
+            jsonArray.length() > 0
         }
     }
 
@@ -517,24 +518,24 @@ class StudentProfileRepository(
         note: String,
         emoji: String,
         expiry: String
-    ) = withContext(ioDispatcher) {
+    ): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        _studentProfile.value = current.copy(
+        val updated = current.copy(
             statusNote = note.trim(),
             statusNoteEmoji = emoji.ifBlank { "Focus" },
             statusNoteExpiry = expiry
         )
-        persistToDatabase(_studentProfile.value)
+        persistToDatabase(updated)
     }
 
-    suspend fun clearStatusNote() = withContext(ioDispatcher) {
+    suspend fun clearStatusNote(): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        _studentProfile.value = current.copy(
+        val updated = current.copy(
             statusNote = null,
             statusNoteEmoji = null,
             statusNoteExpiry = null
         )
-        persistToDatabase(_studentProfile.value)
+        persistToDatabase(updated)
     }
 
     suspend fun updateCampusMeritPoints(points: Int) = withContext(ioDispatcher) {
@@ -583,28 +584,28 @@ class StudentProfileRepository(
         notificationsEnabled: Boolean,
         escrowAlertsEnabled: Boolean,
         questRemindersEnabled: Boolean
-    ) = withContext(ioDispatcher) {
+    ): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        _studentProfile.value = current.copy(
+        val updated = current.copy(
             notificationsEnabled = notificationsEnabled,
             escrowAlertsEnabled = escrowAlertsEnabled,
             questRemindersEnabled = questRemindersEnabled
         )
-        persistToDatabase(_studentProfile.value)
+        persistToDatabase(updated)
     }
 
     suspend fun updatePrivacySettings(
         isTrustScorePublic: Boolean,
         isOnlineStatusVisible: Boolean,
         activityLedgerVisibility: String
-    ) = withContext(ioDispatcher) {
+    ): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        _studentProfile.value = current.copy(
+        val updated = current.copy(
             isTrustScorePublic = isTrustScorePublic,
             isOnlineStatusVisible = isOnlineStatusVisible,
             activityLedgerVisibility = activityLedgerVisibility
         )
-        persistToDatabase(_studentProfile.value)
+        persistToDatabase(updated)
     }
 
     suspend fun clearCache(): Long = withContext(ioDispatcher) {

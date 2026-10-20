@@ -109,11 +109,12 @@ fun DiscoverServersPanel(
     joinedServerIds: Set<String> = emptySet(),
     loadingPreviewServerName: String? = null,
     currentUserId: String = "",
+    currentUserEmail: String = "",
     onSelectServer: (serverId: String) -> Unit = {},
     onCreateServerSubmit: (name: String, category: String) -> Unit,
     onJoinInviteSubmit: (inviteCode: String) -> Unit,
     onPreviewCommunitySubmit: (serverName: String) -> Unit,
-    onCreateServerFullSubmit: ((name: String, category: String, description: String, avatarResName: String, bannerResName: String?) -> Unit)? = null,
+    onCreateServerFullSubmit: ((name: String, category: String, description: String, avatarResName: String, bannerResName: String?, onResult: (Result<Unit>) -> Unit) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var activeSheetMode by remember { mutableStateOf<ServerSheetMode?>(null) }
@@ -277,7 +278,9 @@ fun DiscoverServersPanel(
 
         if (discoverableServers.isNotEmpty()) {
             discoverableServers.forEach { server ->
-                val isJoinedOrOwned = joinedServerIds.contains(server.id) || (currentUserId.isNotBlank() && server.ownerId == currentUserId)
+                val isJoinedOrOwned = joinedServerIds.contains(server.id) ||
+                    (currentUserId.isNotBlank() && server.ownerId.equals(currentUserId, ignoreCase = true)) ||
+                    (currentUserEmail.isNotBlank() && server.ownerId.equals(currentUserEmail, ignoreCase = true))
                 val isPreviewLoading = loadingPreviewServerName == server.name || loadingPreviewServerName == server.id
                 ServerFeaturedCard(
                     server = server,
@@ -346,12 +349,18 @@ fun DiscoverServersPanel(
                 activeSheetMode = null
                 onJoinInviteSubmit(inviteCode)
             },
-            onCreateServerFull = { name, category, desc, avatar, banner ->
-                activeSheetMode = null
+            onCreateServerFull = { name, category, desc, avatar, banner, onResult ->
                 if (onCreateServerFullSubmit != null) {
-                    onCreateServerFullSubmit(name, category, desc, avatar, banner)
+                    onCreateServerFullSubmit(name, category, desc, avatar, banner) { result ->
+                        if (result.isSuccess) {
+                            activeSheetMode = null
+                        }
+                        onResult(result)
+                    }
                 } else {
+                    activeSheetMode = null
                     onCreateServerSubmit(name, category)
+                    onResult(Result.success(Unit))
                 }
             }
         )

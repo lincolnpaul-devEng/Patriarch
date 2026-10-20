@@ -156,6 +156,7 @@ import com.campus.network.core.ui.components.ShimmerAsyncImage
 import com.campus.network.core.ui.components.StreamCogLoaderOverlay
 import com.campus.network.core.ui.components.rememberCampusNetworkState
 import com.campus.network.feature.hub.components.BasketEscrowCheckoutSheet
+import com.campus.network.core.model.stableUserId
 import com.campus.network.feature.hub.components.MarketProductDetailsFullScreen
 import com.campus.network.feature.hub.components.PostProductDrawerSheet
 import com.campus.network.feature.hub.components.ProductBasketConfig
@@ -174,8 +175,8 @@ private val DarkCardTextPrimary = Color(0xFF0F172A)
 @Composable
 fun HubScreen(
     viewModel: HubViewModel,
-    onNavigateToChat: (String) -> Unit = {},
-    onMessageSeller: ((sellerName: String, initialOrderMessage: String?) -> Unit)? = null,
+    onNavigateToChat: (peerId: String, peerName: String) -> Unit = { _, _ -> },
+    onMessageSeller: ((sellerId: String, sellerName: String, initialOrderMessage: String?) -> Unit)? = null,
     onNavigateToLiveFeed: (String) -> Unit = {},
     onNavigateToGoLive: () -> Unit = {},
     onNavigateToMap: ((Double, Double, String) -> Unit)? = null,
@@ -328,7 +329,7 @@ fun HubScreen(
                         }
                     },
                     onChatClick = {
-                        onNavigateToChat("general")
+                        onNavigateToChat("general", "Campus Chat")
                     },
                     onNotificationClick = {
                         onNavigateToNotifications()
@@ -405,7 +406,7 @@ fun HubScreen(
                             description = "We are currently unable to reach live campus search servers while your device is offline. Please check your connection or message support.",
                             actionLabel = "Message us 24/7",
                             onActionClick = { networkState.triggerRetry() },
-                            onSecondarySupportClick = { onNavigateToChat("Campus Support") }
+                            onSecondarySupportClick = { onNavigateToChat("campus_support", "Campus Support") }
                         )
                     }
                 }
@@ -646,6 +647,7 @@ fun HubScreen(
                 item = detailItem,
                 isSaved = savedListingIds.contains(savedKey),
                 basketConfig = currentBasketConfig,
+                currentUserId = uiState.studentProfile?.stableUserId().orEmpty(),
                 currentUserName = uiState.studentProfile?.fullName ?: "",
                 onSecurityNotice = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
                 onToggleSave = {
@@ -678,13 +680,13 @@ fun HubScreen(
                 onOpenQrScanner = {
                     selectedItemForEscrowVerification = detailItem
                 },
-                onMessageSeller = { sellerName, initialOrderMessage ->
+                onMessageSeller = { sellerId, sellerName, initialOrderMessage ->
                     isCheckoutSheetOpen = false
                     isOptionsSheetOpen = false
                     if (onMessageSeller != null) {
-                        onMessageSeller(sellerName, initialOrderMessage)
+                        onMessageSeller(sellerId, sellerName, initialOrderMessage)
                     } else {
-                        onNavigateToChat(sellerName)
+                        onNavigateToChat(sellerId.ifBlank { sellerName }, sellerName)
                     }
                 },
                 onOpenMapLocation = { lat, lng, name ->
@@ -719,20 +721,27 @@ fun HubScreen(
             config = activeCheckoutConfig,
             isOpen = isCheckoutSheetOpen && activeCheckoutConfig != null,
             onDismiss = { isCheckoutSheetOpen = false },
-            onConfirmEscrowPurchase = { confirmedConfig ->
-                basketConfigsByItemId = basketConfigsByItemId + (confirmedConfig.item.id to confirmedConfig)
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        "Order ${confirmedConfig.orderReference} locked in SafeTrade Escrow! Message ${confirmedConfig.item.sellerName} or scan QR at pickup."
-                    )
+            paymentProviderReady = uiState.isPaymentProviderReady,
+            paymentProviderName = uiState.paymentProviderName,
+            paymentMethods = uiState.paymentMethods,
+            onConfirmEscrowPurchase = { basket, paymentMethodId, buyerPhone ->
+                when (val result = viewModel.lockEscrowFunds(basket, paymentMethodId, buyerPhone)) {
+                    is com.campus.network.core.model.PaymentResult.Failure -> result
+                    is com.campus.network.core.model.PaymentResult.Success -> {
+                        basketConfigsByItemId = basketConfigsByItemId + (result.value.item.id to result.value)
+                        snackbarHostState.showSnackbar(
+                            "Order ${result.value.orderReference} locked via ${uiState.paymentProviderName}. Message seller or scan QR at pickup."
+                        )
+                        result
+                    }
                 }
             },
-            onMessageSeller = { sellerName, initialOrderMessage ->
+            onMessageSeller = { sellerId, sellerName, initialOrderMessage ->
                 isCheckoutSheetOpen = false
                 if (onMessageSeller != null) {
-                    onMessageSeller(sellerName, initialOrderMessage)
+                    onMessageSeller(sellerId, sellerName, initialOrderMessage)
                 } else {
-                    onNavigateToChat(sellerName)
+                    onNavigateToChat(sellerId.ifBlank { sellerName }, sellerName)
                 }
             },
             onOpenQrScanner = {
@@ -802,8 +811,20 @@ fun HubScreen(
             onEscrowReleased = { releasedItem ->
                 scope.launch {
                     snackbarHostState.showSnackbar(
-                        "Trade completed! Escrow funds of KES ${"%,.0f".format(releasedItem.price)} transferred to ${releasedItem.sellerName}."
+                        "Trade completed! Escrow payout requested for ${releasedItem.currency} ${"%,.0f".format(releasedItem.price)} to ${releasedItem.sellerName}."
                     )
+                }
+            },
+            onVerifyReleaseCode = { itemId, scannedCode ->
+                viewModel.verifyReleaseCode(itemId, scannedCode)
+            },
+            onReleaseEscrowFunds = { itemId ->
+                when (val result = viewModel.releaseEscrowFunds(itemId, releaseCodeVerified = true)) {
+                    is com.campus.network.core.model.PaymentResult.Success -> true
+                    is com.campus.network.core.model.PaymentResult.Failure -> {
+                        snackbarHostState.showSnackbar(result.message)
+                        false
+                    }
                 }
             }
         )

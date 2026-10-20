@@ -29,6 +29,17 @@ android {
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${secretsProperties.getProperty("CLOUDINARY_UPLOAD_PRESET", "")}\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID_ANDROID", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_ANDROID", "")}\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID_WEB", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_WEB", "")}\"")
+
+        // Pluggable SafeTrade escrow payment socket (leave blank until a free/prod API is connected)
+        buildConfigField("String", "PAYMENT_API_BASE_URL", "\"${secretsProperties.getProperty("PAYMENT_API_BASE_URL", "")}\"")
+        buildConfigField("String", "PAYMENT_API_KEY", "\"${secretsProperties.getProperty("PAYMENT_API_KEY", "")}\"")
+        buildConfigField("String", "PAYMENT_API_SECRET", "\"${secretsProperties.getProperty("PAYMENT_API_SECRET", "")}\"")
+        buildConfigField("String", "PAYMENT_PROVIDER_ID", "\"${secretsProperties.getProperty("PAYMENT_PROVIDER_ID", "")}\"")
+        buildConfigField(
+            "String",
+            "PAYMENT_PROVIDER_DISPLAY_NAME",
+            "\"${secretsProperties.getProperty("PAYMENT_PROVIDER_DISPLAY_NAME", "Campus SafePay")}\""
+        )
     }
 
     compileOptions {
@@ -52,6 +63,9 @@ dependencies {
     // Stream Chat Client Engine
     api(libs.stream.chat.client)
 
+    // Stream Video / Audio (CallMediaProvider)
+    api(libs.stream.video.core)
+
     // Ktor WebSockets Engine
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
@@ -60,4 +74,8 @@ dependencies {
     // Concurrency
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20231013")
+    testImplementation(libs.kotlinx.coroutines.core)
 }

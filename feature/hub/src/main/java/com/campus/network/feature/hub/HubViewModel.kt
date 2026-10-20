@@ -3,20 +3,27 @@ package com.campus.network.feature.hub
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.campus.network.core.data.CampusHubRepository
+import com.campus.network.core.data.SafeTradeEscrowService
+import com.campus.network.core.data.StudentProfileRepository
+import com.campus.network.core.model.EscrowOrder
+import com.campus.network.core.model.EscrowOrderStatus
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import com.campus.network.core.model.PaymentMethodOption
+import com.campus.network.core.model.PaymentResult
+import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.stableUserId
+import com.campus.network.feature.hub.components.ProductBasketConfig
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-import com.campus.network.core.data.StudentProfileRepository
-import com.campus.network.core.model.StudentProfile
 
 enum class HubViewMode {
     MARKETPLACE_GRID,
@@ -32,7 +39,10 @@ data class HubUiState(
     val searchQuery: String = "",
     val aiSuggestions: List<String> = emptyList(),
     val isAiLoading: Boolean = false,
-    val studentProfile: StudentProfile? = null
+    val studentProfile: StudentProfile? = null,
+    val isPaymentProviderReady: Boolean = false,
+    val paymentProviderName: String = "Payment provider not connected",
+    val paymentMethods: List<PaymentMethodOption> = emptyList()
 )
 
 sealed interface HubEvent {
@@ -56,9 +66,10 @@ sealed interface HubEvent {
         val pickupTiming: String = "Immediate (within 1 hr)",
         val payoutMethod: String = "Campus SafePay Escrow",
         val requiresQrReleaseCode: Boolean = true,
-        val qrReleaseCode: String = "CP-849201",
+        val qrReleaseCode: String = "",
         val imageUrl: String? = null,
-        val imageUrls: List<String> = emptyList()
+        val imageUrls: List<String> = emptyList(),
+        val itemId: String = "item_${java.util.UUID.randomUUID()}"
     ) : HubEvent
     data class PostGig(
         val title: String,
@@ -72,7 +83,8 @@ sealed interface HubEvent {
 
 class HubViewModel(
     private val repository: CampusHubRepository,
-    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository()
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository(),
+    private val escrowService: SafeTradeEscrowService = SafeTradeEscrowService()
 ) : ViewModel() {
 
     private val _viewMode = MutableStateFlow(HubViewMode.MARKETPLACE_GRID)
@@ -83,6 +95,23 @@ class HubViewModel(
     private val _isAiLoading = MutableStateFlow(false)
 
     private var aiSearchJob: Job? = null
+
+    /** Active escrow orders keyed by market item id (in-session). */
+    private val escrowOrdersByItemId = mutableMapOf<String, EscrowOrder>()
+
+    init {
+        viewModelScope.launch {
+            val viewerId = studentProfileRepository.getProfile().first().stableUserId()
+            repository.syncRemoteMarketItems(currentUserId = viewerId.ifBlank { null })
+            repository.syncRemoteMicroGigs()
+        }
+    }
+
+    fun isPaymentProviderReady(): Boolean = escrowService.isPaymentReady()
+
+    fun paymentProviderName(): String = escrowService.providerDisplayName()
+
+    fun paymentMethods(): List<PaymentMethodOption> = escrowService.availablePaymentMethods()
 
     val uiState: StateFlow<HubUiState> = combine(
         _viewMode,
@@ -182,15 +211,89 @@ class HubViewModel(
                 filterCategory = base.category,
                 searchQuery = query,
                 aiSuggestions = suggestions,
-                aiLoading,
-                studentProfile = profile
+                isAiLoading = aiLoading,
+                studentProfile = profile,
+                isPaymentProviderReady = escrowService.isPaymentReady(),
+                paymentProviderName = escrowService.providerDisplayName(),
+                paymentMethods = escrowService.availablePaymentMethods()
             )
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = HubUiState()
+        initialValue = HubUiState(
+            isPaymentProviderReady = escrowService.isPaymentReady(),
+            paymentProviderName = escrowService.providerDisplayName(),
+            paymentMethods = escrowService.availablePaymentMethods()
+        )
     )
+
+    suspend fun verifyReleaseCode(itemId: String, scannedCode: String): Boolean {
+        return repository.verifyReleaseCode(itemId, scannedCode)
+    }
+
+    /**
+     * Locks buyer funds via the pluggable [SafeTradeEscrowService] payment socket.
+     * Returns failure when no provider is configured — never fakes a successful hold.
+     */
+    suspend fun lockEscrowFunds(
+        basket: ProductBasketConfig,
+        paymentMethodId: String,
+        buyerPhoneE164: String? = null
+    ): PaymentResult<ProductBasketConfig> {
+        val buyerId = uiState.value.studentProfile?.stableUserId().orEmpty()
+        val result = escrowService.lockFundsInEscrow(
+            SafeTradeEscrowService.LockEscrowParams(
+                item = basket.item,
+                buyerUserId = buyerId,
+                amount = basket.totalAmount,
+                currencyCode = basket.item.currency,
+                orderReference = basket.orderReference,
+                paymentMethodId = paymentMethodId,
+                buyerPhoneE164 = buyerPhoneE164,
+                handoverTitle = basket.handoverOptionTitle,
+                packageTitle = basket.packageOptionTitle,
+                buyerNote = basket.buyerNote,
+                quantity = basket.quantity
+            )
+        )
+        return when (result) {
+            is PaymentResult.Failure -> result
+            is PaymentResult.Success -> {
+                val order = result.value.order
+                escrowOrdersByItemId[basket.item.id] = order
+                val funded = order.status == EscrowOrderStatus.FUNDS_HELD ||
+                    order.status == EscrowOrderStatus.PENDING_PAYMENT
+                PaymentResult.Success(
+                    basket.copy(
+                        isOrderConfirmedInEscrow = funded && order.providerHoldId != null,
+                        escrowOrderId = order.id,
+                        providerHoldId = order.providerHoldId,
+                        paymentMethodId = paymentMethodId,
+                        escrowStatus = order.status.name
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Releases held funds to the seller after QR verification.
+     */
+    suspend fun releaseEscrowFunds(itemId: String, releaseCodeVerified: Boolean): PaymentResult<EscrowOrder> {
+        val order = escrowOrdersByItemId[itemId]
+            ?: return PaymentResult.Failure(
+                com.campus.network.core.model.PaymentErrorCode.INVALID_REQUEST,
+                "No active escrow order for this listing on this device"
+            )
+        return when (val released = escrowService.releaseFundsToSeller(order, releaseCodeVerified)) {
+            is PaymentResult.Failure -> released
+            is PaymentResult.Success -> {
+                escrowOrdersByItemId[itemId] = released.value
+                released
+            }
+        }
+    }
 
     fun onEvent(event: HubEvent) {
         when (event) {
@@ -213,12 +316,18 @@ class HubViewModel(
                 viewModelScope.launch {
                     val profile = uiState.value.studentProfile
                     val authorName = profile?.fullName?.ifBlank { "Student Peer" } ?: "Student Peer"
+                    val sellerUserId = profile?.stableUserId().orEmpty()
+                    if (sellerUserId.isBlank()) {
+                        // Refuse to publish without a stable identity — name-based ownership is unsafe.
+                        return@launch
+                    }
                     repository.postMarketItem(
                         title = event.title,
                         price = event.price,
                         category = event.category,
                         condition = event.condition,
                         sellerName = "$authorName (Verified Student)",
+                        sellerUserId = sellerUserId,
                         location = event.location,
                         description = event.description,
                         pickupSpotName = event.pickupSpotName,
@@ -230,7 +339,8 @@ class HubViewModel(
                         requiresQrReleaseCode = event.requiresQrReleaseCode,
                         qrReleaseCode = event.qrReleaseCode,
                         imageUrl = event.imageUrl,
-                        imageUrls = event.imageUrls
+                        imageUrls = event.imageUrls,
+                        itemId = event.itemId
                     )
                     _isPostDialogOpen.value = false
                 }

@@ -100,7 +100,10 @@ fun MessagesScreen(
                             initialActivateVoice = uiState.activateVoiceInChat,
                             onConsumeVoiceActivation = {
                                 viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
-                            }
+                            },
+                            otherThreadsUnreadCount = uiState.threads
+                                .filter { it.id != thread.id }
+                                .sumOf { it.unreadCount }
                         )
                     } else {
                         MessageThreadsScreen(
@@ -184,7 +187,10 @@ fun MessagesScreen(
                                 initialActivateVoice = uiState.activateVoiceInChat,
                                 onConsumeVoiceActivation = {
                                     viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
-                                }
+                                },
+                                otherThreadsUnreadCount = uiState.threads
+                                    .filter { it.id != thread.id }
+                                    .sumOf { it.unreadCount }
                             )
                         } else {
                             MessageThreadsScreen(
@@ -215,7 +221,10 @@ fun MessagesScreen(
                                 initialActivateVoice = uiState.activateVoiceInChat,
                                 onConsumeVoiceActivation = {
                                     viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
-                                }
+                                },
+                                otherThreadsUnreadCount = uiState.threads
+                                    .filter { it.id != thread.id }
+                                    .sumOf { it.unreadCount }
                             )
                         } else {
                             MessageThreadsScreen(

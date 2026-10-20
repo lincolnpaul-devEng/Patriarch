@@ -93,6 +93,8 @@ data class MarketItem(
     val category: String,
     val condition: String,
     val sellerName: String,
+    /** Stable seller identity (studentId / auth uid). Never use display name for ownership. */
+    val sellerUserId: String = "",
     val sellerRating: Float,
     val isCampusVerifiedSeller: Boolean,
     val campusHallLocation: String,
@@ -107,8 +109,28 @@ data class MarketItem(
     val pickupTiming: String = "Immediate (within 1 hr)",
     val payoutMethod: String = "Campus SafePay Escrow",
     val requiresQrReleaseCode: Boolean = true,
-    val qrReleaseCode: String = "CP-849201"
+    /** Seller-only secret. Empty for non-owners after sync/redaction. */
+    val qrReleaseCode: String = ""
 )
+
+/**
+ * Stable user identity for ownership, messaging, and authz.
+ * Prefer studentId; fall back to normalized university email. Never invent shared placeholders.
+ */
+fun StudentProfile.stableUserId(): String {
+    val sid = studentId.trim()
+    if (sid.isNotBlank()) return sid
+    return universityEmail.trim().lowercase()
+}
+
+/** Canonical 1:1 DM channel id that is identical for both participants. */
+fun directMessageChannelId(userA: String, userB: String): String {
+    val parts = listOf(userA.trim().lowercase(), userB.trim().lowercase())
+        .filter { it.isNotBlank() }
+        .sorted()
+    require(parts.size == 2) { "Both participants require a stable user id for DM channels" }
+    return "dm_${parts[0]}_${parts[1]}"
+}
 
 data class MicroGig(
     val id: String,

@@ -150,7 +150,6 @@ fun AuthScreen(
             val cleanEmail = rawEmail.trim().lowercase()
             val cleanName = displayName.trim().ifBlank { cleanEmail.substringBefore("@").replace(".", " ") }
 
-            // Federated Google sign-in: Authenticate with Supabase via ID token or Google profile
             val result = if (!idToken.isNullOrBlank()) {
                 authClient.signInWithGoogleIdToken(
                     idToken = idToken,
@@ -171,14 +170,6 @@ fun AuthScreen(
                 val finalEmail = sessionUser.email.ifBlank { cleanEmail }.lowercase()
                 val finalName = sessionUser.fullName ?: cleanName
                 val finalAvatar = sessionUser.avatarUrl ?: photoUrl
-
-                // Upsert into campusprofile database so this user is registered and linked
-                authClient.registerCampusProfile(
-                    userId = sessionUser.userId,
-                    email = finalEmail,
-                    fullName = finalName,
-                    avatarUrl = finalAvatar
-                )
 
                 isLoading = false
                 showAuthSheet = false
@@ -309,18 +300,20 @@ fun AuthScreen(
             result.onSuccess { user ->
                 val finalEmail = user.email.ifBlank { cleanEmail }.lowercase()
                 val finalName = user.fullName ?: cleanName
-                // Register into campusprofile table so email and google users appear in same table
-                authClient.registerCampusProfile(
-                    userId = user.userId,
-                    email = finalEmail,
-                    fullName = finalName,
-                    avatarUrl = user.avatarUrl
-                )
                 // Dispatch real 6-digit verification code to student email via Resend
-                authClient.sendOtp(
+                val otpResult = authClient.sendOtp(
                     email = finalEmail,
                     fullName = finalName
                 )
+                if (otpResult.isFailure) {
+                    isLoading = false
+                    showFeedback(
+                        SupabaseGoogleAuthClient.getFriendlyErrorMessage(otpResult.exceptionOrNull()),
+                        isError = true
+                    )
+                    return@onSuccess
+                }
+                isLoading = false
                 showAuthSheet = false
                 onNavigateToVerify(finalEmail, false)
             }.onFailure { err ->

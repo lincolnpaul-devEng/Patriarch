@@ -93,20 +93,25 @@ fun EditServerSettingsSheet(
     var selectedCategory by remember(server.categoryText) { mutableStateOf(server.categoryText.ifBlank { "Community" }) }
     var selectedAvatar by remember(server.iconResName) { mutableStateOf(server.iconResName.ifBlank { "server_codesistency" }) }
     var isUploadingAvatar by remember { mutableStateOf(false) }
+    var avatarUploadError by remember { mutableStateOf<String?>(null) }
 
     var selectedBanner by remember(server.bannerResName) { mutableStateOf(server.bannerResName ?: "banner_gradient_cyber") }
     var isUploadingBanner by remember { mutableStateOf(false) }
+    var bannerUploadError by remember { mutableStateOf<String?>(null) }
 
     val avatarPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
             isUploadingAvatar = true
+            avatarUploadError = null
             coroutineScope.launch {
                 val result = CloudinaryUploader().uploadFromUri(context, uri)
                 isUploadingAvatar = false
                 if (result.isSuccess) {
                     selectedAvatar = result.getOrThrow()
+                } else {
+                    avatarUploadError = "Avatar upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Network error"}"
                 }
             }
         }
@@ -117,11 +122,14 @@ fun EditServerSettingsSheet(
     ) { uri ->
         if (uri != null) {
             isUploadingBanner = true
+            bannerUploadError = null
             coroutineScope.launch {
                 val result = CloudinaryUploader().uploadFromUri(context, uri)
                 isUploadingBanner = false
                 if (result.isSuccess) {
                     selectedBanner = result.getOrThrow()
+                } else {
+                    bannerUploadError = "Banner upload failed: ${result.exceptionOrNull()?.localizedMessage ?: "Network error"}"
                 }
             }
         }
@@ -205,10 +213,10 @@ fun EditServerSettingsSheet(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
                     shape = RoundedCornerShape(8.dp),
-                    enabled = serverName.isNotBlank()
+                    enabled = serverName.isNotBlank() && !isUploadingAvatar && !isUploadingBanner
                 ) {
                     Text(
-                        text = "Save",
+                        text = if (isUploadingAvatar || isUploadingBanner) "Uploading..." else "Save",
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -295,6 +303,15 @@ fun EditServerSettingsSheet(
                         )
                     }
                 }
+            }
+
+            if (avatarUploadError != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = avatarUploadError!!,
+                    fontSize = 12.sp,
+                    color = Color(0xFFDC2626)
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -442,8 +459,6 @@ fun EditServerSettingsSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
             // Upload Custom Banner button
             Surface(
                 shape = RoundedCornerShape(10.dp),
@@ -480,6 +495,15 @@ fun EditServerSettingsSheet(
                         color = Color(0xFF1E1F22)
                     )
                 }
+            }
+
+            if (bannerUploadError != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = bannerUploadError!!,
+                    fontSize = 12.sp,
+                    color = Color(0xFFDC2626)
+                )
             }
 
             Spacer(modifier = Modifier.height(30.dp))

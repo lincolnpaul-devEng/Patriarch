@@ -35,7 +35,8 @@ enum class CampusPushType {
     FLASH_MEET,
     SAFEPAY_ORDER,
     LIVE_STREAM,
-    CAMPUS_UPDATE
+    CAMPUS_UPDATE,
+    FRIEND_REQUEST
 }
 
 data class CampusInlineReplyEvent(
@@ -51,11 +52,21 @@ data class CampusMarkReadEvent(
 
 sealed interface CampusNotificationDeepLink {
     data class OpenDirectChat(val threadId: String, val peerName: String) : CampusNotificationDeepLink
-    data class OpenIncomingCall(val peerId: String, val peerName: String, val isVideo: Boolean) : CampusNotificationDeepLink
+    data class OpenIncomingCall(
+        val peerId: String,
+        val peerName: String,
+        val isVideo: Boolean,
+        val callSessionId: String? = null
+    ) : CampusNotificationDeepLink
     data class OpenFlashMeetOnMap(val latitude: Double, val longitude: Double, val title: String) : CampusNotificationDeepLink
     data class OpenSafePayMarketplace(val itemId: String?, val orderRef: String?) : CampusNotificationDeepLink
     data class OpenLiveStream(val streamId: String?) : CampusNotificationDeepLink
     data class OpenGuildChannels(val channelId: String?) : CampusNotificationDeepLink
+    data class OpenFriendRequest(
+        val peerId: String,
+        val peerName: String,
+        val serverId: String? = null
+    ) : CampusNotificationDeepLink
 }
 
 data class QueuedNotificationBubble(
@@ -97,6 +108,7 @@ object CampusSystemNotificationCenter {
     const val EXTRA_PEER_NAME = "extra_peer_name"
     const val EXTRA_PEER_HANDLE = "extra_peer_handle"
     const val EXTRA_IS_VIDEO_CALL = "extra_is_video_call"
+    const val EXTRA_CALL_SESSION_ID = "extra_call_session_id"
     const val EXTRA_LATITUDE = "extra_latitude"
     const val EXTRA_LONGITUDE = "extra_longitude"
     const val EXTRA_MEET_TITLE = "extra_meet_title"
@@ -104,6 +116,8 @@ object CampusSystemNotificationCenter {
     const val EXTRA_ITEM_ID = "extra_item_id"
     const val EXTRA_STREAM_ID = "extra_stream_id"
     const val EXTRA_CHANNEL_ID = "extra_channel_id"
+    const val EXTRA_SERVER_ID = "extra_server_id"
+    const val EXTRA_PEER_USER_ID = "extra_peer_user_id"
 
     private const val GROUP_KEY_MESSAGES = "com.campus.network.GROUP_DIRECT_MESSAGES"
     private const val MESSAGE_GROUP_SUMMARY_ID = 1000
@@ -111,6 +125,7 @@ object CampusSystemNotificationCenter {
     private const val PREFS_NAME = "campus_notification_prefs"
     private const val KEY_PUSH_ENABLED = "push_notifications_enabled"
     private const val KEY_FCM_TOKEN = "fcm_registration_token"
+    private const val KEY_ACTIVE_USER_ID = "active_user_id_for_inbox"
 
     /**
      * Tracks the threadId of the Direct Chat currently open and visible on screen.
@@ -229,6 +244,19 @@ object CampusSystemNotificationCenter {
     fun getFcmToken(context: Context): String? {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_FCM_TOKEN, null)
+    }
+
+    fun setActiveUserId(context: Context, userId: String?) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_ACTIVE_USER_ID, userId?.trim().orEmpty())
+            .apply()
+    }
+
+    fun getActiveUserId(context: Context): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_ACTIVE_USER_ID, null)
+            ?.takeIf { it.isNotBlank() }
     }
 
     fun consumePendingInlineReplies(threadId: String): List<CampusInlineReplyEvent> {
@@ -533,7 +561,8 @@ object CampusSystemNotificationCenter {
         peerId: String,
         callerName: String,
         callerRoleOrHandle: String,
-        isVideoCall: Boolean
+        isVideoCall: Boolean,
+        callSessionId: String? = null
     ) {
         if (!canPostNotifications(context)) return
         ensureChannelsCreated(context)
@@ -548,12 +577,13 @@ object CampusSystemNotificationCenter {
             .setImportant(true)
             .build()
 
-        // Answer Intent -> Opens MainActivity in Active Call Mode
+        // Answer Intent -> Opens MainActivity in Incoming Call Mode (Accept/Decline — not outgoing dial)
         val answerIntent = createMainActivityIntent(context).apply {
             putExtra(EXTRA_PUSH_TYPE, CampusPushType.INCOMING_CALL.name)
             putExtra(EXTRA_THREAD_ID, peerId)
             putExtra(EXTRA_PEER_NAME, callerName)
             putExtra(EXTRA_IS_VIDEO_CALL, isVideoCall)
+            if (!callSessionId.isNullOrBlank()) putExtra(EXTRA_CALL_SESSION_ID, callSessionId)
         }
         val answerPendingIntent = PendingIntent.getActivity(
             context,
@@ -870,6 +900,52 @@ object CampusSystemNotificationCenter {
         notifySafely(context, notificationId, builder.build())
     }
 
+    /**
+     * Friend request from a server member — opens Messages so the user can Accept / DM.
+     */
+    fun showFriendRequestNotification(
+        context: Context,
+        peerUserId: String,
+        peerName: String,
+        serverId: String? = null,
+        body: String? = null
+    ) {
+        if (!canPostNotifications(context)) return
+        ensureChannelsCreated(context)
+
+        val notificationId = 7100 + (peerUserId.hashCode().let { if (it < 0) -it else it } % 800)
+        val avatar = createCircularAvatarBitmap(peerName, 0xFF22C55E.toInt())
+        val openIntent = createMainActivityIntent(context).apply {
+            putExtra(EXTRA_PUSH_TYPE, CampusPushType.FRIEND_REQUEST.name)
+            putExtra(EXTRA_PEER_USER_ID, peerUserId)
+            putExtra(EXTRA_PEER_NAME, peerName)
+            if (!serverId.isNullOrBlank()) putExtra(EXTRA_SERVER_ID, serverId)
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_CAMPUS_UPDATES)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setLargeIcon(avatar)
+            .setColor(0xFF22C55E.toInt())
+            .setContentTitle("Friend request")
+            .setContentText(body ?: "$peerName sent you a friend request")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(body ?: "$peerName wants to connect on Campus")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setContentIntent(contentPendingIntent)
+            .setAutoCancel(true)
+
+        notifySafely(context, notificationId, builder.build())
+    }
+
     fun emitDeepLinkFromIntent(intent: Intent?) {
         val typeStr = intent?.getStringExtra(EXTRA_PUSH_TYPE) ?: return
         val type = runCatching { CampusPushType.valueOf(typeStr) }.getOrNull() ?: return
@@ -884,7 +960,13 @@ object CampusSystemNotificationCenter {
                 val peerId = intent.getStringExtra(EXTRA_THREAD_ID) ?: "thread_faith"
                 val peerName = intent.getStringExtra(EXTRA_PEER_NAME) ?: "Faith Wangari"
                 val isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO_CALL, true)
-                CampusNotificationDeepLink.OpenIncomingCall(peerId = peerId, peerName = peerName, isVideo = isVideo)
+                val sessionId = intent.getStringExtra(EXTRA_CALL_SESSION_ID)
+                CampusNotificationDeepLink.OpenIncomingCall(
+                    peerId = peerId,
+                    peerName = peerName,
+                    isVideo = isVideo,
+                    callSessionId = sessionId
+                )
             }
             CampusPushType.FLASH_MEET -> {
                 val lat = intent.getDoubleExtra(EXTRA_LATITUDE, -1.3094)
@@ -904,6 +986,18 @@ object CampusSystemNotificationCenter {
             CampusPushType.CAMPUS_UPDATE -> {
                 val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)
                 CampusNotificationDeepLink.OpenGuildChannels(channelId = channelId)
+            }
+            CampusPushType.FRIEND_REQUEST -> {
+                val peerId = intent.getStringExtra(EXTRA_PEER_USER_ID)
+                    ?: intent.getStringExtra(EXTRA_THREAD_ID)
+                    ?: "unknown_peer"
+                val peerName = intent.getStringExtra(EXTRA_PEER_NAME) ?: "Campus peer"
+                val serverId = intent.getStringExtra(EXTRA_SERVER_ID)
+                CampusNotificationDeepLink.OpenFriendRequest(
+                    peerId = peerId,
+                    peerName = peerName,
+                    serverId = serverId
+                )
             }
         }
         _deepLinkFlow.tryEmit(deepLink)

@@ -79,12 +79,22 @@ class ProfileViewModel(
                     _userMessage.emit("Quest rewards claimed!")
                 }
                 is ProfileEvent.SetStatusNote -> {
-                    repository.setStatusNote(event.note, event.emoji, event.expiry)
-                    _userMessage.emit("Status note updated")
+                    val result = repository.setStatusNote(event.note, event.emoji, event.expiry)
+                    result.fold(
+                        onSuccess = { _userMessage.emit("Status note updated") },
+                        onFailure = { error ->
+                            _userMessage.emit("Failed to update status note: ${error.localizedMessage ?: "Network error"}")
+                        }
+                    )
                 }
                 is ProfileEvent.ClearStatusNote -> {
-                    repository.clearStatusNote()
-                    _userMessage.emit("Status note cleared")
+                    val result = repository.clearStatusNote()
+                    result.fold(
+                        onSuccess = { _userMessage.emit("Status note cleared") },
+                        onFailure = { error ->
+                            _userMessage.emit("Failed to clear status note: ${error.localizedMessage ?: "Network error"}")
+                        }
+                    )
                 }
                 is ProfileEvent.UpdateProfile -> {
                     val result = repository.updateProfile(
@@ -126,20 +136,30 @@ class ProfileViewModel(
                     _userMessage.emit("Switched active persona")
                 }
                 is ProfileEvent.UpdateNotifications -> {
-                    repository.updateNotificationSettings(
+                    val result = repository.updateNotificationSettings(
                         notificationsEnabled = event.notificationsEnabled,
                         escrowAlertsEnabled = event.escrowAlertsEnabled,
                         questRemindersEnabled = event.questRemindersEnabled
                     )
-                    _userMessage.emit("Notification preferences updated")
+                    result.fold(
+                        onSuccess = { _userMessage.emit("Notification preferences updated") },
+                        onFailure = { error ->
+                            _userMessage.emit("Failed to update notification settings: ${error.localizedMessage ?: "Network error"}")
+                        }
+                    )
                 }
                 is ProfileEvent.UpdatePrivacy -> {
-                    repository.updatePrivacySettings(
+                    val result = repository.updatePrivacySettings(
                         isTrustScorePublic = event.isTrustScorePublic,
                         isOnlineStatusVisible = event.isOnlineStatusVisible,
                         activityLedgerVisibility = event.activityLedgerVisibility
                     )
-                    _userMessage.emit("Privacy settings updated")
+                    result.fold(
+                        onSuccess = { _userMessage.emit("Privacy settings updated") },
+                        onFailure = { error ->
+                            _userMessage.emit("Failed to update privacy settings: ${error.localizedMessage ?: "Network error"}")
+                        }
+                    )
                 }
                 is ProfileEvent.ClearCache -> {
                     val freed = repository.clearCache()
@@ -184,5 +204,39 @@ class ProfileViewModel(
                 }
             }
         }
+    }
+
+    suspend fun saveProfile(
+        fullName: String,
+        universityName: String,
+        degreeProgram: String,
+        academicYear: String,
+        campusResidence: String,
+        phoneNumber: String,
+        bio: String,
+        interests: List<String>,
+        avatarUrl: String?
+    ): Result<Unit> {
+        val result = repository.updateProfile(
+            fullName = fullName,
+            universityName = universityName,
+            degreeProgram = degreeProgram,
+            academicYear = academicYear,
+            campusResidence = campusResidence,
+            phoneNumber = phoneNumber,
+            bio = bio,
+            interests = interests,
+            avatarUrl = avatarUrl
+        )
+        result.fold(
+            onSuccess = { _userMessage.emit("Profile details and image saved successfully") },
+            onFailure = { error ->
+                _userMessage.emit(
+                    "Profile update failed: " +
+                        (error.localizedMessage ?: "Database transfer failed. Please try again.")
+                )
+            }
+        )
+        return result
     }
 }

@@ -48,6 +48,7 @@ object CampusNotificationPollManager {
     private const val KEY_LAST_CYCLE_INDEX = "last_poll_cycle_index"
     private const val KEY_LAST_CREATED_AT = "last_supabase_created_at"
     private const val KEY_LAST_ETAG = "last_supabase_etag"
+    private const val KEY_RECIPIENT_USER_ID = "recipient_user_id"
 
     private const val BASE_INTERVAL_MS = 45_000L
     private const val MAX_BACKOFF_INTERVAL_MS = 180_000L
@@ -178,6 +179,12 @@ object CampusNotificationPollManager {
             val lastSeenId = prefs.getString("last_supabase_notif_id", null)
             val lastCreatedAt = prefs.getString(KEY_LAST_CREATED_AT, null)
             val lastEtag = prefs.getString(KEY_LAST_ETAG, null)
+            val recipientId = CampusSystemNotificationCenter.getActiveUserId(context)
+                ?: prefs.getString(KEY_RECIPIENT_USER_ID, null)
+            val recipientFilter = recipientId
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "&recipient_user_id=eq.${URLEncoder.encode(it, "UTF-8")}" }
+                .orEmpty()
 
             val deltaFilter = if (!lastCreatedAt.isNullOrBlank()) {
                 "&created_at=gt.${URLEncoder.encode(lastCreatedAt, "UTF-8")}"
@@ -186,7 +193,10 @@ object CampusNotificationPollManager {
             }
 
             val requestBuilder = Request.Builder()
-                .url("$supabaseUrl/rest/v1/notifications?select=*&order=created_at.desc&limit=5$deltaFilter")
+                .url(
+                    "$supabaseUrl/rest/v1/campus_notifications?select=*" +
+                        "&order=created_at.desc&limit=8$recipientFilter$deltaFilter"
+                )
                 .addHeader("apikey", supabaseKey)
                 .addHeader("Authorization", "Bearer $supabaseKey")
                 .get()
@@ -202,44 +212,76 @@ object CampusNotificationPollManager {
                 val jsonArray = JSONArray(bodyStr)
                 if (jsonArray.length() == 0) return false
 
-                val newestObj = jsonArray.getJSONObject(0)
-                val id = newestObj.optString("id")
-                val createdAt = newestObj.optString("created_at")
-                if (id.isNotBlank() && id != lastSeenId) {
-                    prefs.edit().apply {
-                        putString("last_supabase_notif_id", id)
-                        if (createdAt.isNotBlank()) putString(KEY_LAST_CREATED_AT, createdAt)
-                        if (!responseEtag.isNullOrBlank()) putString(KEY_LAST_ETAG, responseEtag)
-                        apply()
+                var postedAny = false
+                for (i in 0 until jsonArray.length()) {
+                    val newestObj = jsonArray.getJSONObject(i)
+                    val id = newestObj.optString("id")
+                    val createdAt = newestObj.optString("created_at")
+                    if (id.isBlank() || id == lastSeenId) continue
+                    if (i == 0) {
+                        prefs.edit().apply {
+                            putString("last_supabase_notif_id", id)
+                            if (createdAt.isNotBlank()) putString(KEY_LAST_CREATED_AT, createdAt)
+                            if (!responseEtag.isNullOrBlank()) putString(KEY_LAST_ETAG, responseEtag)
+                            apply()
+                        }
                     }
                     val title = newestObj.optString("title", "Campus Alert")
                     val message = newestObj.optString("body", newestObj.optString("description", ""))
                     val type = newestObj.optString("type", "DIRECT_MESSAGE").uppercase()
+                    val actorName = newestObj.optString("actor_name", title)
 
-                    if (type == "FLASH_MEET") {
-                        CampusSystemNotificationCenter.showFlashMeetNotification(
-                            context = context,
-                            meetId = id,
-                            title = title,
-                            locationName = newestObj.optString("location", "Central Quad"),
-                            attendeeCount = newestObj.optInt("attendees", 12),
-                            timeRemainingLabel = "Now",
-                            latitude = newestObj.optDouble("latitude", -1.3094),
-                            longitude = newestObj.optDouble("longitude", 36.8122)
-                        )
-                    } else {
-                        CampusSystemNotificationCenter.showDirectMessageNotification(
-                            context = context,
-                            threadId = newestObj.optString("thread_id", "thread_mwangi"),
-                            senderName = title,
-                            messageText = message
-                        )
+                    when (type) {
+                        "FLASH_MEET" -> {
+                            CampusSystemNotificationCenter.showFlashMeetNotification(
+                                context = context,
+                                meetId = id,
+                                title = title,
+                                locationName = newestObj.optString("location", "Central Quad"),
+                                attendeeCount = newestObj.optInt("attendees", 12),
+                                timeRemainingLabel = "Now",
+                                latitude = newestObj.optDouble("latitude", -1.3094),
+                                longitude = newestObj.optDouble("longitude", 36.8122)
+                            )
+                        }
+                        "FRIEND_REQUEST" -> {
+                            CampusSystemNotificationCenter.showFriendRequestNotification(
+                                context = context,
+                                peerUserId = newestObj.optString(
+                                    "actor_user_id",
+                                    newestObj.optString("thread_id", "unknown_peer")
+                                ),
+                                peerName = actorName,
+                                serverId = newestObj.optString("server_id").ifBlank { null },
+                                body = message
+                            )
+                        }
+                        else -> {
+                            CampusSystemNotificationCenter.showDirectMessageNotification(
+                                context = context,
+                                threadId = newestObj.optString(
+                                    "thread_id",
+                                    newestObj.optString("actor_user_id", "thread_unknown")
+                                ),
+                                senderName = actorName.ifBlank { title },
+                                messageText = message.ifBlank { "New campus message" }
+                            )
+                        }
                     }
-                    return true
+                    postedAny = true
                 }
-                false
+                postedAny
             }
         }.getOrDefault(false)
+    }
+
+    /** Bind poll filter to the signed-in student so we only surface their inbox rows. */
+    fun setRecipientUserId(context: Context, userId: String?) {
+        context.applicationContext
+            .getSharedPreferences(PREFS_POLL, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_RECIPIENT_USER_ID, userId?.trim().orEmpty())
+            .apply()
     }
 }
 

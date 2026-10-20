@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.Lock
@@ -161,12 +162,22 @@ fun AudioCallScreen(
                         text = when (callState.status) {
                             CallStatus.CALLING -> "Calling"
                             CallStatus.RINGING -> "Ringing"
+                            CallStatus.INCOMING -> "Incoming call"
                             CallStatus.CONNECTED -> formatCallDuration(callState.durationSeconds)
+                            CallStatus.FAILED -> callState.connectionState.ifBlank { "Call ended" }
                         },
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = if (callState.status == CallStatus.CONNECTED) BrandGreen else Color(0xCCFFFFFF)
                     )
+                    if (callState.connectionState.isNotBlank() && callState.status != CallStatus.CONNECTED) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = callState.connectionState,
+                            fontSize = 11.sp,
+                            color = Color(0x99FFFFFF)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically
@@ -283,73 +294,80 @@ fun AudioCallScreen(
                 }
             }
 
-            // 3. Bottom Docked Card: 2x3 Control Grid
-            Surface(
-                shape = RoundedCornerShape(32.dp),
-                color = Color(0xFF101924),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x26FFFFFF)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                Column(
+            // 3. Bottom controls — Answer/Decline for incoming, otherwise in-call grid
+            if (callState.status == CallStatus.INCOMING || callState.isIncoming) {
+                IncomingCallActions(
+                    onDecline = { onEvent(MessagesEvent.DeclineCall) },
+                    onAccept = { onEvent(MessagesEvent.AcceptCall) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                        .padding(bottom = 24.dp)
+                )
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(32.dp),
+                    color = Color(0xFF101924),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x26FFFFFF)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                 ) {
-                    // Row 1: Speaker | Video | Mute
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        CallGridButton(
-                            icon = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                            label = "Speaker",
-                            isActive = callState.isSpeakerOn,
-                            onClick = { onEvent(MessagesEvent.ToggleSpeaker) }
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CallGridButton(
+                                icon = if (callState.isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                                label = "Speaker",
+                                isActive = callState.isSpeakerOn,
+                                onClick = { onEvent(MessagesEvent.ToggleSpeaker) }
+                            )
 
-                        CallGridButton(
-                            icon = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                            label = "Video",
-                            isActive = callState.isVideoEnabled,
-                            onClick = { onEvent(MessagesEvent.ToggleVideo) }
-                        )
+                            CallGridButton(
+                                icon = if (callState.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                                label = "Video",
+                                isActive = callState.isVideoEnabled,
+                                onClick = { onEvent(MessagesEvent.ToggleVideo) }
+                            )
 
-                        CallGridButton(
-                            icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                            label = if (callState.isMuted) "Unmute" else "Mute",
-                            isActive = callState.isMuted,
-                            onClick = { onEvent(MessagesEvent.ToggleMute) }
-                        )
-                    }
+                            CallGridButton(
+                                icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                                label = if (callState.isMuted) "Unmute" else "Mute",
+                                isActive = callState.isMuted,
+                                onClick = { onEvent(MessagesEvent.ToggleMute) }
+                            )
+                        }
 
-                    // Row 2: More | End | Share
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CallGridButton(
-                            icon = Icons.Default.MoreHoriz,
-                            label = "More",
-                            isActive = isMoreOptionsOpen || isVoiceFilterOpen || (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL),
-                            onClick = { isMoreOptionsOpen = true }
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CallGridButton(
+                                icon = Icons.Default.MoreHoriz,
+                                label = "More",
+                                isActive = isMoreOptionsOpen || isVoiceFilterOpen || (callState.activeVoiceFilter != VoiceFilterPreset.NATURAL),
+                                onClick = { isMoreOptionsOpen = true }
+                            )
 
-                        // Central Red End Call Button
-                        EndCallButton(
-                            onClick = { onEvent(MessagesEvent.EndCall) }
-                        )
+                            EndCallButton(
+                                onClick = { onEvent(MessagesEvent.EndCall) }
+                            )
 
-                        CallGridButton(
-                            icon = Icons.Default.PresentToAll,
-                            label = "Share",
-                            isActive = false,
-                            onClick = { /* Screen share or meeting link */ }
-                        )
+                            CallGridButton(
+                                icon = Icons.Default.PresentToAll,
+                                label = "Share",
+                                isActive = false,
+                                onClick = { }
+                            )
+                        }
                     }
                 }
             }
@@ -442,6 +460,58 @@ private fun EndCallButton(
             fontWeight = FontWeight.Medium,
             color = TextWhite
         )
+    }
+}
+
+@Composable
+fun IncomingCallActions(
+    onDecline: () -> Unit,
+    onAccept: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.padding(horizontal = 28.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(AlertRed)
+                    .clickable(onClick = onDecline),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CallEnd,
+                    contentDescription = "Decline",
+                    tint = TextWhite,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Decline", fontSize = 13.sp, color = TextWhite, fontWeight = FontWeight.Medium)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(BrandGreen)
+                    .clickable(onClick = onAccept),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Call,
+                    contentDescription = "Answer",
+                    tint = TextWhite,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Answer", fontSize = 13.sp, color = TextWhite, fontWeight = FontWeight.Medium)
+        }
     }
 }
 

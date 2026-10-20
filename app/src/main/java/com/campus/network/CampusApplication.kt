@@ -10,6 +10,9 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
+import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.call.CallMediaProviderRegistry
+import com.campus.network.core.network.call.StreamVideoCallMediaProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -73,6 +76,20 @@ class CampusApplication : Application(), ImageLoaderFactory {
                 engine.initialize(apiKey = BuildConfig.STREAM_API_KEY)
                 streamChatEngine = engine
             }
+        }
+
+        // 5. Stream Video peer A/V — same API key + stream-token edge function as Chat
+        if (BuildConfig.STREAM_API_KEY.isNotBlank()) {
+            val supabase = SupabaseClientProvider()
+            CallMediaProviderRegistry.install(
+                StreamVideoCallMediaProvider(
+                    appContext = this,
+                    apiKey = BuildConfig.STREAM_API_KEY,
+                    tokenFetcher = { userId ->
+                        supabase.fetchStreamToken(userId = userId)
+                    }
+                )
+            )
         }
     }
 }
