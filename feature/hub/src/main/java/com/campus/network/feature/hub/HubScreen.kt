@@ -148,6 +148,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.ui.components.CampusInlineNetworkAlertCard
 import com.campus.network.core.ui.components.CampusNoInternetEmptyState
 import com.campus.network.core.ui.components.MarketProductHeroCardSkeleton
@@ -186,8 +187,15 @@ fun HubScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val feedbackMessage by viewModel.feedbackMessage.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    androidx.compose.runtime.LaunchedEffect(feedbackMessage) {
+        val message = feedbackMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.onEvent(HubEvent.ClearFeedback)
+    }
 
     var selectedCategory by remember { mutableStateOf("All") }
     var activeListingType by remember { mutableStateOf("All") }
@@ -419,7 +427,8 @@ fun HubScreen(
             // -------------------------------------------------------------
             item {
                 val profile = uiState.studentProfile
-                val displayMemberName = profile?.fullName?.ifBlank { "Campus Member" } ?: "Campus Member"
+                val displayMemberName = profile?.fullName?.takeIf(String::isRealProfileDisplayName)
+                    .orEmpty()
                 val displayMaskedId = profile?.studentId?.takeLast(4)?.takeIf { it.isNotBlank() }?.let { "•••• $it" } ?: "•••• 0000"
                 val displayMeritPoints = "${profile?.campusMeritPoints ?: 0} pts"
                 val displayTrustScore = "${profile?.behavioralTrustScore ?: 50} / 100"
@@ -1539,8 +1548,8 @@ private val createStreamLiveUpdate = CampusLiveUpdate(
     subtitle = "Broadcast live to campus peers in real-time",
     tag = "LIVE STUDIO",
     isLive = false,
-    broadcasterName = "You",
-    broadcasterHandle = "host",
+    broadcasterName = "",
+    broadcasterHandle = "",
     broadcasterAvatarRes = 0,
     imageRes = null,
     isCreateStreamCard = true
@@ -1847,33 +1856,34 @@ private fun LiveUpdateStoryCard(
 
                 // Bottom Content: Broadcaster Info + Title + Subtitle + Clean Direct Action Hint
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    // Broadcaster Avatar & Username
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    ) {
-                        CampusStudentAvatar(
-                            avatarUrl = null,
-                            fullName = update.broadcasterName,
-                            fontSize = 12.sp,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = update.broadcasterName,
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = "@${update.broadcasterHandle}",
-                            fontSize = 11.5.sp,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
+                    if (update.broadcasterName.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            CampusStudentAvatar(
+                                avatarUrl = null,
+                                fullName = update.broadcasterName,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = update.broadcasterName,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "@${update.broadcasterHandle}",
+                                fontSize = 11.5.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
                     }
 
                     Text(

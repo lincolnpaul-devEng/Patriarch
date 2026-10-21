@@ -150,7 +150,7 @@ fun ServerMemberProfileSheet(
                     val resolvedUrl = member.avatarUrl ?: member.avatarResName?.takeIf { it.startsWith("http") || it.startsWith("content:") }
                     CampusStudentAvatar(
                         avatarUrl = resolvedUrl,
-                        fullName = member.serverNickname ?: member.name,
+                        fullName = member.name,
                         modifier = Modifier
                             .size(76.dp)
                             .clip(RoundedCornerShape(22.dp))
@@ -182,7 +182,7 @@ fun ServerMemberProfileSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = member.serverNickname ?: member.name,
+                        text = member.name,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color(0xFF1E1F22),
@@ -570,5 +570,4 @@ fun ServerMemberProfileSheet(
         }
     }
 }
-
 

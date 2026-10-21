@@ -17,6 +17,7 @@ import android.graphics.Typeface
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.campus.network.core.model.isRealProfileDisplayName
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
@@ -287,7 +288,7 @@ object CampusSystemNotificationCenter {
         avatarColorArgb: Int = 0xFF014784.toInt(),
         isSilentUpdate: Boolean = false
     ) {
-        if (!canPostNotifications(context)) return
+        if (!canPostNotifications(context) || !senderName.isRealProfileDisplayName()) return
         // Suppress duplicate heads-up notification if the user is actively viewing this exact chat thread
         if (!isSilentUpdate && activeVisibleThreadId == threadId) return
 
@@ -468,11 +469,11 @@ object CampusSystemNotificationCenter {
 
         var totalMessages = 0
         for ((tId, bubbles) in threadHistories) {
-            val peer = threadSenderNames[tId] ?: "Peer"
+            val peer = threadSenderNames[tId].orEmpty()
             val lastBubble = synchronized(bubbles) { bubbles.lastOrNull() }
             if (lastBubble != null) {
                 totalMessages += synchronized(bubbles) { bubbles.size }
-                inboxStyle.addLine("$peer: ${lastBubble.text}")
+                inboxStyle.addLine(if (peer.isBlank()) lastBubble.text else "$peer: ${lastBubble.text}")
             }
         }
 
@@ -564,7 +565,7 @@ object CampusSystemNotificationCenter {
         isVideoCall: Boolean,
         callSessionId: String? = null
     ) {
-        if (!canPostNotifications(context)) return
+        if (!canPostNotifications(context) || !callerName.isRealProfileDisplayName()) return
         ensureChannelsCreated(context)
 
         val notificationId = 2001 + (peerId.hashCode().let { if (it < 0) -it else it } % 900)
@@ -910,7 +911,7 @@ object CampusSystemNotificationCenter {
         serverId: String? = null,
         body: String? = null
     ) {
-        if (!canPostNotifications(context)) return
+        if (!canPostNotifications(context) || !peerName.isRealProfileDisplayName()) return
         ensureChannelsCreated(context)
 
         val notificationId = 7100 + (peerUserId.hashCode().let { if (it < 0) -it else it } % 800)
@@ -991,7 +992,7 @@ object CampusSystemNotificationCenter {
                 val peerId = intent.getStringExtra(EXTRA_PEER_USER_ID)
                     ?: intent.getStringExtra(EXTRA_THREAD_ID)
                     ?: "unknown_peer"
-                val peerName = intent.getStringExtra(EXTRA_PEER_NAME) ?: "Campus peer"
+                val peerName = intent.getStringExtra(EXTRA_PEER_NAME).orEmpty()
                 val serverId = intent.getStringExtra(EXTRA_SERVER_ID)
                 CampusNotificationDeepLink.OpenFriendRequest(
                     peerId = peerId,

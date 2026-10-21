@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import com.campus.network.core.model.isRealProfileDisplayName
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -134,8 +135,8 @@ fun NotificationsScreen(
                         .orEmpty()
                     requests.forEach { req ->
                         val peerId = req.friendUserId.trim()
-                        if (peerId.isBlank()) return@forEach
-                        val initial = req.friendDisplayName.trim().take(1).uppercase().ifBlank { "P" }
+                        if (peerId.isBlank() || !req.friendDisplayName.isRealProfileDisplayName()) return@forEach
+                        val initial = req.friendDisplayName.trim().take(1).uppercase()
                         val dateStr = formatNotificationDate(req.lastInteractionEpochMs)
                         list.add(
                             CampusNotification(
@@ -170,6 +171,11 @@ fun NotificationsScreen(
                 res.onSuccess { jsonStr ->
                     runCatching {
                         val arr = org.json.JSONArray(jsonStr)
+                        val actorIds = (0 until arr.length()).map { index ->
+                            arr.getJSONObject(index).optString("actor_user_id")
+                        }
+                        val profileNames = com.campus.network.core.data.SupabaseProfileNameResolver(supabaseClient)
+                            .resolve(actorIds)
                         for (i in 0 until arr.length()) {
                             val obj = arr.getJSONObject(i)
                             val id = obj.optString("id")
@@ -177,11 +183,16 @@ fun NotificationsScreen(
                             val title = obj.optString("title", "Campus Alert")
                             val body = obj.optString("body", "")
                             val isRead = obj.optBoolean("is_read", false)
-                            val actorName = obj.optString("actor_name", "Peer")
                             val actorUserId = obj.optString("actor_user_id", "")
+                            val actorName = profileNames[actorUserId.lowercase()].orEmpty()
                             val threadId = obj.optString("thread_id", "")
                             val createdAtMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis())
 
+                            if (type in setOf("FRIEND_REQUEST", "FRIEND_REQUEST_ACCEPTED", "DIRECT_MESSAGE") &&
+                                !actorName.isRealProfileDisplayName()
+                            ) {
+                                continue
+                            }
                             val initial = actorName.trim().take(1).uppercase().ifBlank { "C" }
                             val dateStr = formatNotificationDate(createdAtMs)
                             val dest = when (type) {
@@ -209,15 +220,21 @@ fun NotificationsScreen(
                                 } || list.any { it.id == "fr_$actorUserId:$cleanUserId" || it.id == id }
                             )
                             if (!isDupFriend) {
+                                val displayTitle = if (type == "DIRECT_MESSAGE") actorName else title
+                                val displayBody = when (type) {
+                                    "FRIEND_REQUEST" -> "$actorName sent you a friend request."
+                                    "FRIEND_REQUEST_ACCEPTED" -> "$actorName accepted your friend request."
+                                    else -> body
+                                }
                                 list.add(
                                     CampusNotification(
                                         id = id,
                                         initial = initial,
                                         avatarBgColor = generateNotificationAvatarColor(actorName),
                                         initialTextColor = Color.White,
-                                        title = title,
+                                        title = displayTitle,
                                         date = dateStr,
-                                        description = body,
+                                        description = displayBody,
                                         isUnread = !isRead,
                                         destination = dest
                                     )
@@ -446,18 +463,17 @@ fun NotificationsScreen(
                                     is NotificationDestination.None -> Unit
                                 }
                             },
-                            onAcceptFriend = { peerUserId, peerName ->
+                            onAcceptFriend = { peerUserId, _ ->
                                 scope.launch {
                                     val repo = serverRepository
                                     if (repo == null || cleanUserIdForActions.isBlank()) {
                                         snackbarHostState.showSnackbar("Sign in to accept friend requests")
                                         return@launch
                                     }
-                                    withContext(Dispatchers.IO) {
+                                    val acceptedName = withContext(Dispatchers.IO) {
                                         repo.acceptFriendRequest(
                                             userId = cleanUserIdForActions,
-                                            friendUserId = peerUserId,
-                                            userDisplayName = peerName
+                                            friendUserId = peerUserId
                                         )
                                     }
                                     notifications.removeAll {
@@ -465,7 +481,7 @@ fun NotificationsScreen(
                                         dest is NotificationDestination.FriendRequest &&
                                             dest.peerUserId.equals(peerUserId, ignoreCase = true)
                                     }
-                                    snackbarHostState.showSnackbar("You are now friends with $peerName")
+                                    snackbarHostState.showSnackbar("You are now friends with $acceptedName")
                                 }
                             },
                             onDeclineFriend = { peerUserId, peerName ->

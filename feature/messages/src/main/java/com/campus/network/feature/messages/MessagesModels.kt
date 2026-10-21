@@ -4,6 +4,7 @@ import com.campus.network.core.model.PeerTransactionPayload
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.firstName
 import com.campus.network.core.model.initials
+import com.campus.network.core.model.isRealProfileDisplayName
 
 enum class MessagesScreenMode {
     THREADS,
@@ -11,8 +12,28 @@ enum class MessagesScreenMode {
     AUDIO_CALL,
     VIDEO_CALL,
     NEW_CHAT,
+    FIND_FRIENDS,
     ADD_NOTE,
     BROADCAST
+}
+
+/** Campus directory peer shown on Find Friends. */
+data class DiscoverableCampusPeer(
+    val userId: String,
+    val fullName: String,
+    val handle: String,
+    val universityName: String = "",
+    val avatarUrl: String? = null,
+    val initials: String = "P",
+    val friendStatus: DiscoverFriendStatus = DiscoverFriendStatus.NONE
+)
+
+enum class DiscoverFriendStatus {
+    NONE,
+    REQUEST_SENT,
+    REQUEST_RECEIVED,
+    FRIENDS,
+    SELF
 }
 
 enum class ThreadCategory(val label: String) {
@@ -35,7 +56,8 @@ data class ConversationThread(
     val category: ThreadCategory = ThreadCategory.DIRECT,
     val serverBadgeText: String? = null,
     /** Green subtitle when the peer is typing in this thread. */
-    val typingLabel: String? = null
+    val typingLabel: String? = null,
+    val peerUserId: String = ""
 )
 
 data class DirectMessageItem(
@@ -116,13 +138,20 @@ data class MessagesUiState(
     val activateVoiceInChat: Boolean = false,
     val studentProfile: StudentProfile? = null,
     /** Green header line e.g. "Lincoln is typing…" while peer types in open chat. */
-    val activeChatTypingLabel: String? = null
+    val activeChatTypingLabel: String? = null,
+    val findFriendsQuery: String = "",
+    val discoverablePeers: List<DiscoverableCampusPeer> = emptyList(),
+    val isFindFriendsLoading: Boolean = false,
+    val findFriendsFeedback: String? = null
 ) {
     val studentName: String
-        get() = studentProfile?.fullName?.ifBlank { "Student" } ?: "Student"
+        get() = studentProfile?.fullName?.takeIf { it.isRealProfileDisplayName() }.orEmpty()
 
     val studentFirstName: String
-        get() = studentProfile?.firstName?.ifBlank { "Student" } ?: "Student"
+        get() = studentProfile
+            ?.takeIf { it.fullName.isRealProfileDisplayName() }
+            ?.firstName
+            .orEmpty()
 
     val studentInitials: String
         get() = studentProfile?.initials ?: "S"
@@ -176,10 +205,16 @@ sealed interface MessagesEvent {
     data class UpdateCustomPitchAndFormant(val pitchSemiTones: Float, val formantScale: Float) : MessagesEvent
     data class ToggleSelfMonitoring(val context: android.content.Context) : MessagesEvent
     object OpenNewChat : MessagesEvent
+    object OpenFindFriends : MessagesEvent
+    data class FindFriendsQueryChanged(val query: String) : MessagesEvent
+    data class SendCampusFriendRequest(val peerUserId: String, val peerName: String) : MessagesEvent
+    data class AcceptCampusFriendRequest(val peerUserId: String, val peerName: String) : MessagesEvent
+    data class MessageCampusFriend(val peerUserId: String, val peerName: String) : MessagesEvent
     object OpenAddNote : MessagesEvent
     object OpenBroadcast : MessagesEvent
     object OpenVoiceChatSelection : MessagesEvent
     data class SaveUserNote(val note: String) : MessagesEvent
     data class SendBroadcast(val peerIds: List<String>, val text: String) : MessagesEvent
     data object FlushPendingMessages : MessagesEvent
+    data class DismissFindFriendsFeedback(val ignored: Unit = Unit) : MessagesEvent
 }

@@ -45,7 +45,7 @@ class DirectChatTypingRepository(
         val payload = JSONObject().apply {
             put("thread_id", threadId)
             put("user_id", userId)
-            put("display_name", displayName.ifBlank { "Student" })
+            put("display_name", displayName)
             if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
             put("updated_at_epoch_ms", System.currentTimeMillis())
         }.toString()
@@ -86,7 +86,7 @@ class DirectChatTypingRepository(
                 RemoteDmTypingUser(
                     threadId = obj.optString("thread_id", ""),
                     userId = obj.optString("user_id", ""),
-                    displayName = obj.optString("display_name", "Student"),
+                    displayName = obj.optString("display_name", ""),
                     avatarUrl = obj.optString("avatar_url").ifBlank { null },
                     updatedAtEpochMs = obj.optLong("updated_at_epoch_ms", 0L)
                 )

@@ -74,7 +74,7 @@ fun EventsScreen(
     onCreateEventClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     avatarUrl: String? = null,
-    userName: String = "Student",
+    userName: String = "",
     modifier: Modifier = Modifier
 ) {
     val yourEvents = events.filter { it.dateSection == "Your Events" || it.isUserRegistered }

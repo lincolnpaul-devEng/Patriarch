@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.campus.network.BuildConfig
 import com.campus.network.core.ui.notifications.CampusSystemNotificationCenter
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -237,7 +238,12 @@ object CampusNotificationPollManager {
                     val title = newestObj.optString("title", "Campus Alert")
                     val message = newestObj.optString("body", newestObj.optString("description", ""))
                     val type = newestObj.optString("type", "DIRECT_MESSAGE").uppercase()
-                    val actorName = newestObj.optString("actor_name", title)
+                    val actorName = newestObj.optString("actor_name", "")
+                    if (type in setOf("FRIEND_REQUEST", "FRIEND_REQUEST_ACCEPTED", "DIRECT_MESSAGE") &&
+                        !actorName.isRealProfileDisplayName()
+                    ) {
+                        continue
+                    }
 
                     when (type) {
                         "FLASH_MEET" -> {
@@ -261,7 +267,7 @@ object CampusNotificationPollManager {
                                 ),
                                 peerName = actorName,
                                 serverId = newestObj.optString("server_id").ifBlank { null },
-                                body = message
+                                body = "$actorName sent you a friend request"
                             )
                         }
                         "FRIEND_REQUEST_ACCEPTED" -> {
@@ -273,7 +279,7 @@ object CampusNotificationPollManager {
                                 ),
                                 peerName = actorName,
                                 serverId = newestObj.optString("server_id").ifBlank { null },
-                                body = message.ifBlank { "$actorName accepted your friend request" }
+                                body = "$actorName accepted your friend request"
                             )
                         }
                         else -> {

@@ -1,5 +1,7 @@
 package com.campus.network.feature.hub.feed
 
+import com.campus.network.core.model.isRealProfileDisplayName
+import com.campus.network.core.model.stableUserId
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -107,13 +109,10 @@ fun StreamerProfileScreen(
     var selectedTab by remember { mutableIntStateOf(1) }
     val tabs = listOf("Streams", "Statistic", "Servers")
 
-    val isMe = story.isMe || (activeProfile != null && (
-        story.broadcasterName.equals(activeProfile.fullName, ignoreCase = true) ||
-        (activeProfile.fullName.isNotBlank() && story.broadcasterName.equals("You", ignoreCase = true)) ||
-        (activeProfile.universityEmail.isNotBlank() && story.broadcasterHandle.equals(activeProfile.universityEmail.substringBefore("@"), ignoreCase = true))
-    ))
+    val isMe = story.isMe ||
+        (activeProfile != null && story.broadcasterId.equals(activeProfile.stableUserId(), ignoreCase = true))
 
-    val displayName = if (isMe && activeProfile != null && activeProfile.fullName.isNotBlank()) activeProfile.fullName else story.broadcasterName
+    val displayName = story.broadcasterName.takeIf(String::isRealProfileDisplayName).orEmpty()
     val displayAvatarUrl = if (isMe) activeProfile?.avatarUrl else story.broadcasterAvatarUrl
     val displayLocation = if (isMe && activeProfile != null && activeProfile.universityName.isNotBlank()) activeProfile.universityName else story.location.ifBlank { "Kenya" }
     val displayJoinedDate = if (isMe && activeProfile != null && activeProfile.academicYear.isNotBlank()) activeProfile.academicYear else story.joinedDate.ifBlank { "Oct 2026" }

@@ -15,24 +15,28 @@ class CampusInboxNotifier(
     private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
 
     suspend fun notifyDirectMessage(
         recipientUserId: String,
         senderUserId: String,
-        senderName: String,
         threadId: String,
         messageText: String
     ): Result<Unit> = withContext(ioDispatcher) {
         if (recipientUserId.isBlank() || recipientUserId.equals(senderUserId, ignoreCase = true)) {
             return@withContext Result.success(Unit)
         }
+        val senderName = profileNameResolver.resolve(listOf(senderUserId))[senderUserId.lowercase()]
+            ?: return@withContext Result.failure(
+                IllegalStateException("Sender profile has no real full_name in Supabase")
+            )
         val preview = messageText.trim().ifBlank { "Sent you a message" }.take(180)
         insertNotification(
             recipientUserId = recipientUserId,
             actorUserId = senderUserId,
-            actorName = senderName.ifBlank { "Campus peer" },
+            actorName = senderName,
             type = TYPE_DIRECT_MESSAGE,
-            title = senderName.ifBlank { "New message" },
+            title = senderName,
             body = preview,
             threadId = threadId
         )
@@ -41,19 +45,22 @@ class CampusInboxNotifier(
     suspend fun notifyFriendRequest(
         recipientUserId: String,
         senderUserId: String,
-        senderName: String,
         serverId: String? = null
     ): Result<Unit> = withContext(ioDispatcher) {
         if (recipientUserId.isBlank() || recipientUserId.equals(senderUserId, ignoreCase = true)) {
             return@withContext Result.success(Unit)
         }
+        val senderName = profileNameResolver.resolve(listOf(senderUserId))[senderUserId.lowercase()]
+            ?: return@withContext Result.failure(
+                IllegalStateException("Sender profile has no real full_name in Supabase")
+            )
         insertNotification(
             recipientUserId = recipientUserId,
             actorUserId = senderUserId,
-            actorName = senderName.ifBlank { "Campus peer" },
+            actorName = senderName,
             type = TYPE_FRIEND_REQUEST,
             title = "Friend request",
-            body = "${senderName.ifBlank { "A campus peer" }} sent you a friend request",
+            body = "$senderName sent you a friend request",
             threadId = null,
             serverId = serverId
         )
@@ -61,19 +68,22 @@ class CampusInboxNotifier(
 
     suspend fun notifyFriendRequestAccepted(
         recipientUserId: String,
-        actorUserId: String,
-        actorName: String
+        actorUserId: String
     ): Result<Unit> = withContext(ioDispatcher) {
         if (recipientUserId.isBlank() || recipientUserId.equals(actorUserId, ignoreCase = true)) {
             return@withContext Result.success(Unit)
         }
+        val actorName = profileNameResolver.resolve(listOf(actorUserId))[actorUserId.lowercase()]
+            ?: return@withContext Result.failure(
+                IllegalStateException("Actor profile has no real full_name in Supabase")
+            )
         insertNotification(
             recipientUserId = recipientUserId,
             actorUserId = actorUserId,
-            actorName = actorName.ifBlank { "Campus peer" },
+            actorName = actorName,
             type = TYPE_FRIEND_REQUEST_ACCEPTED,
             title = "Friend request accepted",
-            body = "${actorName.ifBlank { "A campus peer" }} accepted your friend request",
+            body = "$actorName accepted your friend request",
             threadId = null,
             serverId = null
         )

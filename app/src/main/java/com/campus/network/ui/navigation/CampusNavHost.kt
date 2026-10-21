@@ -99,6 +99,7 @@ fun CampusNavHost(
                     studentProfileRepository = studentProfileRepository,
                     chatMessageDao = database.chatMessageDao(),
                     supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+                    serverRepository = serverRepository,
                     context = context.applicationContext
                 ) as T
             }

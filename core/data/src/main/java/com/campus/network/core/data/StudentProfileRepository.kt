@@ -7,6 +7,8 @@ import com.campus.network.core.model.QuestCategory
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.UniversityDirectoryEntry
 import com.campus.network.core.model.VerifiedSkillBadge
+import com.campus.network.core.model.isRealProfileDisplayName
+import com.campus.network.core.model.stableUserId
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.StudentProfileEntity
 import kotlinx.coroutines.CoroutineDispatcher
@@ -32,6 +34,8 @@ class StudentProfileRepository(
 ) {
     private val profileDao = database?.studentProfileDao()
     private val repositoryScope = CoroutineScope(ioDispatcher + SupervisorJob())
+    private val _knownProfiles = MutableStateFlow<Map<String, StudentProfile>>(emptyMap())
+    val knownProfiles = _knownProfiles.asStateFlow()
 
     private val _studentProfile = MutableStateFlow(
         StudentProfile(
@@ -70,7 +74,10 @@ class StudentProfileRepository(
             repositoryScope.launch {
                 profileDao.getProfile().collect { cachedEntity ->
                     if (cachedEntity != null) {
-                        _studentProfile.value = cachedEntity.toDomain()
+                        val cachedProfile = cachedEntity.toDomain()
+                        _studentProfile.value = cachedProfile.copy(
+                            fullName = profileNameFromKnown(cachedProfile, _knownProfiles.value).orEmpty()
+                        )
                         if (cachedEntity.universityEmail.isNotBlank()) {
                             _isAuthenticatedSession.value = true
                         }
@@ -82,9 +89,6 @@ class StudentProfileRepository(
             refreshKnownProfiles()
         }
     }
-
-    private val _knownProfiles = MutableStateFlow<Map<String, StudentProfile>>(emptyMap())
-    val knownProfiles = _knownProfiles.asStateFlow()
 
     suspend fun refreshKnownProfiles(): Map<String, StudentProfile> = withContext(ioDispatcher) {
         runCatching {
@@ -102,7 +106,7 @@ class StudentProfileRepository(
                     val name = row.optString("full_name")
                     val avatar = row.optString("avatar_url").takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
                     val uni = row.optString("university_name")
-                    if (name.isNotBlank() && !name.equals("Student", ignoreCase = true)) {
+                    if (name.isRealProfileDisplayName()) {
                         val prof = StudentProfile(
                             studentId = studentId.ifBlank { id },
                             fullName = name,
@@ -120,6 +124,9 @@ class StudentProfileRepository(
                     }
                 }
                 _knownProfiles.value = map
+                val current = _studentProfile.value
+                val canonicalName = profileNameFromKnown(current, map)
+                _studentProfile.value = current.copy(fullName = canonicalName.orEmpty())
                 map
             } else {
                 _knownProfiles.value
@@ -130,8 +137,12 @@ class StudentProfileRepository(
     private suspend fun persistToDatabase(profile: StudentProfile): Result<Unit> = runCatching {
         val client = supabaseClient
         val cleanEmail = profile.universityEmail.trim()
+        var profileNamePersistedRemotely = false
 
         if (client != null && cleanEmail.isNotBlank()) {
+            if (!profile.fullName.isRealProfileDisplayName()) {
+                throw IllegalArgumentException("A real profile name is required before saving profile changes.")
+            }
             val json = org.json.JSONObject().apply {
                 put("student_id", profile.studentId)
                 put("full_name", profile.fullName)
@@ -205,28 +216,47 @@ class StudentProfileRepository(
             if (!updated) {
                 throw remoteError ?: IllegalStateException("Database transaction failed. Profile changes were not saved.")
             }
+            profileNamePersistedRemotely = true
         }
 
         // ONLY store locally when database transaction is truly successful!
-        profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(profile))
-        _studentProfile.value = profile
+        val persistedProfile = if (profileNamePersistedRemotely) profile else profile.copy(fullName = "")
+        profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(persistedProfile))
+        _studentProfile.value = persistedProfile
 
-        // Keep knownProfiles synchronized locally in memory across channels/feeds
-        if (profile.fullName.isNotBlank()) {
-            val updatedMap = _knownProfiles.value.toMutableMap()
-            if (profile.studentId.isNotBlank()) updatedMap[profile.studentId] = profile
-            if (profile.universityEmail.isNotBlank()) {
-                updatedMap[profile.universityEmail] = profile
-                updatedMap[profile.universityEmail.lowercase()] = profile
-            }
-            _knownProfiles.value = updatedMap
-        }
+        if (profileNamePersistedRemotely) rememberProfile(persistedProfile)
     }
 
     fun getProfile(): Flow<StudentProfile> = _studentProfile.asStateFlow()
 
     suspend fun getProfileSync(): StudentProfile? = withContext(ioDispatcher) {
-        profileDao?.getProfileSync()?.toDomain() ?: _studentProfile.value.takeIf { it.universityEmail.isNotBlank() }
+        val profile = profileDao?.getProfileSync()?.toDomain() ?: _studentProfile.value
+        profile.copy(fullName = profileNameFromKnown(profile, _knownProfiles.value).orEmpty())
+            .takeIf { it.universityEmail.isNotBlank() }
+    }
+
+    private fun profileNameFromKnown(
+        profile: StudentProfile,
+        profiles: Map<String, StudentProfile>
+    ): String? {
+        val userId = profile.stableUserId()
+        if (userId.isBlank()) return null
+        return (profiles[userId]
+            ?: profiles[userId.lowercase()]
+            ?: profiles.values.firstOrNull { it.stableUserId().equals(userId, ignoreCase = true) })
+            ?.fullName
+            ?.takeIf(String::isRealProfileDisplayName)
+    }
+
+    private fun rememberProfile(profile: StudentProfile) {
+        val updatedMap = _knownProfiles.value.toMutableMap()
+        listOf(profile.studentId, profile.stableUserId(), profile.universityEmail)
+            .filter(String::isNotBlank)
+            .forEach { key ->
+                updatedMap[key] = profile
+                updatedMap[key.lowercase()] = profile
+            }
+        _knownProfiles.value = updatedMap
     }
 
     suspend fun syncProfileWithRemote(email: String): Boolean = withContext(ioDispatcher) {
@@ -241,7 +271,10 @@ class StudentProfileRepository(
                     val row = jsonArray.getJSONObject(0)
                     val current = _studentProfile.value
                     val remoteStudentId = row.optString("student_id").ifBlank { row.optString("id") }.takeIf { it.isNotBlank() } ?: current.studentId
-                    val remoteName = row.optString("full_name").takeIf { it.isNotBlank() } ?: current.fullName
+                    val remoteName = row.optString("full_name")
+                    if (!remoteName.isRealProfileDisplayName()) {
+                        return@runCatching false
+                    }
                     val remoteAvatar = row.optString("avatar_url").takeIf { it.isNotBlank() } ?: current.avatarUrl
                     val remoteMerit = row.optInt("campus_merit_points", current.campusMeritPoints)
                     val remoteTrust = row.optInt("behavioral_trust_score", current.behavioralTrustScore)
@@ -265,6 +298,7 @@ class StudentProfileRepository(
                     )
                     _studentProfile.value = updated
                     profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
+                    rememberProfile(updated)
                     return@runCatching updated.onboardingPreferences.hasCompletedSurvey
                 } else {
                     // Profile does not yet exist remotely, upload current profile if email is valid
@@ -446,7 +480,7 @@ class StudentProfileRepository(
         } else {
             currentPrefs.copy(isVerifiedStudentEmail = true)
         }
-        _studentProfile.value = current.copy(
+        val authenticatedProfile = current.copy(
             fullName = cleanName,
             universityEmail = cleanEmail,
             avatarUrl = cleanAvatar,
@@ -454,7 +488,11 @@ class StudentProfileRepository(
             personaRole = if (current.personaRole.isBlank() || current.personaRole.contains("Guest", ignoreCase = true)) "Undergraduate Student" else current.personaRole,
             onboardingPreferences = updatedPrefs
         )
+        _studentProfile.value = authenticatedProfile.copy(fullName = "")
         profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(_studentProfile.value))
+        if (authenticatedProfile.fullName.isRealProfileDisplayName()) {
+        persistToDatabase(authenticatedProfile)
+        }
     }
 
     suspend fun setAvatarFallbackIfMissing(avatarUrl: String?) = withContext(ioDispatcher) {

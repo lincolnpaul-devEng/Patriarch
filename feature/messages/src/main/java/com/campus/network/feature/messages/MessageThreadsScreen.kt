@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.DropdownMenu
@@ -109,6 +110,8 @@ fun MessageThreadsScreen(
 
     val filteredThreads = remember(uiState.threads, selectedTab, searchQuery) {
         uiState.threads.filter { thread ->
+            // Hide legacy leaked channel ids like thread_general
+            if (isLeakedChannelThread(thread)) return@filter false
             val matchesTab = when (selectedTab) {
                 1 -> thread.unreadCount > 0
                 2 -> thread.category != ThreadCategory.DIRECT
@@ -123,7 +126,10 @@ fun MessageThreadsScreen(
     }
 
     val activeFriends = remember(uiState.threads) {
-        uiState.threads.filter { it.isOnline }.ifEmpty { uiState.threads.take(5) }
+        uiState.threads
+            .filter { !isLeakedChannelThread(it) }
+            .filter { it.isOnline }
+            .ifEmpty { uiState.threads.filter { !isLeakedChannelThread(it) }.take(5) }
     }
 
     Box(
@@ -139,7 +145,7 @@ fun MessageThreadsScreen(
             // LEFT RAIL (People & Quick Presence Column - Width 72.dp)
             MessagePeopleRail(
                 currentUserNote = uiState.currentUserNote,
-                fullName = uiState.studentProfile?.fullName?.ifBlank { "Student" } ?: "Student",
+                fullName = uiState.studentProfile?.fullName.orEmpty(),
                 avatarUrl = uiState.studentProfile?.avatarUrl,
                 activeFriends = activeFriends,
                 onNavigateToServers = {
@@ -198,6 +204,19 @@ fun MessageThreadsScreen(
                                     )
                                 }
 
+                                // Find campus friends
+                                IconButton(
+                                    onClick = { onEvent(MessagesEvent.OpenFindFriends) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PersonAdd,
+                                        contentDescription = "Find Friends",
+                                        tint = Color(0xFF5865F2),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
                                 // New Chat Button
                                 IconButton(
                                     onClick = { onEvent(MessagesEvent.OpenNewChat) },
@@ -232,6 +251,16 @@ fun MessageThreadsScreen(
                                             .background(Color.White)
                                             .border(1.dp, Color(0xFFE3E5E8), RoundedCornerShape(12.dp))
                                     ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Find Friends", color = Color(0xFF1E1F22), fontSize = 14.sp, fontWeight = FontWeight.Medium) },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color(0xFF5865F2), modifier = Modifier.size(18.dp))
+                                            },
+                                            onClick = {
+                                                showMoreOptionsMenu = false
+                                                onEvent(MessagesEvent.OpenFindFriends)
+                                            }
+                                        )
                                         DropdownMenuItem(
                                             text = { Text("New Broadcast", color = Color(0xFF1E1F22), fontSize = 14.sp, fontWeight = FontWeight.Medium) },
                                             leadingIcon = {
@@ -551,7 +580,7 @@ fun MessageThreadsScreen(
 @Composable
 private fun MessagePeopleRail(
     currentUserNote: String,
-    fullName: String = "Student",
+    fullName: String = "",
     avatarUrl: String? = null,
     activeFriends: List<ConversationThread>,
     onNavigateToServers: () -> Unit,
@@ -919,7 +948,7 @@ private fun ServerMessageThreadRow(
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Text(
-                    text = thread.peerName,
+                    text = humanizeThreadPeerName(thread.peerName),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF1E1F22),
@@ -1013,6 +1042,32 @@ private fun ServerMessageThreadRow(
             }
         }
     }
+}
+
+/** Hide threads whose id/name are leaked server-channel ids (e.g. thread_general). */
+private fun isLeakedChannelThread(thread: ConversationThread): Boolean {
+    val id = thread.id.trim().lowercase()
+    val name = thread.peerName.trim().lowercase()
+    if (id == "thread_general" || id == "general" || name == "thread_general" || name == "general") {
+        return true
+    }
+    if (id.startsWith("ch_") || name.startsWith("thread_") || name.startsWith("ch_")) return true
+    if (id.endsWith("_general") || name.endsWith("_general")) return true
+    if (id.startsWith("thread_") && id.removePrefix("thread_") in setOf("general", "rules", "announcements")) {
+        return true
+    }
+    return false
+}
+
+private fun humanizeThreadPeerName(raw: String): String {
+    val name = raw.trim()
+    if (name.isBlank()) return ""
+    val lower = name.lowercase()
+    if (lower.startsWith("thread_") || lower.startsWith("dm_") || lower.startsWith("ch_") || lower.startsWith("mem_")) {
+        return ""
+    }
+    if (lower == "general" || lower.endsWith("_general")) return ""
+    return name
 }
 
 private fun resolveServerDrawableRes(name: String): Int {

@@ -16,6 +16,7 @@ import com.campus.network.core.model.ServerInvite
 import com.campus.network.core.model.ServerMember
 import com.campus.network.core.model.ServerMemberRole
 import com.campus.network.core.model.ServerRule
+import com.campus.network.core.model.isRealProfileDisplayName
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +41,7 @@ class ServerRepository(
     private val memberDao = database.serverMemberDao()
     private val friendDao = database.friendDao()
     private val inviteDao = database.serverInviteDao()
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
 
     // ==========================================
     // 1. SERVER LIFECYCLE & DISCOVERY
@@ -84,14 +86,18 @@ class ServerRepository(
         category: String,
         description: String = "",
         ownerId: String = "",
-        ownerDisplayName: String = "Campus Founder",
-        ownerHandle: String = "@founder",
         ownerAvatarUrl: String? = null,
         avatarResName: String = "server_codesistency",
         bannerResName: String? = null,
         customServerId: String? = null
     ): Result<Server> = withContext(ioDispatcher) {
         runCatching {
+            require(ownerId.isNotBlank()) { "ownerId is required to create a server" }
+            val cleanOwnerId = ownerId.trim()
+            val ownerDisplayName = profileNameResolver.resolve(listOf(cleanOwnerId))[cleanOwnerId.lowercase()]
+                ?.takeIf(String::isRealProfileDisplayName)
+                ?: throw IllegalStateException("A Supabase profile name is required to create a server")
+            val ownerHandle = "@" + ownerDisplayName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
             val serverId = customServerId ?: "srv_${UUID.randomUUID().toString().take(8)}"
             val cleanName = name.trim().ifEmpty { "New Server" }
             val slug = cleanName.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(12)
@@ -103,7 +109,7 @@ class ServerRepository(
                 name = cleanName,
                 description = description,
                 category = category.ifEmpty { "Community" },
-                ownerId = ownerId,
+                ownerId = cleanOwnerId,
                 avatarResName = avatarResName,
                 bannerResName = bannerResName,
                 isVerified = false,
@@ -118,7 +124,7 @@ class ServerRepository(
                 put("p_name", cleanName)
                 put("p_category", category.ifEmpty { "Community" })
                 put("p_description", description)
-                put("p_owner_id", ownerId)
+                put("p_owner_id", cleanOwnerId)
                 put("p_owner_display_name", ownerDisplayName)
                 put("p_owner_handle", ownerHandle)
                 if (!ownerAvatarUrl.isNullOrBlank()) put("p_owner_avatar_url", ownerAvatarUrl)
@@ -131,7 +137,7 @@ class ServerRepository(
             // 2. Cache confirmed server, owner member, channels, rules and invite in Room SQLite
             serverDao.insertServer(ServerEntity.fromDomain(server))
             val ownerMember = ServerMember(
-                userId = ownerId,
+                userId = cleanOwnerId,
                 serverId = serverId,
                 displayName = ownerDisplayName,
                 handle = ownerHandle,
@@ -213,7 +219,7 @@ class ServerRepository(
                 code = inviteCode,
                 serverId = serverId,
                 serverName = cleanName,
-                inviterId = ownerId,
+                inviterId = cleanOwnerId,
                 inviterName = ownerDisplayName,
                 expiresAtEpochMs = Long.MAX_VALUE,
                 maxUses = 0,
@@ -429,9 +435,12 @@ class ServerRepository(
     suspend fun createInvite(
         serverId: String,
         inviterId: String = "",
-        inviterName: String = "Campus Member",
         maxUses: Int = 0
     ): ServerInvite = withContext(ioDispatcher) {
+        require(inviterId.isNotBlank()) { "inviterId is required to create an invite" }
+        val inviterName = profileNameResolver.resolve(listOf(inviterId))[inviterId.lowercase()]
+            ?.takeIf(String::isRealProfileDisplayName)
+            ?: throw IllegalStateException("A Supabase profile name is required to create an invite")
         val server = serverDao.getServerByIdSync(serverId) ?: throw IllegalArgumentException("Server not found")
         val slug = server.name.uppercase().replace(Regex("[^A-Z0-9]"), "-").take(10)
         val code = "$slug-${UUID.randomUUID().toString().take(6).uppercase()}"
@@ -455,11 +464,21 @@ class ServerRepository(
     suspend fun joinServerByInvite(
         inviteCode: String,
         userId: String = "",
-        displayName: String = "Campus Student",
-        handle: String = "@student",
         avatarUrl: String? = null,
         avatarResName: String = ""
     ): Result<Server> = withContext(ioDispatcher) {
+        if (userId.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("userId is required to join a server"))
+        }
+        val displayName = try {
+            profileNameResolver.resolve(listOf(userId))[userId.trim().lowercase()]
+                ?.takeIf(String::isRealProfileDisplayName)
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        } ?: return@withContext Result.failure(
+            IllegalStateException("A Supabase profile name is required to join a server")
+        )
+        val handle = "@" + displayName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
         val code = inviteCode.trim().uppercase()
         val inviteEntity = inviteDao.getInviteByCodeSync(code)
             ?: return@withContext Result.failure(IllegalArgumentException("Invite code not found"))
@@ -529,11 +548,21 @@ class ServerRepository(
     suspend fun joinServerDirectly(
         serverId: String,
         userId: String = "",
-        displayName: String = "Campus Student",
-        handle: String = "@student",
         avatarUrl: String? = null,
         avatarResName: String = ""
     ): Result<Server> = withContext(ioDispatcher) {
+        if (userId.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("userId is required to join a server"))
+        }
+        val displayName = try {
+            profileNameResolver.resolve(listOf(userId))[userId.trim().lowercase()]
+                ?.takeIf(String::isRealProfileDisplayName)
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        } ?: return@withContext Result.failure(
+            IllegalStateException("A Supabase profile name is required to join a server")
+        )
+        val handle = "@" + displayName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
         val serverEntity = serverDao.getServerByIdSync(serverId)
             ?: return@withContext Result.failure(IllegalArgumentException("Server not found"))
 
@@ -543,7 +572,7 @@ class ServerRepository(
                 put("id", "${serverId}:${userId}")
                 put("server_id", serverId)
                 put("user_id", userId)
-                put("display_name", displayName.ifBlank { "Campus Student" })
+                put("display_name", displayName)
                 put("handle", handle.ifBlank { "@student" })
                 put("role", "MEMBER")
                 put("role_title", "Member")
@@ -561,7 +590,7 @@ class ServerRepository(
             val newMember = ServerMember(
                 userId = userId,
                 serverId = serverId,
-                displayName = displayName.ifBlank { "Campus Student" },
+                displayName = displayName,
                 handle = handle.ifBlank { "@student" },
                 role = ServerMemberRole.MEMBER,
                 roleTitle = "Member",
@@ -569,7 +598,7 @@ class ServerRepository(
                 avatarUrl = avatarUrl,
                 avatarResName = avatarResName,
                 isOnline = true,
-                customStatus = "Campus Member",
+                customStatus = null,
                 joinedAtEpochMs = System.currentTimeMillis(),
                 badge = null
             )
@@ -713,6 +742,9 @@ class ServerRepository(
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
+                val profileNames = profileNameResolver.resolve((0 until array.length()).map {
+                    array.getJSONObject(it).optString("user_id")
+                })
                 val members = mutableListOf<ServerMemberEntity>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
@@ -722,7 +754,7 @@ class ServerRepository(
                         val member = ServerMember(
                             userId = uId,
                             serverId = srvId,
-                            displayName = obj.optString("display_name", "Member"),
+                            displayName = profileNames[uId.lowercase()].orEmpty(),
                             handle = obj.optString("handle", "@student"),
                             role = runCatching { ServerMemberRole.valueOf(obj.optString("role", "MEMBER")) }.getOrDefault(ServerMemberRole.MEMBER),
                             roleTitle = obj.optString("role_title", "Member"),
@@ -730,7 +762,7 @@ class ServerRepository(
                             avatarUrl = obj.optString("avatar_url").takeIf { it.isNotBlank() },
                             avatarResName = obj.optString("avatar_res_name", ""),
                             isOnline = obj.optBoolean("is_online", true),
-                            customStatus = obj.optString("custom_status", "Campus Member"),
+                            customStatus = obj.optString("custom_status").takeIf { it.isNotBlank() },
                             joinedAtEpochMs = obj.optLong("joined_at_epoch_ms", System.currentTimeMillis()),
                             badge = obj.optString("badge").takeIf { it.isNotBlank() }
                         )
@@ -759,6 +791,9 @@ class ServerRepository(
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
+                val profileNames = profileNameResolver.resolve((0 until array.length()).map {
+                    array.getJSONObject(it).optString("user_id")
+                })
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
                     val srvId = obj.optString("server_id")
@@ -767,7 +802,7 @@ class ServerRepository(
                         val member = ServerMember(
                             userId = uId,
                             serverId = srvId,
-                            displayName = obj.optString("display_name", "Member"),
+                            displayName = profileNames[uId.lowercase()].orEmpty(),
                             handle = obj.optString("handle", "@student"),
                             role = runCatching { ServerMemberRole.valueOf(obj.optString("role", "MEMBER")) }.getOrDefault(ServerMemberRole.MEMBER),
                             roleTitle = obj.optString("role_title", "Member"),
@@ -775,7 +810,7 @@ class ServerRepository(
                             avatarUrl = obj.optString("avatar_url").takeIf { it.isNotBlank() },
                             avatarResName = obj.optString("avatar_res_name", ""),
                             isOnline = obj.optBoolean("is_online", true),
-                            customStatus = obj.optString("custom_status", "Campus Member"),
+                            customStatus = obj.optString("custom_status").takeIf { it.isNotBlank() },
                             joinedAtEpochMs = obj.optLong("joined_at_epoch_ms", System.currentTimeMillis()),
                             badge = obj.optString("badge").takeIf { it.isNotBlank() }
                         )
@@ -846,7 +881,6 @@ class ServerRepository(
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
-                val entities = mutableListOf<FriendEntity>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
                     val id = obj.optString("id")
@@ -857,7 +891,7 @@ class ServerRepository(
                             id = id,
                             userId = uId,
                             friendUserId = fId,
-                            friendDisplayName = obj.optString("friend_display_name", "Friend"),
+                            friendDisplayName = "",
                             friendHandle = obj.optString("friend_handle", ""),
                             friendAvatarResName = obj.optString("friend_avatar_res_name", ""),
                             status = runCatching { FriendStatus.valueOf(obj.optString("status", FriendStatus.NONE.name)) }.getOrDefault(FriendStatus.NONE),
@@ -865,37 +899,46 @@ class ServerRepository(
                             dmChannelId = obj.optString("dm_channel_id").takeIf { it.isNotBlank() }
                         )
                         mappedFriends.add(rel)
-                        entities.add(FriendEntity.fromDomain(rel))
                     }
                 }
-                if (entities.isNotEmpty()) {
-                    friendDao.insertFriends(entities)
-                }
-                android.util.Log.d("ServerRepository", "syncRemoteFriends completed: loaded ${entities.size} friend relationships")
             }.onFailure { e ->
                 android.util.Log.e("ServerRepository", "Error parsing remote friends: ${e.message}")
             }
         }.onFailure { e ->
             android.util.Log.e("ServerRepository", "Failed querying campus_friends: ${e.message}")
         }
-        mappedFriends
+        val profileNames = runCatching {
+            profileNameResolver.resolve(mappedFriends.map { it.friendUserId })
+        }.onFailure { e ->
+            android.util.Log.e("ServerRepository", "Failed resolving friend profile names: ${e.message}")
+        }.getOrDefault(emptyMap())
+        val resolvedFriends = mappedFriends.map { relationship ->
+            relationship.copy(
+                friendDisplayName = profileNames[relationship.friendUserId.lowercase()].orEmpty()
+            )
+        }
+        if (resolvedFriends.isNotEmpty()) {
+            friendDao.insertFriends(resolvedFriends.map(FriendEntity::fromDomain))
+        }
+        android.util.Log.d("ServerRepository", "syncRemoteFriends completed: loaded ${resolvedFriends.size} friend relationships")
+        resolvedFriends
     }
 
     suspend fun sendFriendRequest(
         userId: String,
         friendUserId: String,
-        friendDisplayName: String,
-        friendHandle: String,
-        friendAvatarResName: String = "",
-        senderDisplayName: String = "Campus peer",
         serverId: String? = null
-    ) = withContext(ioDispatcher) {
+    ): String = withContext(ioDispatcher) {
         val cleanSender = userId.trim()
         val cleanFriend = friendUserId.trim()
         if (cleanSender.isBlank() || cleanFriend.isBlank() || cleanSender.equals(cleanFriend, ignoreCase = true)) {
-            android.util.Log.w("ServerRepository", "sendFriendRequest ignored invalid ids: sender='$cleanSender', friend='$cleanFriend'")
-            return@withContext
+            throw IllegalArgumentException("Friend request requires two distinct user IDs")
         }
+        val profileNames = profileNameResolver.resolve(listOf(cleanSender, cleanFriend))
+        val senderDisplayName = profileNames[cleanSender.lowercase()]
+            ?: throw IllegalStateException("Sender profile has no real full_name in Supabase")
+        val friendDisplayName = profileNames[cleanFriend.lowercase()]
+            ?: throw IllegalStateException("Friend profile has no real full_name in Supabase")
 
         val id = "$cleanSender:$cleanFriend"
         val reverseId = "$cleanFriend:$cleanSender"
@@ -907,16 +950,22 @@ class ServerRepository(
                 id = id,
                 userId = cleanSender,
                 friendUserId = cleanFriend,
-                friendDisplayName = friendDisplayName.ifBlank { "Campus peer" },
-                friendHandle = friendHandle,
-                friendAvatarResName = friendAvatarResName,
+                friendDisplayName = friendDisplayName,
+                friendHandle = "",
+                friendAvatarResName = "",
                 status = FriendStatus.PENDING_SENT,
                 lastInteractionEpochMs = now,
                 dmChannelId = null
             )
             friendDao.insertFriend(FriendEntity.fromDomain(relationship))
         } else {
-            friendDao.updateFriendStatus(id, FriendStatus.PENDING_SENT.name, now)
+            friendDao.insertFriend(
+                existing.copy(
+                    friendDisplayName = friendDisplayName,
+                    status = FriendStatus.PENDING_SENT.name,
+                    lastInteractionEpochMs = now
+                )
+            )
         }
 
         // Mirror both sides to Supabase so the recipient device can see PENDING_RECEIVED
@@ -927,8 +976,8 @@ class ServerRepository(
                 put("user_id", cleanSender)
                 put("friend_user_id", cleanFriend)
                 put("friend_display_name", friendDisplayName)
-                put("friend_handle", friendHandle)
-                put("friend_avatar_res_name", friendAvatarResName)
+                put("friend_handle", "")
+                put("friend_avatar_res_name", "")
                 put("status", FriendStatus.PENDING_SENT.name)
                 put("last_interaction_epoch_ms", now)
             }.toString()
@@ -952,20 +1001,26 @@ class ServerRepository(
             CampusInboxNotifier(client).notifyFriendRequest(
                 recipientUserId = cleanFriend,
                 senderUserId = cleanSender,
-                senderName = senderDisplayName,
                 serverId = serverId
             )
         }
+        friendDisplayName
     }
 
     suspend fun acceptFriendRequest(
         userId: String,
-        friendUserId: String,
-        userDisplayName: String = "Campus peer"
-    ) = withContext(ioDispatcher) {
+        friendUserId: String
+    ): String = withContext(ioDispatcher) {
         val cleanUser = userId.trim()
         val cleanFriend = friendUserId.trim()
-        if (cleanUser.isBlank() || cleanFriend.isBlank()) return@withContext
+        if (cleanUser.isBlank() || cleanFriend.isBlank()) {
+            throw IllegalArgumentException("Accepting a friend request requires two user IDs")
+        }
+        val profileNames = profileNameResolver.resolve(listOf(cleanUser, cleanFriend))
+        val userDisplayName = profileNames[cleanUser.lowercase()]
+            ?: throw IllegalStateException("User profile has no real full_name in Supabase")
+        val friendDisplayName = profileNames[cleanFriend.lowercase()]
+            ?: throw IllegalStateException("Friend profile has no real full_name in Supabase")
 
         val id = "$cleanUser:$cleanFriend"
         val reverseId = "$cleanFriend:$cleanUser"
@@ -974,15 +1029,21 @@ class ServerRepository(
 
         val existing = friendDao.getFriendRelationshipSync(cleanUser, cleanFriend)
         if (existing != null) {
-            friendDao.updateFriendStatus(id, FriendStatus.FRIENDS.name, now)
-            friendDao.updateDmChannelId(id, dmId)
+            friendDao.insertFriend(
+                existing.copy(
+                    friendDisplayName = friendDisplayName,
+                    status = FriendStatus.FRIENDS.name,
+                    lastInteractionEpochMs = now,
+                    dmChannelId = dmId
+                )
+            )
         } else {
             friendDao.insertFriend(
                 FriendEntity(
                     id = id,
                     userId = cleanUser,
                     friendUserId = cleanFriend,
-                    friendDisplayName = "Friend",
+                    friendDisplayName = friendDisplayName,
                     friendHandle = "",
                     friendAvatarResName = "",
                     status = FriendStatus.FRIENDS.name,
@@ -995,20 +1056,27 @@ class ServerRepository(
         val client = supabaseClient
         if (client != null) {
             runCatching {
-                val patch = org.json.JSONObject().apply {
+                val reversePatch = org.json.JSONObject().apply {
                     put("status", FriendStatus.FRIENDS.name)
                     put("dm_channel_id", dmId)
                     put("last_interaction_epoch_ms", now)
+                    put("friend_display_name", userDisplayName)
                 }.toString()
-                client.updateRecord("campus_friends?id=eq.$id", patch)
-                client.updateRecord("campus_friends?id=eq.$reverseId", patch)
+                val forwardPatch = org.json.JSONObject().apply {
+                    put("status", FriendStatus.FRIENDS.name)
+                    put("dm_channel_id", dmId)
+                    put("last_interaction_epoch_ms", now)
+                    put("friend_display_name", friendDisplayName)
+                }.toString()
+                client.updateRecord("campus_friends?id=eq.$id", forwardPatch)
+                client.updateRecord("campus_friends?id=eq.$reverseId", reversePatch)
                 CampusInboxNotifier(client).notifyFriendRequestAccepted(
                     recipientUserId = cleanFriend,
-                    actorUserId = cleanUser,
-                    actorName = userDisplayName
+                    actorUserId = cleanUser
                 )
             }
         }
+        friendDisplayName
     }
 
     suspend fun declineOrRemoveFriend(

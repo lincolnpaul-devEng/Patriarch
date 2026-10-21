@@ -9,15 +9,20 @@ import com.campus.network.core.database.entity.ChatMessageEntity
 import com.campus.network.core.data.CallSignalingRepository
 import com.campus.network.core.data.CampusInboxNotifier
 import com.campus.network.core.data.DirectChatTypingRepository
+import com.campus.network.core.data.ServerRepository
 import com.campus.network.core.data.StudentProfileRepository
+import com.campus.network.core.data.SupabaseProfileNameResolver
 import com.campus.network.core.model.CallMediaKind
 import com.campus.network.core.model.CallSession
 import com.campus.network.core.model.CallSessionStatus
+import com.campus.network.core.model.FriendStatus
 import com.campus.network.core.model.OutgoingCallInvite
 import com.campus.network.core.model.PeerTransactionPayload
 import com.campus.network.core.model.SettlementStatus
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.firstName
+import com.campus.network.core.model.initials
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.model.stableUserId
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.core.network.SupabaseClientProvider
@@ -45,10 +50,13 @@ class MessagesViewModel(
     private val callMediaProvider: CallMediaProvider = CallMediaProviderRegistry.resolve(),
     private val inboxNotifier: CampusInboxNotifier = CampusInboxNotifier(),
     private val dmTypingRepository: DirectChatTypingRepository = DirectChatTypingRepository(),
+    private val serverRepository: ServerRepository? = null,
     context: Context? = null
 ) : ViewModel() {
 
     private val appContext: Context? = context?.applicationContext
+    private val profileNameResolver = supabaseClient?.let(::SupabaseProfileNameResolver)
+    private val remoteProfileNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     private val ringtoneManager: CallRingtoneManager? = context?.let {
         CallRingtoneManager(it.applicationContext, viewModelScope)
@@ -81,6 +89,30 @@ class MessagesViewModel(
     /** Never returns a shared placeholder — blank means identity is unavailable. */
     private fun resolveCurrentUserId(): String = _currentProfile.value?.stableUserId().orEmpty()
 
+    private fun currentProfileName(): String =
+        _currentProfile.value?.fullName
+            ?.takeIf(String::isRealProfileDisplayName)
+            ?.trim()
+            .orEmpty()
+
+    private fun profileNameFor(userId: String): String? {
+        if (userId.isBlank()) return null
+        return remoteProfileNames[userId.trim().lowercase()]
+            ?.takeIf(String::isRealProfileDisplayName)
+            ?: studentProfileRepository.knownProfiles.value.entries
+            .firstOrNull { it.key.equals(userId.trim(), ignoreCase = true) }
+            ?.value
+            ?.fullName
+            ?.takeIf(String::isRealProfileDisplayName)
+            ?.trim()
+    }
+
+    private suspend fun resolveProfileNames(userIds: Collection<String>): Map<String, String> {
+        val names = profileNameResolver?.resolve(userIds).orEmpty()
+        remoteProfileNames.putAll(names)
+        return names
+    }
+
     private fun mapEntityToMessage(e: ChatMessageEntity, currentUserId: String): DirectMessageItem {
         val timeStr = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
             .format(java.util.Date(e.timestampEpochMs))
@@ -89,7 +121,7 @@ class MessagesViewModel(
             e.senderId.equals(currentUserId, ignoreCase = true)
         return DirectMessageItem(
             id = e.id,
-            senderName = e.senderName,
+            senderName = if (isMine) "You" else profileNameFor(e.senderId).orEmpty(),
             senderId = e.senderId,
             isMine = isMine,
             text = e.text,
@@ -189,6 +221,11 @@ class MessagesViewModel(
         // Hub-level typing poll so thread list shows green "X is typing…"
         startDmTypingPresencePoll(focusThreadId = null)
 
+        // Drop legacy bogus DM rows (e.g. thread_general from channel-id leaks)
+        viewModelScope.launch {
+            purgeInvalidDmChannels()
+        }
+
         // Rebuild thread list + real unread counts from local Room cache
         viewModelScope.launch {
             chatMessageDao?.observeAllMessages()?.collect { allMessages ->
@@ -204,12 +241,60 @@ class MessagesViewModel(
         }
     }
 
+    /**
+     * Channel / guild ids leaked into DMs as `thread_general` etc.
+     * Never surface those as conversation peers.
+     */
+    private fun isInvalidDmThreadId(channelId: String): Boolean {
+        val id = channelId.trim().lowercase()
+        if (id.isBlank() || id == "thread_" || id == "thread_unknown") return true
+        if (id == "general" || id == "thread_general") return true
+        if (id.startsWith("ch_")) return true
+        if (id.endsWith("_general") && (id.startsWith("thread_") || id.startsWith("ch_"))) return true
+        if (id.startsWith("thread_") && id.removePrefix("thread_") in setOf("general", "rules", "announcements")) {
+            return true
+        }
+        return false
+    }
+
+    /** True when a display name is still a raw thread/channel id leak. */
+    private fun looksLikeRawThreadId(name: String): Boolean {
+        val n = name.trim().lowercase()
+        if (n.startsWith("thread_") || n.startsWith("dm_") || n.startsWith("ch_") || n.startsWith("mem_")) return true
+        if (n == "general" || n.endsWith("_general")) return true
+        return false
+    }
+
+    private suspend fun purgeInvalidDmChannels() {
+        val dao = chatMessageDao ?: return
+        val ids = runCatching { dao.getDistinctChannelIds() }.getOrDefault(emptyList())
+        ids.filter { isInvalidDmThreadId(it) }.forEach { badId ->
+            runCatching { dao.clearChannelMessages(badId) }
+            threadMessagesMap.remove(badId)
+        }
+        _uiState.update { state ->
+            state.copy(
+                threads = state.threads.filterNot { isInvalidDmThreadId(it.id) || looksLikeRawThreadId(it.peerName) },
+                selectedThread = state.selectedThread?.takeUnless {
+                    isInvalidDmThreadId(it.id) || looksLikeRawThreadId(it.peerName)
+                }
+            )
+        }
+    }
+
     private fun rebuildThreadsFromLocalMessages(allMessages: List<ChatMessageEntity>) {
-        if (allMessages.isEmpty()) return
+        if (allMessages.isEmpty()) {
+            _uiState.update { state ->
+                state.copy(threads = state.threads.filterNot { isInvalidDmThreadId(it.id) })
+            }
+            return
+        }
         val currentUserId = resolveCurrentUserId()
-        val byChannel = allMessages.groupBy { it.channelId }
+        val byChannel = allMessages
+            .filterNot { isInvalidDmThreadId(it.channelId) }
+            .groupBy { it.channelId }
         val existingById = _uiState.value.threads.associateBy { it.id }
-        val rebuilt = byChannel.map { (channelId, msgs) ->
+        val rebuilt = byChannel.mapNotNull { (channelId, msgs) ->
             val ordered = msgs.sortedBy { it.timestampEpochMs }
             val last = ordered.last()
             val peerMsg = ordered.lastOrNull { msg ->
@@ -222,17 +307,21 @@ class MessagesViewModel(
                     !msg.senderId.equals(currentUserId, ignoreCase = true)
             }
             val prior = existingById[channelId]
-            val peerName = prior?.peerName
-                ?: peerMsg?.senderName?.takeIf { it.isNotBlank() && !it.equals("You", true) }
-                ?: channelId.removePrefix("dm_").take(16)
-            val peerHandle = prior?.peerHandle ?: "@${peerName.lowercase().replace(" ", "").take(16)}"
+            val peerUserId = peerMsg?.senderId?.takeIf { it.isNotBlank() } ?: prior?.peerUserId.orEmpty()
+            val resolvedName = profileNameFor(peerUserId) ?: return@mapNotNull null
+            val peerHandle = prior?.peerHandle
+                ?.takeUnless { looksLikeRawThreadId(it.removePrefix("@")) }
+                .orEmpty()
             val initials = prior?.avatarInitials
-                ?: peerName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("").ifBlank { "P" }
+                ?.takeUnless { it.equals("T", true) && looksLikeRawThreadId(prior.peerName) }
+                ?: resolvedName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
+                    .ifBlank { "P" }
             val timeLabel = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
                 .format(java.util.Date(last.timestampEpochMs))
             ConversationThread(
                 id = channelId,
-                peerName = peerName,
+                peerName = resolvedName,
+                peerUserId = peerUserId,
                 peerHandle = peerHandle,
                 avatarInitials = initials,
                 lastMessage = last.text.ifBlank {
@@ -256,13 +345,28 @@ class MessagesViewModel(
 
         // Keep any in-memory threads that have no local messages yet (freshly opened)
         val rebuiltIds = rebuilt.map { it.id }.toSet()
-        val extras = _uiState.value.threads.filter { it.id !in rebuiltIds }
+        val extras = _uiState.value.threads.mapNotNull { thread ->
+            if (thread.id in rebuiltIds || isInvalidDmThreadId(thread.id)) {
+                null
+            } else {
+                profileNameFor(thread.peerUserId)?.let { name ->
+                    thread.copy(peerName = name)
+                }
+            }
+        }
         val merged = (rebuilt + extras).distinctBy { it.id }
         val selectedId = _uiState.value.selectedThread?.id
         _uiState.update { state ->
+            val selected = selectedId?.let { id -> merged.find { it.id == id } }
+                ?.takeUnless { isInvalidDmThreadId(it.id) }
             state.copy(
                 threads = merged,
-                selectedThread = selectedId?.let { id -> merged.find { it.id == id } } ?: state.selectedThread
+                selectedThread = selected,
+                currentScreen = if (selected == null && state.currentScreen == MessagesScreenMode.CHAT) {
+                    MessagesScreenMode.THREADS
+                } else {
+                    state.currentScreen
+                }
             )
         }
     }
@@ -315,6 +419,10 @@ class MessagesViewModel(
         )
         val raw = result.getOrNull() ?: return
         val array = runCatching { JSONArray(raw) }.getOrNull() ?: return
+        val senderIds = (0 until array.length()).map { index ->
+            array.getJSONObject(index).optString("sender_id")
+        }
+        val profileNames = runCatching { resolveProfileNames(senderIds) }.getOrDefault(emptyMap())
         val dao = chatMessageDao
         val activeThreadId = _uiState.value.selectedThread?.id
         val viewingChat = _uiState.value.currentScreen == MessagesScreenMode.CHAT
@@ -332,7 +440,7 @@ class MessagesViewModel(
             if (!seenRemoteMessageIds.add(id)) continue
 
             val senderId = obj.optString("sender_id", "")
-            val senderName = obj.optString("sender_name", "Peer")
+            val senderName = profileNames[senderId.lowercase()].orEmpty()
             val text = obj.optString("text", "")
             val ts = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis())
             val isReadRemote = obj.optBoolean("is_read", false)
@@ -354,7 +462,7 @@ class MessagesViewModel(
             )
             dao?.insertMessage(entity)
 
-            if (!viewingThis && !isReadRemote) {
+            if (!viewingThis && !isReadRemote && senderName.isNotBlank()) {
                 appContext?.let { ctx ->
                     CampusSystemNotificationCenter.showDirectMessageNotification(
                         context = ctx,
@@ -403,6 +511,7 @@ class MessagesViewModel(
     }
 
     private fun resolvePeerUserId(thread: ConversationThread, myUserId: String): String {
+        if (thread.peerUserId.isNotBlank()) return thread.peerUserId
         val id = thread.id.trim()
         if (id.startsWith("dm_") && myUserId.isNotBlank()) {
             val without = id.removePrefix("dm_")
@@ -411,6 +520,75 @@ class MessagesViewModel(
             }
         }
         return thread.peerHandle.removePrefix("@").ifBlank { id.removePrefix("thread_") }
+    }
+
+    private fun openOrCreateDirectChat(
+        event: MessagesEvent.OpenOrCreateDirectChat,
+        peerUserId: String,
+        threadId: String,
+        peerName: String
+    ) {
+        if (!peerName.isRealProfileDisplayName()) return
+        val existing = _uiState.value.threads.find {
+            it.id == threadId || it.id == event.peerId ||
+                it.id == "thread_${event.peerId}" ||
+                it.peerUserId.equals(peerUserId, ignoreCase = true)
+        }
+        if (existing != null) {
+            val canonicalThread = existing.copy(peerName = peerName, peerUserId = peerUserId)
+            CampusSystemNotificationCenter.activeVisibleThreadId = existing.id
+            val messages = threadMessagesMap[existing.id] ?: emptyList()
+            _uiState.update {
+                it.copy(
+                    currentScreen = MessagesScreenMode.CHAT,
+                    selectedThread = canonicalThread.copy(unreadCount = 0),
+                    threads = it.threads.map { thread ->
+                        if (thread.id == canonicalThread.id) canonicalThread else thread
+                    },
+                    messages = messages,
+                    activeChatTypingLabel = existing.typingLabel
+                )
+            }
+            markThreadRead(existing.id)
+            startDmTypingPresencePoll(focusThreadId = existing.id)
+            viewModelScope.launch { syncRemoteMessagesForChannel(existing.id) }
+            return
+        }
+
+        CampusSystemNotificationCenter.activeVisibleThreadId = threadId
+        val initials = peerName.split(" ").take(2)
+            .mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
+        val badge = if (!event.serverTag.isNullOrBlank()) {
+            "${event.serverTag.uppercase()} • ${event.serverName ?: "Server"}"
+        } else {
+            event.serverName
+        }
+        val newThread = ConversationThread(
+            id = threadId,
+            peerName = peerName,
+            peerUserId = peerUserId,
+            peerHandle = event.peerHandle.orEmpty(),
+            avatarInitials = initials,
+            lastMessage = "No messages yet",
+            lastTimestamp = "Just now",
+            unreadCount = 0,
+            isOnline = true,
+            isVerified = true,
+            category = ThreadCategory.DIRECT,
+            serverBadgeText = badge
+        )
+        threadMessagesMap[threadId] = emptyList()
+        _uiState.update {
+            it.copy(
+                currentScreen = MessagesScreenMode.CHAT,
+                selectedThread = newThread,
+                threads = listOf(newThread) + it.threads.filterNot { thread -> thread.id == threadId },
+                messages = emptyList(),
+                activeChatTypingLabel = null
+            )
+        }
+        startDmTypingPresencePoll(focusThreadId = threadId)
+        viewModelScope.launch { syncRemoteMessagesForChannel(threadId) }
     }
 
     private fun applyInlineNotificationReply(
@@ -504,66 +682,26 @@ class MessagesViewModel(
             is MessagesEvent.OpenOrCreateDirectChat -> {
                 val myId = resolveCurrentUserId()
                 val peerUserId = normalizePeerUserId(event.peerId, myId)
-                val threadId = resolveDirectThreadId(myId, peerUserId, event.peerId)
-                val existing = _uiState.value.threads.find {
-                    it.id == threadId ||
-                        it.id == event.peerId ||
-                        it.id == "thread_${event.peerId}" ||
-                        (peerUserId.isNotBlank() && it.id.contains(peerUserId, ignoreCase = true)) ||
-                        it.peerName.equals(event.peerName, ignoreCase = true)
+                if (isInvalidDmThreadId(event.peerId) || isInvalidDmThreadId("thread_$peerUserId") ||
+                    peerUserId.equals("general", true) ||
+                    peerUserId.equals("rules", true) ||
+                    peerUserId.equals("announcements", true)
+                ) {
+                    Log.w(TAG, "Refusing bogus DM peerId='${event.peerId}' / peerUserId='$peerUserId'")
+                    return
                 }
-                if (existing != null) {
-                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = existing.id
-                    val messages = threadMessagesMap[existing.id] ?: emptyList()
-                    _uiState.update {
-                        it.copy(
-                            currentScreen = MessagesScreenMode.CHAT,
-                            selectedThread = existing.copy(unreadCount = 0),
-                            messages = messages,
-                            activeChatTypingLabel = existing.typingLabel
-                        )
+                val threadId = resolveDirectThreadId(myId, peerUserId, event.peerId)
+                if (isInvalidDmThreadId(threadId)) {
+                    Log.w(TAG, "Refusing bogus DM threadId='$threadId'")
+                    return
+                }
+                viewModelScope.launch {
+                    val resolvedName = resolveProfileNames(listOf(peerUserId))[peerUserId.lowercase()]
+                    if (resolvedName.isNullOrBlank()) {
+                        Log.w(TAG, "No real Supabase profile name for direct-message peer '$peerUserId'")
+                        return@launch
                     }
-                    markThreadRead(existing.id)
-                    startDmTypingPresencePoll(focusThreadId = existing.id)
-                    viewModelScope.launch { syncRemoteMessagesForChannel(existing.id) }
-                } else {
-                    // Never invent fake "Connected from server" welcome bubbles — empty until real messages sync.
-                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = threadId
-                    val initials = event.avatarInitials
-                        ?: event.peerName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
-                    val badge = if (!event.serverTag.isNullOrBlank()) {
-                        "${event.serverTag.uppercase()} • ${event.serverName ?: "Server"}"
-                    } else if (!event.serverName.isNullOrBlank()) {
-                        event.serverName
-                    } else null
-                    val newThread = ConversationThread(
-                        id = threadId,
-                        peerName = event.peerName.ifBlank { "Campus peer" },
-                        peerHandle = event.peerHandle
-                            ?: "@${event.peerName.lowercase().replace(" ", "").ifBlank { peerUserId.take(12) }}",
-                        avatarInitials = initials.ifBlank {
-                            event.peerName.firstOrNull()?.uppercaseChar()?.toString() ?: "P"
-                        },
-                        lastMessage = "No messages yet",
-                        lastTimestamp = "Just now",
-                        unreadCount = 0,
-                        isOnline = true,
-                        isVerified = true,
-                        category = ThreadCategory.DIRECT,
-                        serverBadgeText = badge
-                    )
-                    threadMessagesMap[threadId] = emptyList()
-                    _uiState.update {
-                        it.copy(
-                            currentScreen = MessagesScreenMode.CHAT,
-                            selectedThread = newThread,
-                            threads = listOf(newThread) + it.threads.filterNot { t -> t.id == threadId },
-                            messages = emptyList(),
-                            activeChatTypingLabel = null
-                        )
-                    }
-                    startDmTypingPresencePoll(focusThreadId = threadId)
-                    viewModelScope.launch { syncRemoteMessagesForChannel(threadId) }
+                    openOrCreateDirectChat(event, peerUserId, threadId, resolvedName)
                 }
             }
 
@@ -648,7 +786,7 @@ class MessagesViewModel(
                     id = newMsg.id,
                     channelId = activeThread.id,
                     senderId = authorId,
-                    senderName = newMsg.senderName,
+                    senderName = currentProfileName(),
                     text = newMsg.text,
                     timestampEpochMs = newMsg.timestampEpochMs,
                     isOptimistic = true,
@@ -679,7 +817,6 @@ class MessagesViewModel(
                         inboxNotifier.notifyDirectMessage(
                             recipientUserId = peerId,
                             senderUserId = authorId,
-                            senderName = entity.senderName,
                             threadId = activeThread.id,
                             messageText = displaySnippet
                         )
@@ -746,7 +883,7 @@ class MessagesViewModel(
                 val txUuid = java.util.UUID.randomUUID().toString()
                 val txPayload = PeerTransactionPayload(
                     transactionId = "tx-$txUuid",
-                    senderName = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student",
+                    senderName = currentProfileName(),
                     recipientName = activeThread.peerName,
                     amount = event.amount,
                     currency = "KES",
@@ -866,12 +1003,17 @@ class MessagesViewModel(
             }
 
             is MessagesEvent.PresentIncomingCall -> {
-                presentIncomingCall(
-                    sessionId = event.sessionId,
-                    peerId = event.peerId,
-                    peerName = event.peerName,
-                    isVideo = event.isVideo
-                )
+                viewModelScope.launch {
+                    val peerName = resolveProfileNames(listOf(event.peerId))[event.peerId.lowercase()]
+                    if (peerName != null) {
+                        presentIncomingCall(
+                            sessionId = event.sessionId,
+                            peerId = event.peerId,
+                            peerName = peerName,
+                            isVideo = event.isVideo
+                        )
+                    }
+                }
             }
 
             is MessagesEvent.AcceptCall -> {
@@ -931,6 +1073,85 @@ class MessagesViewModel(
                         isVoiceFlowActive = false
                     )
                 }
+            }
+
+            is MessagesEvent.OpenFindFriends -> {
+                _uiState.update {
+                    it.copy(
+                        currentScreen = MessagesScreenMode.FIND_FRIENDS,
+                        findFriendsFeedback = null,
+                        isFindFriendsLoading = true
+                    )
+                }
+                refreshDiscoverablePeers()
+            }
+
+            is MessagesEvent.FindFriendsQueryChanged -> {
+                _uiState.update { it.copy(findFriendsQuery = event.query) }
+                refreshDiscoverablePeers(event.query)
+            }
+
+            is MessagesEvent.SendCampusFriendRequest -> {
+                val myId = resolveCurrentUserId()
+                if (myId.isBlank()) return
+                viewModelScope.launch {
+                    val result = runCatching {
+                        (serverRepository ?: error("Friend services are unavailable"))
+                            .sendFriendRequest(userId = myId, friendUserId = event.peerUserId)
+                    }
+                    _uiState.update { state ->
+                        if (result.isSuccess) {
+                            state.copy(
+                                findFriendsFeedback = "Friend request sent to ${result.getOrThrow()}",
+                                discoverablePeers = state.discoverablePeers.map { peer ->
+                                    if (peer.userId.equals(event.peerUserId, ignoreCase = true)) {
+                                        peer.copy(friendStatus = DiscoverFriendStatus.REQUEST_SENT)
+                                    } else peer
+                                }
+                            )
+                        } else {
+                            state.copy(findFriendsFeedback = "Friend request could not be sent.")
+                        }
+                    }
+                }
+            }
+
+            is MessagesEvent.AcceptCampusFriendRequest -> {
+                val myId = resolveCurrentUserId()
+                if (myId.isBlank()) return
+                viewModelScope.launch {
+                    val result = runCatching {
+                        (serverRepository ?: error("Friend services are unavailable"))
+                            .acceptFriendRequest(userId = myId, friendUserId = event.peerUserId)
+                    }
+                    _uiState.update { state ->
+                        if (result.isSuccess) {
+                            state.copy(
+                                findFriendsFeedback = "You are now friends with ${result.getOrThrow()}",
+                                discoverablePeers = state.discoverablePeers.map { peer ->
+                                    if (peer.userId.equals(event.peerUserId, ignoreCase = true)) {
+                                        peer.copy(friendStatus = DiscoverFriendStatus.FRIENDS)
+                                    } else peer
+                                }
+                            )
+                        } else {
+                            state.copy(findFriendsFeedback = "Friend request could not be accepted.")
+                        }
+                    }
+                }
+            }
+
+            is MessagesEvent.MessageCampusFriend -> {
+                onEvent(
+                    MessagesEvent.OpenOrCreateDirectChat(
+                        peerId = event.peerUserId,
+                        peerName = event.peerName
+                    )
+                )
+            }
+
+            is MessagesEvent.DismissFindFriendsFeedback -> {
+                _uiState.update { it.copy(findFriendsFeedback = null) }
             }
 
             is MessagesEvent.OpenVoiceChatSelection -> {
@@ -1078,7 +1299,7 @@ class MessagesViewModel(
             val invite = OutgoingCallInvite(
                 channelId = thread.id,
                 callerId = callerId,
-                callerName = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student",
+                callerName = currentProfileName(),
                 calleeId = calleeId,
                 calleeName = thread.peerName,
                 mediaKind = if (type == CallType.VIDEO) CallMediaKind.VIDEO else CallMediaKind.AUDIO
@@ -1309,10 +1530,12 @@ class MessagesViewModel(
                 val ringing = callSignalingRepository.fetchIncomingRinging(me)
                 val invite = ringing.firstOrNull { it.id !in seenIncomingSessionIds } ?: continue
                 seenIncomingSessionIds.add(invite.id)
+                val callerName = resolveProfileNames(listOf(invite.callerId))[invite.callerId.lowercase()]
+                    ?: continue
                 presentIncomingCall(
                     sessionId = invite.id,
                     peerId = invite.callerId,
-                    peerName = invite.callerName.ifBlank { "Campus peer" },
+                    peerName = callerName,
                     isVideo = invite.mediaKind == CallMediaKind.VIDEO
                 )
             }
@@ -1352,7 +1575,7 @@ class MessagesViewModel(
      */
     private suspend fun dispatchMessageToRemote(entity: ChatMessageEntity): Boolean {
         val client = supabaseClient ?: return false
-        if (entity.senderId.isBlank()) return false
+        if (entity.senderId.isBlank() || !entity.senderName.isRealProfileDisplayName()) return false
         val payload = org.json.JSONObject().apply {
             put("id", entity.id)
             put("channel_id", entity.channelId)
@@ -1389,6 +1612,11 @@ class MessagesViewModel(
         if (array.length() == 0) return
 
         val currentUserId = resolveCurrentUserId()
+        val senderIds = (0 until array.length()).map { index ->
+            array.getJSONObject(index).optString("sender_id")
+        }
+        val profileNames = runCatching { resolveProfileNames(senderIds) }
+            .getOrDefault(emptyMap())
         val entities = mutableListOf<ChatMessageEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -1401,7 +1629,7 @@ class MessagesViewModel(
                     id = obj.getString("id"),
                     channelId = obj.optString("channel_id", channelId),
                     senderId = senderId,
-                    senderName = obj.optString("sender_name", if (isMine) "You" else "Peer"),
+                    senderName = if (isMine) "You" else profileNames[senderId.lowercase()].orEmpty(),
                     text = obj.optString("text", ""),
                     timestampEpochMs = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis()),
                     isOptimistic = false,
@@ -1462,6 +1690,77 @@ class MessagesViewModel(
         }
     }
 
+    private fun refreshDiscoverablePeers(queryOverride: String? = null) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isFindFriendsLoading = true) }
+            val me = resolveCurrentUserId()
+            val email = _currentProfile.value?.universityEmail.orEmpty()
+            val friends = runCatching {
+                serverRepository?.syncRemoteFriends(me, email).orEmpty()
+            }.getOrDefault(emptyList())
+            val friendByPeer = friends.associateBy { it.friendUserId.lowercase() }
+            val profiles = runCatching {
+                studentProfileRepository.refreshKnownProfiles().values.distinctBy {
+                    it.stableUserId().ifBlank { it.universityEmail.lowercase() }
+                }
+            }.getOrDefault(emptyList())
+            val q = (queryOverride ?: _uiState.value.findFriendsQuery).trim()
+            val peers = profiles.mapNotNull { profile ->
+                val userId = profile.stableUserId().ifBlank { profile.universityEmail.trim().lowercase() }
+                if (userId.isBlank()) return@mapNotNull null
+                if (userId.equals(me, ignoreCase = true) ||
+                    userId.equals(email, ignoreCase = true)
+                ) {
+                    return@mapNotNull null
+                }
+                if (!profile.fullName.isRealProfileDisplayName()) {
+                    return@mapNotNull null
+                }
+                if (q.isNotBlank() &&
+                    !profile.fullName.contains(q, ignoreCase = true) &&
+                    !profile.universityEmail.contains(q, ignoreCase = true) &&
+                    !profile.universityName.contains(q, ignoreCase = true)
+                ) {
+                    return@mapNotNull null
+                }
+                val rel = friendByPeer[userId.lowercase()]
+                    ?: friendByPeer[profile.universityEmail.lowercase()]
+                val status = when (rel?.status) {
+                    FriendStatus.FRIENDS -> DiscoverFriendStatus.FRIENDS
+                    FriendStatus.PENDING_SENT -> DiscoverFriendStatus.REQUEST_SENT
+                    FriendStatus.PENDING_RECEIVED -> DiscoverFriendStatus.REQUEST_RECEIVED
+                    else -> DiscoverFriendStatus.NONE
+                }
+                DiscoverableCampusPeer(
+                    userId = userId,
+                    fullName = profile.fullName,
+                    handle = "@" + profile.fullName.lowercase().replace(" ", "")
+                        .filter { it.isLetterOrDigit() || it == '_' },
+                    universityName = profile.universityName,
+                    avatarUrl = profile.avatarUrl,
+                    initials = profile.initials.ifBlank { "P" },
+                    friendStatus = status
+                )
+            }.sortedWith(
+                compareBy<DiscoverableCampusPeer> {
+                    when (it.friendStatus) {
+                        DiscoverFriendStatus.REQUEST_RECEIVED -> 0
+                        DiscoverFriendStatus.NONE -> 1
+                        DiscoverFriendStatus.REQUEST_SENT -> 2
+                        DiscoverFriendStatus.FRIENDS -> 3
+                        DiscoverFriendStatus.SELF -> 4
+                    }
+                }.thenBy { it.fullName.lowercase() }
+            )
+            _uiState.update {
+                it.copy(
+                    discoverablePeers = peers,
+                    isFindFriendsLoading = false
+                )
+            }
+        }
+    }
+
     private fun formatDmTypingLabel(displayName: String): String {
         val first = displayName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
         val name = first.ifBlank { displayName.ifBlank { "Someone" } }
@@ -1475,7 +1774,11 @@ class MessagesViewModel(
         val profile = _currentProfile.value
         val userId = profile?.stableUserId().orEmpty()
         if (userId.isBlank() || thread.id.isBlank()) return
-        val displayName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+        val displayName = profile?.fullName
+            ?.takeIf(String::isRealProfileDisplayName)
+            ?.trim()
+            .orEmpty()
+        if (displayName.isBlank()) return
         val avatar = profile?.avatarUrl
         if (!isTyping) {
             viewModelScope.launch {
@@ -1516,8 +1819,15 @@ class MessagesViewModel(
                     dmTypingRepository.fetchRecentTyping().getOrNull().orEmpty()
                         .filter { it.threadId in knownThreadIds }
                 }
+                val typingNames = runCatching {
+                    resolveProfileNames(remote.map { it.userId })
+                }.getOrDefault(emptyMap())
                 val byThread = remote
                     .filter { !it.userId.equals(me, ignoreCase = true) }
+                    .mapNotNull { typer ->
+                        typingNames[typer.userId.lowercase()]
+                            ?.let { name -> typer.copy(displayName = name) }
+                    }
                     .groupBy { it.threadId }
                     .mapValues { (_, users) -> users.firstOrNull() }
 

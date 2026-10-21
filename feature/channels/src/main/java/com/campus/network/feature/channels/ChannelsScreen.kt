@@ -293,7 +293,7 @@ fun ChannelsScreen(
                     if (onNavigateToDirectChat != null && peerUserId.isNotBlank()) {
                         onNavigateToDirectChat(
                             peerUserId,
-                            member.serverNickname ?: member.name,
+                            member.name,
                             member.handle,
                             currentServerName,
                             member.serverTag

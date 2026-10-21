@@ -178,7 +178,7 @@ fun CreateEventDrawerSheet(
 
     // Core Event Details
     var title by remember { mutableStateOf("") }
-    var hostName by remember { mutableStateOf("You (Verified Student)") }
+    var hostName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
     // Live Map Selected Coordinates & Resolved Names
@@ -434,7 +434,7 @@ fun CreateEventDrawerSheet(
                     value = hostName,
                     onValueChange = { hostName = it },
                     label = { Text("Host / Organizing Guild") },
-                    placeholder = { Text("e.g., Strathmore Tech Guild & IEEE") },
+                    placeholder = { Text("Organization or guild name") },
                     leadingIcon = {
                         Icon(Icons.Default.Groups, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(19.dp))
                     },
@@ -928,7 +928,7 @@ fun CreateEventDrawerSheet(
                             val newEvent = CampusEvent(
                                 id = "evt_${UUID.randomUUID()}",
                                 title = title.trim(),
-                                hostName = hostName.ifBlank { "You (Verified Student)" },
+                                hostName = hostName,
                                 hostAvatarRes = 0,
                                 artworkRes = selectedArtworkRes,
                                 dateTimeFormatted = resolvedTimingText,

@@ -1,5 +1,8 @@
 package com.campus.network.feature.hub.feed
 
+import com.campus.network.core.model.isRealProfileDisplayName
+import com.campus.network.core.model.stableUserId
+
 import android.content.Context
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
@@ -109,6 +112,7 @@ import kotlin.random.Random
  */
 data class CampusLiveFeedStory(
     val id: String,
+    val broadcasterId: String = "",
     val broadcasterName: String,
     val broadcasterHandle: String,
     val broadcasterAvatarRes: Int = 0,
@@ -207,6 +211,7 @@ fun CampusLiveFeedScreen(
     onNavigateBack: () -> Unit
 ) {
     val activeProfile by (studentProfileRepository?.studentProfile?.collectAsState(initial = null) ?: remember { mutableStateOf<com.campus.network.core.model.StudentProfile?>(null) })
+    val knownProfiles by (studentProfileRepository?.knownProfiles?.collectAsState() ?: remember { mutableStateOf(emptyMap()) })
     val realActiveStreams by (liveStreamRepository?.getActiveStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
     val realAllStreams by (liveStreamRepository?.getAllStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
     val realServers by (serverRepository?.getServers()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
@@ -214,13 +219,18 @@ fun CampusLiveFeedScreen(
     LaunchedEffect(liveStreamRepository) {
         liveStreamRepository?.syncRemoteLiveStreams()
     }
+    val activeProfileName = activeProfile?.stableUserId()?.let { userId ->
+        (knownProfiles[userId] ?: knownProfiles.values.firstOrNull {
+            it.stableUserId().equals(userId, ignoreCase = true)
+        })?.fullName?.takeIf(String::isRealProfileDisplayName)
+    }
 
     val combinedStories = remember(stories, realActiveStreams, activeProfile) {
         val streamStories = realActiveStreams.map { s ->
-            val isMyStream = s.broadcasterId == (activeProfile?.studentId ?: "") ||
-                    (activeProfile != null && activeProfile?.fullName?.isNotBlank() == true && s.broadcasterName == activeProfile?.fullName)
+            val isMyStream = s.broadcasterId.equals(activeProfile?.stableUserId(), ignoreCase = true)
             CampusLiveFeedStory(
                 id = s.id,
+                broadcasterId = s.broadcasterId,
                 broadcasterName = s.broadcasterName,
                 broadcasterHandle = s.broadcasterHandle,
                 broadcasterAvatarUrl = s.broadcasterAvatarUrl ?: (if (isMyStream) activeProfile?.avatarUrl else null),
@@ -322,6 +332,7 @@ fun CampusLiveFeedScreen(
                 SingleLiveFeedPage(
                     story = story,
                     activeProfile = activeProfile,
+                    currentProfileName = activeProfileName,
                     liveStreamRepository = liveStreamRepository,
                     onClose = onNavigateBack,
                     onBroadcasterClick = { profileStory = story }
@@ -348,6 +359,7 @@ fun CampusLiveFeedScreen(
 private fun SingleLiveFeedPage(
     story: CampusLiveFeedStory,
     activeProfile: com.campus.network.core.model.StudentProfile? = null,
+    currentProfileName: String? = null,
     liveStreamRepository: com.campus.network.core.data.LiveStreamRepository? = null,
     onClose: () -> Unit,
     onBroadcasterClick: () -> Unit
@@ -430,7 +442,9 @@ private fun SingleLiveFeedPage(
 
     fun submitComment() {
         if (commentText.isNotBlank()) {
-            val authorName = activeProfile?.fullName?.ifBlank { "You" } ?: "You"
+            val authorName = currentProfileName.orEmpty()
+            val authorId = activeProfile?.stableUserId().orEmpty()
+            if (authorName.isBlank() || authorId.isBlank()) return
             val authorAvatar = activeProfile?.avatarUrl
             val trimmed = commentText.trim()
             val commentId = "user_${System.currentTimeMillis()}"
@@ -447,8 +461,7 @@ private fun SingleLiveFeedPage(
                 coroutineScope.launch {
                     liveStreamRepository.postComment(
                         streamId = story.id,
-                        senderId = activeProfile?.studentId ?: "user_self",
-                        senderName = authorName,
+                        senderId = authorId,
                         senderAvatarRes = 0,
                         commentText = trimmed,
                         senderAvatarUrl = authorAvatar
@@ -859,18 +872,20 @@ private fun SingleLiveFeedPage(
                             commentText += emoji
                         },
                         onGifPicked = { gif ->
-                            val authorName = activeProfile?.fullName?.ifBlank { "You" } ?: "You"
-                            val authorAvatar = activeProfile?.avatarUrl
-                            comments.add(
-                                LiveStoryComment(
-                                    id = "user_${System.currentTimeMillis()}",
-                                    userName = authorName,
-                                    userAvatarRes = 0,
-                                    commentText = "",
-                                    gifUrl = gif.originalUrl,
-                                    avatarUrl = authorAvatar
+                            val authorName = currentProfileName.orEmpty()
+                            if (authorName.isNotBlank()) {
+                                val authorAvatar = activeProfile?.avatarUrl
+                                comments.add(
+                                    LiveStoryComment(
+                                        id = "user_${System.currentTimeMillis()}",
+                                        userName = authorName,
+                                        userAvatarRes = 0,
+                                        commentText = "",
+                                        gifUrl = gif.originalUrl,
+                                        avatarUrl = authorAvatar
+                                    )
                                 )
-                            )
+                            }
                             isEmojiDrawerOpen = false
                             coroutineScope.launch {
                                 delay(100)

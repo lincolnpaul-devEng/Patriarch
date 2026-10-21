@@ -6,6 +6,7 @@ import com.campus.network.core.database.entity.MicroGigEntity
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.OpenRouterAiClient
 import com.campus.network.core.network.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineDispatcher
@@ -29,6 +30,7 @@ class CampusHubRepository(
 ) {
     private val itemDao = database.marketItemDao()
     private val gigDao = database.microGigDao()
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
 
     fun getMarketplaceItems(): Flow<List<MarketItem>> {
         return itemDao.getAllMarketItems()
@@ -47,7 +49,6 @@ class CampusHubRepository(
         price: Double,
         category: String,
         condition: String,
-        sellerName: String,
         sellerUserId: String,
         location: String,
         description: String = "",
@@ -67,6 +68,8 @@ class CampusHubRepository(
         require(resolvedSellerId.isNotBlank()) {
             "sellerUserId is required — marketplace ownership cannot rely on display names"
         }
+        val resolvedSellerName = profileNameResolver.resolve(listOf(resolvedSellerId))[resolvedSellerId.lowercase()]
+            ?: throw IllegalStateException("A Supabase profile name is required to publish a marketplace listing")
         val now = System.currentTimeMillis()
         val combinedUrls = imageUrls
             .map { it.trim() }
@@ -84,7 +87,7 @@ class CampusHubRepository(
             currency = "KES",
             category = category,
             condition = condition,
-            sellerName = sellerName,
+            sellerName = resolvedSellerName,
             sellerUserId = resolvedSellerId,
             sellerRating = 5.0f,
             isCampusVerifiedSeller = true,
@@ -109,7 +112,7 @@ class CampusHubRepository(
             put("currency", "KES")
             put("category", category)
             put("condition", condition)
-            put("seller_name", sellerName)
+            put("seller_name", resolvedSellerName)
             put("seller_id", resolvedSellerId)
             put("seller_rating", 5.0)
             put("is_campus_verified_seller", true)
@@ -141,11 +144,17 @@ class CampusHubRepository(
         description: String,
         payoutAmount: Double,
         estimatedDuration: String,
-        posterName: String,
+        posterUserId: String,
         tag: String,
         urgency: GigUrgency,
         gigId: String = "gig_${java.util.UUID.randomUUID()}"
     ): MicroGig = withContext(ioDispatcher) {
+        val resolvedPosterId = posterUserId.trim()
+        require(resolvedPosterId.isNotBlank()) {
+            "posterUserId is required to publish a campus gig"
+        }
+        val resolvedPosterName = profileNameResolver.resolve(listOf(resolvedPosterId))[resolvedPosterId.lowercase()]
+            ?: throw IllegalStateException("A Supabase profile name is required to publish a campus gig")
         val now = System.currentTimeMillis()
         val entity = MicroGigEntity(
             id = gigId,
@@ -154,7 +163,7 @@ class CampusHubRepository(
             payoutAmount = payoutAmount,
             currency = "KES",
             estimatedDuration = estimatedDuration,
-            posterName = posterName,
+            posterName = resolvedPosterName,
             posterTrustScore = 95,
             tag = tag,
             urgencyName = urgency.name,
@@ -169,7 +178,8 @@ class CampusHubRepository(
             put("payout_amount", payoutAmount)
             put("currency", "KES")
             put("estimated_duration", estimatedDuration)
-            put("poster_name", posterName)
+            put("poster_name", resolvedPosterName)
+            put("poster_id", resolvedPosterId)
             put("poster_trust_score", 95)
             put("tag", tag)
             put("urgency_name", urgency.name)
@@ -209,6 +219,11 @@ class CampusHubRepository(
         }
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
+        val sellerNames = try {
+            profileNameResolver.resolve((0 until array.length()).map { array.getJSONObject(it).optString("seller_id") })
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        }
 
         val ownerSecrets = mutableMapOf<String, String>()
         val viewerId = currentUserId?.trim().orEmpty()
@@ -246,7 +261,7 @@ class CampusHubRepository(
                     currency = obj.optString("currency", "KES"),
                     category = obj.optString("category", "General"),
                     condition = obj.optString("condition", "Good"),
-                    sellerName = obj.optString("seller_name", "Student Peer"),
+                    sellerName = sellerNames[sellerId.lowercase()].orEmpty(),
                     sellerUserId = sellerId,
                     sellerRating = obj.optDouble("seller_rating", 5.0).toFloat(),
                     isCampusVerifiedSeller = obj.optBoolean("is_campus_verified_seller", true),
@@ -278,6 +293,11 @@ class CampusHubRepository(
         }
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
+        val posterNames = try {
+            profileNameResolver.resolve((0 until array.length()).map { array.getJSONObject(it).optString("poster_id") })
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        }
         val entities = mutableListOf<MicroGigEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -289,7 +309,7 @@ class CampusHubRepository(
                     payoutAmount = obj.optDouble("payout_amount", 0.0),
                     currency = obj.optString("currency", "KES"),
                     estimatedDuration = obj.optString("estimated_duration", "1 hour"),
-                    posterName = obj.optString("poster_name", "Student Peer"),
+                    posterName = posterNames[obj.optString("poster_id").lowercase()].orEmpty(),
                     posterTrustScore = obj.optInt("poster_trust_score", 95),
                     tag = obj.optString("tag", "General"),
                     urgencyName = obj.optString("urgency_name", "NORMAL"),
@@ -338,7 +358,7 @@ class CampusHubRepository(
             currency = currency,
             category = category,
             condition = condition,
-            sellerName = sellerName,
+            sellerName = sellerName.takeIf(String::isRealProfileDisplayName).orEmpty(),
             sellerUserId = sellerUserId,
             sellerRating = sellerRating,
             isCampusVerifiedSeller = isCampusVerifiedSeller,
@@ -365,7 +385,7 @@ class CampusHubRepository(
         payoutAmount = payoutAmount,
         currency = currency,
         estimatedDuration = estimatedDuration,
-        posterName = posterName,
+        posterName = posterName.takeIf(String::isRealProfileDisplayName).orEmpty(),
         posterTrustScore = posterTrustScore,
         tag = tag,
         urgencyLevel = runCatching { GigUrgency.valueOf(urgencyName) }.getOrDefault(GigUrgency.NORMAL),

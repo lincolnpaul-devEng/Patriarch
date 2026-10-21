@@ -74,7 +74,7 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShareLocationDrawerSheet(
-    userName: String = "Lincoln",
+    userName: String = "",
     shareUrl: String = "https://community.tryfi.com/share/loc_849204",
     scope: LocationPrivacyScope = LocationPrivacyScope.VERIFIED_CAMPUS_PEERS,
     onScopeChange: (LocationPrivacyScope) -> Unit = {},

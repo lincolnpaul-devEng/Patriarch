@@ -13,6 +13,7 @@ import com.campus.network.core.model.firstName
 import com.campus.network.core.model.ServerChannelType
 import com.campus.network.core.model.ServerRule
 import com.campus.network.core.model.stableUserId
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.feature.channels.model.CareerCourse
 import com.campus.network.feature.channels.model.ChannelViewMode
 import com.campus.network.feature.channels.model.CourseMate
@@ -370,9 +371,12 @@ class ChannelsViewModel(
             studentProfileRepository.getProfile().collect { profile ->
                 _currentProfile.value = profile
                 val studentId = profile.studentId.ifBlank { profile.universityEmail }
-                val fullName = profile.fullName
+                val fullName = studentProfileRepository.knownProfiles.value[studentId]
+                    ?.fullName
+                    ?.takeIf(String::isRealProfileDisplayName)
+                    .orEmpty()
                 val avatarUrl = profile.avatarUrl
-                val handle = if (fullName.isNotBlank()) "@" + fullName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' } else "@student"
+                val handle = "@" + fullName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
                 if (studentId.isNotBlank() && fullName.isNotBlank()) {
                     serverRepository?.updateMemberProfileForUser(
                         userId = studentId,
@@ -565,8 +569,7 @@ class ChannelsViewModel(
                                 serverRepository.syncRemoteMembers(serverId)
                             }
                             serverRepository.getMembersForServer(serverId).collect { dbMembers ->
-                                if (dbMembers.isNotEmpty()) {
-                                    val currentAuthor = _currentProfile.value?.fullName?.ifBlank { "Student" } ?: "Student"
+                                run {
                                     val currentAvatar = _currentProfile.value?.avatarUrl
                                     val currentStudentId = _currentProfile.value?.studentId.orEmpty().trim()
                                     val currentEmail = _currentProfile.value?.universityEmail.orEmpty().trim().lowercase()
@@ -576,42 +579,13 @@ class ChannelsViewModel(
                                         val isSelf = (currentStudentId.isNotBlank() && cleanUserId.equals(currentStudentId, ignoreCase = true)) ||
                                                 (currentEmail.isNotBlank() && cleanUserId.equals(currentEmail, ignoreCase = true))
                                         val matchedProfile = known[cleanUserId] ?: (if (cleanUserId.contains("@")) known[cleanUserId.lowercase()] else null)
-
-                                        var resolvedName = if (isSelf && currentAuthor != "Student") {
-                                            currentAuthor
-                                        } else if (matchedProfile != null) {
-                                            matchedProfile.fullName
-                                        } else {
-                                            mem.displayName
-                                        }
-
-                                        // Heal legacy placeholder "Student" for server owner
-                                        if (resolvedName.equals("Student", ignoreCase = true) && mem.role == com.campus.network.core.model.ServerMemberRole.OWNER) {
-                                            val targetServer = _serversList.value.find { it.id == serverId }
-                                            val ownerProf = targetServer?.ownerId?.let { known[it] ?: known[it.lowercase()] }
-                                            if (ownerProf != null && ownerProf.fullName.isNotBlank() && !ownerProf.fullName.equals("Student", ignoreCase = true)) {
-                                                resolvedName = ownerProf.fullName
-                                                viewModelScope.launch {
-                                                    serverRepository.updateServerOwnerProfile(
-                                                        serverId = serverId,
-                                                        displayName = ownerProf.fullName,
-                                                        handle = "@" + ownerProf.fullName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' },
-                                                        avatarUrl = ownerProf.avatarUrl,
-                                                        avatarResName = ownerProf.avatarUrl ?: ""
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        val resolvedHandle = if (isSelf && currentAuthor != "Student") {
-                                            "@" + currentAuthor.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
-                                        } else if (matchedProfile != null) {
-                                            "@" + matchedProfile.fullName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
-                                        } else if (resolvedName.isNotBlank() && !resolvedName.equals("Student", ignoreCase = true)) {
-                                            "@" + resolvedName.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
-                                        } else {
-                                            mem.handle
-                                        }
+                                        val resolvedName = matchedProfile?.fullName
+                                            ?.takeIf(String::isRealProfileDisplayName)
+                                            .orEmpty()
+                                        val resolvedHandle = resolvedName
+                                            .takeIf(String::isNotBlank)
+                                            ?.let { "@" + it.lowercase().replace(" ", "").filter { char -> char.isLetterOrDigit() || char == '_' } }
+                                            .orEmpty()
 
                                         val rawAvatar = if (isSelf && !currentAvatar.isNullOrBlank()) {
                                             currentAvatar
@@ -806,7 +780,7 @@ class ChannelsViewModel(
         val discoverMates = peerSlice.selectedCourse?.enrolledMates ?: sampleCourseMates
 
         val allServers = currentServers
-        val profile = slice1.studentProfile
+        val profile = slice1.studentProfile?.copy(fullName = currentSupabaseProfileName().orEmpty())
         val currentUserId = profile?.studentId?.ifBlank { profile.universityEmail }.orEmpty().trim()
         val currentEmail = profile?.universityEmail.orEmpty().trim().lowercase()
 
@@ -860,7 +834,7 @@ class ChannelsViewModel(
             typingMap[chId].orEmpty().filter { !it.userId.equals(myStableId, ignoreCase = true) }
         }.orEmpty()
 
-        val resolvedName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+        val resolvedName = profile?.fullName?.takeIf(String::isRealProfileDisplayName).orEmpty()
         val resolvedAvatar = profile?.avatarUrl
 
         val allJoinedIds = slice1.joinedServerIds + joinedServersList.map { it.id }.toSet()
@@ -1070,7 +1044,11 @@ class ChannelsViewModel(
                     _feedbackMessage.value = "Sign in to send channel messages"
                     return
                 }
-                val author = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+                val author = currentSupabaseProfileName().orEmpty()
+                if (author.isBlank()) {
+                    _feedbackMessage.value = "A Supabase profile name is required to send channel messages"
+                    return
+                }
                 val avatar = profile?.avatarUrl
                 val now = System.currentTimeMillis()
                 val msgId = "cmsg_${java.util.UUID.randomUUID()}"
@@ -1114,7 +1092,6 @@ class ChannelsViewModel(
                         serverId = serverId,
                         channelId = activeChan.id,
                         senderId = authorId,
-                        senderName = author,
                         senderAvatarUrl = avatar,
                         text = event.text,
                         gifUrl = event.gifUrl,
@@ -1167,9 +1144,13 @@ class ChannelsViewModel(
                     ServerChannelItem(id = "ch_${newId}_general", name = "general", channelType = "text", categoryName = "TEXT CHANNELS", isUnread = false)
                 )
                 val prof = _currentProfile.value ?: studentProfileRepository.studentProfile.value
-                val author = prof?.fullName?.takeIf { it.isNotBlank() } ?: "Campus Founder"
+                val author = currentSupabaseProfileName().orEmpty()
+                val authorId = prof?.stableUserId().orEmpty()
+                if (author.isBlank() || authorId.isBlank()) {
+                    _feedbackMessage.value = "A Supabase profile is required to create a server"
+                    return
+                }
                 val authorAvatar = prof?.avatarUrl
-                val authorId = prof?.studentId?.takeIf { it.isNotBlank() } ?: prof?.universityEmail?.takeIf { it.isNotBlank() } ?: "user_${System.currentTimeMillis()}"
                 val authorHandle = "@" + author.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
                 val newServer = ServerItem(
                     id = newId,
@@ -1215,8 +1196,6 @@ class ChannelsViewModel(
                             bannerResName = event.bannerResName,
                             customServerId = newId,
                             ownerId = authorId,
-                            ownerDisplayName = author,
-                            ownerHandle = authorHandle,
                             ownerAvatarUrl = authorAvatar
                         )
                         result.onSuccess {
@@ -1341,18 +1320,18 @@ class ChannelsViewModel(
             is ChannelsEvent.JoinServerByInvite -> {
                 _isAddServerSelected.value = false
                 val prof = _currentProfile.value ?: studentProfileRepository.studentProfile.value
-                val author = prof?.fullName?.takeIf { it.isNotBlank() } ?: "Campus Student"
+                val author = currentSupabaseProfileName().orEmpty()
                 val authorAvatar = prof?.avatarUrl
-                val authorId = prof?.studentId?.takeIf { it.isNotBlank() } ?: prof?.universityEmail?.takeIf { it.isNotBlank() } ?: "user_${System.currentTimeMillis()}"
-                val authorHandle = "@" + author.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
-
+                val authorId = prof?.stableUserId().orEmpty()
+                if (author.isBlank() || authorId.isBlank()) {
+                    _feedbackMessage.value = "A Supabase profile is required to join a server"
+                    return
+                }
                 serverRepository?.let { repo ->
                     viewModelScope.launch {
                         val result = repo.joinServerByInvite(
                             inviteCode = event.inviteCode,
                             userId = authorId,
-                            displayName = author,
-                            handle = authorHandle,
                             avatarUrl = authorAvatar,
                             avatarResName = authorAvatar ?: ""
                         )
@@ -1407,11 +1386,13 @@ class ChannelsViewModel(
                 if (previewId.isNotBlank()) {
                     val targetServer = _serversList.value.find { it.id == previewId }
                     val prof = _currentProfile.value ?: studentProfileRepository.studentProfile.value
-                    val author = prof?.fullName?.takeIf { it.isNotBlank() } ?: "Campus Student"
+                    val author = currentSupabaseProfileName().orEmpty()
                     val authorAvatar = prof?.avatarUrl
-                    val authorId = prof?.studentId?.takeIf { it.isNotBlank() }
-                        ?: prof?.universityEmail?.takeIf { it.isNotBlank() }
-                        ?: if (author.isNotBlank()) author else "current_user"
+                    val authorId = prof?.stableUserId().orEmpty()
+                    if (author.isBlank() || authorId.isBlank()) {
+                        _feedbackMessage.value = "A Supabase profile is required to join a server"
+                        return
+                    }
                     val authorHandle = "@" + author.lowercase().replace(" ", "").filter { it.isLetterOrDigit() || it == '_' }
 
                     viewModelScope.launch {
@@ -1444,8 +1425,6 @@ class ChannelsViewModel(
                         serverRepository?.joinServerDirectly(
                             serverId = previewId,
                             userId = authorId,
-                            displayName = author,
-                            handle = authorHandle,
                             avatarUrl = authorAvatar,
                             avatarResName = authorAvatar ?: ""
                         )
@@ -1555,11 +1534,9 @@ class ChannelsViewModel(
                 val memberId = event.memberId
                 val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
                     ?: _serverMembers.value.values.flatten().find { it.id == memberId }
-                var targetName = member?.serverNickname ?: member?.name ?: "Member"
                 _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
                     members.map { mem ->
                         if (mem.id == memberId) {
-                            targetName = mem.serverNickname ?: mem.name
                             mem.copy(friendStatus = FriendRequestStatus.REQUEST_SENT)
                         } else mem
                     }
@@ -1567,7 +1544,6 @@ class ChannelsViewModel(
                 _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
                     if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.REQUEST_SENT) else it
                 }
-                _feedbackMessage.value = "Friend request sent to $targetName!"
                 val me = _currentProfile.value
                 val myId = me?.studentId?.takeIf { it.isNotBlank() }
                     ?: me?.universityEmail?.takeIf { it.isNotBlank() }
@@ -1575,14 +1551,17 @@ class ChannelsViewModel(
                 val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
                 if (peerUserId.isNotBlank()) {
                     viewModelScope.launch {
-                        serverRepository?.sendFriendRequest(
-                            userId = myId,
-                            friendUserId = peerUserId,
-                            friendDisplayName = targetName,
-                            friendHandle = member?.handle.orEmpty(),
-                            friendAvatarResName = member?.avatarResName.orEmpty(),
-                            senderDisplayName = me?.fullName?.ifBlank { "Campus peer" } ?: "Campus peer",
-                            serverId = member?.serverId
+                        val result = runCatching {
+                            (serverRepository ?: error("Friend services are unavailable"))
+                                .sendFriendRequest(
+                                    userId = myId,
+                                    friendUserId = peerUserId,
+                                    serverId = member?.serverId
+                                )
+                        }
+                        _feedbackMessage.value = result.fold(
+                            { "Friend request sent to $it!" },
+                            { "Friend request could not be sent." }
                         )
                     }
                 }
@@ -1618,11 +1597,9 @@ class ChannelsViewModel(
                 val memberId = event.memberId
                 val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
                     ?: _serverMembers.value.values.flatten().find { it.id == memberId }
-                var targetName = member?.serverNickname ?: member?.name ?: "Member"
                 _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
                     members.map { mem ->
                         if (mem.id == memberId) {
-                            targetName = mem.serverNickname ?: mem.name
                             mem.copy(friendStatus = FriendRequestStatus.FRIENDS)
                         } else mem
                     }
@@ -1630,14 +1607,20 @@ class ChannelsViewModel(
                 _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
                     if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.FRIENDS) else it
                 }
-                _feedbackMessage.value = "You are now friends with $targetName!"
                 val me = _currentProfile.value
                 val myId = me?.studentId?.takeIf { it.isNotBlank() }
                     ?: me?.universityEmail?.takeIf { it.isNotBlank() }
                 val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
                 if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
                     viewModelScope.launch {
-                        serverRepository?.acceptFriendRequest(userId = myId, friendUserId = peerUserId)
+                        val result = runCatching {
+                            (serverRepository ?: error("Friend services are unavailable"))
+                                .acceptFriendRequest(userId = myId, friendUserId = peerUserId)
+                        }
+                        _feedbackMessage.value = result.fold(
+                            { "You are now friends with $it!" },
+                            { "Friend request could not be accepted." }
+                        )
                     }
                 }
             }
@@ -1864,12 +1847,23 @@ class ChannelsViewModel(
     }
 
     private fun formatTypingLabel(typers: List<ChannelTypingUser>): String? {
-        if (typers.isEmpty()) return null
-        return when (typers.size) {
-            1 -> "${typers[0].displayName} is typing…"
-            2 -> "${typers[0].displayName} and ${typers[1].displayName} are typing…"
-            else -> "${typers[0].displayName} and ${typers.size - 1} others are typing…"
+        val namedTypers = typers.filter { it.displayName.isRealProfileDisplayName() }
+        if (namedTypers.isEmpty()) return null
+        return when (namedTypers.size) {
+            1 -> "${namedTypers[0].displayName} is typing…"
+            2 -> "${namedTypers[0].displayName} and ${namedTypers[1].displayName} are typing…"
+            else -> "${namedTypers[0].displayName} and ${namedTypers.size - 1} others are typing…"
         }
+    }
+
+    private fun currentSupabaseProfileName(): String? {
+        val profile = _currentProfile.value ?: studentProfileRepository.studentProfile.value ?: return null
+        val userId = profile.stableUserId()
+        val known = studentProfileRepository.knownProfiles.value
+        val knownProfile = known[userId]
+            ?: known[userId.lowercase()]
+            ?: known.values.firstOrNull { it.stableUserId().equals(userId, ignoreCase = true) }
+        return knownProfile?.fullName?.takeIf(String::isRealProfileDisplayName)
     }
 
     private fun publishTyping(isTyping: Boolean) {
@@ -1879,7 +1873,8 @@ class ChannelsViewModel(
         val profile = _currentProfile.value
         val userId = profile?.stableUserId().orEmpty()
         if (userId.isBlank() || channel.id.isBlank()) return
-        val displayName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+        val displayName = currentSupabaseProfileName().orEmpty()
+        if (isTyping && displayName.isBlank()) return
         val avatar = profile?.avatarUrl
         if (!isTyping) {
             viewModelScope.launch {
@@ -1887,7 +1882,6 @@ class ChannelsViewModel(
                     serverId = serverId,
                     channelId = channel.id,
                     userId = userId,
-                    displayName = displayName,
                     avatarUrl = avatar,
                     isTyping = false
                 )
@@ -1901,7 +1895,6 @@ class ChannelsViewModel(
                     serverId = serverId,
                     channelId = channel.id,
                     userId = userId,
-                    displayName = displayName,
                     avatarUrl = avatar,
                     isTyping = true
                 )
@@ -1953,7 +1946,6 @@ class ChannelsViewModel(
                     serverId = msg.serverId,
                     channelId = msg.channelId,
                     senderId = msg.senderId,
-                    senderName = msg.senderName,
                     senderAvatarUrl = msg.senderAvatarUrl,
                     text = msg.text,
                     gifUrl = msg.gifUrl,

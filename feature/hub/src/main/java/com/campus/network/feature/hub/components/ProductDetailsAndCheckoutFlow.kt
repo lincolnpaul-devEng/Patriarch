@@ -185,7 +185,7 @@ fun MarketProductDetailsFullScreen(
     onMessageSeller: (sellerId: String, sellerName: String, initialOrderMessage: String?) -> Unit,
     onOpenMapLocation: (Double, Double, String) -> Unit,
     currentUserId: String = "",
-    currentUserName: String = "Student",
+    currentUserName: String = "",
     onSecurityNotice: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {

@@ -48,7 +48,7 @@ import com.campus.network.core.model.VerifiedSkillBadge
 
 @Composable
 fun AcademicPortfolioScreen(
-    studentName: String = "Student",
+    studentName: String = "",
     studentId: String = "",
     degreeProgram: String = "",
     academicYear: String = "",

@@ -2,6 +2,7 @@ package com.campus.network.core.data
 
 import com.campus.network.core.database.dao.ServerChannelMessageDao
 import com.campus.network.core.database.entity.ServerChannelMessageEntity
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,8 @@ class ServerChannelChatRepository(
     private val messageDao: ServerChannelMessageDao? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
+
 
     suspend fun upsertLocalPending(
         serverId: String,
@@ -65,7 +68,7 @@ class ServerChannelChatRepository(
                 serverId = serverId,
                 channelId = channelId,
                 senderId = senderId,
-                senderName = senderName.ifBlank { "Member" },
+                senderName = senderName.takeIf(String::isRealProfileDisplayName).orEmpty(),
                 senderAvatarUrl = senderAvatarUrl,
                 text = text,
                 gifUrl = gifUrl,
@@ -82,7 +85,11 @@ class ServerChannelChatRepository(
     suspend fun loadLocalMessages(channelId: String): List<RemoteChannelChatMessage> =
         withContext(ioDispatcher) {
             val dao = messageDao ?: return@withContext emptyList()
-            dao.getMessagesForChannel(channelId).map { it.toRemote() }
+            val messages = dao.getMessagesForChannel(channelId).map { it.toRemote() }
+            val names = profileNameResolver.resolve(messages.map { it.senderId })
+            messages.map { message ->
+                message.copy(senderName = names[message.senderId.lowercase()].orEmpty())
+            }
         }
 
     suspend fun cacheRemoteMessages(
@@ -130,7 +137,6 @@ class ServerChannelChatRepository(
         serverId: String,
         channelId: String,
         senderId: String,
-        senderName: String,
         senderAvatarUrl: String?,
         text: String,
         gifUrl: String? = null,
@@ -141,13 +147,20 @@ class ServerChannelChatRepository(
         if (channelId.isBlank() || senderId.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("channelId and senderId required"))
         }
+        val resolvedSenderName = try {
+            profileNameResolver.resolve(listOf(senderId))[senderId.trim().lowercase()]
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        } ?: return@withContext Result.failure(
+            IllegalStateException("A Supabase profile name is required to send a channel message")
+        )
         val imagesJson = JSONArray(imageUrls)
         val payload = JSONObject().apply {
             put("id", messageId)
             put("server_id", serverId)
             put("channel_id", channelId)
             put("sender_id", senderId)
-            put("sender_name", senderName.ifBlank { "Member" })
+            put("sender_name", resolvedSenderName)
             if (!senderAvatarUrl.isNullOrBlank()) put("sender_avatar_url", senderAvatarUrl)
             put("text", text)
             if (!gifUrl.isNullOrBlank()) put("gif_url", gifUrl)
@@ -163,7 +176,7 @@ class ServerChannelChatRepository(
                     serverId = serverId,
                     channelId = channelId,
                     senderId = senderId,
-                    senderName = senderName,
+                    senderName = resolvedSenderName,
                     senderAvatarUrl = senderAvatarUrl,
                     text = text,
                     gifUrl = gifUrl,
@@ -190,14 +203,22 @@ class ServerChannelChatRepository(
             "campus_server_channel_messages?channel_id=eq.$encoded" +
                 "$afterFilter&order=timestamp_epoch_ms.asc&limit=$limit"
         )
-        result.mapCatching { raw -> parseMessages(raw) }
+        val parsed = result.mapCatching { raw -> parseMessages(raw) }
+        val messages = parsed.getOrElse { return@withContext Result.failure(it) }
+        val names = try {
+            profileNameResolver.resolve(messages.map { it.senderId })
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        }
+        Result.success(messages.map { message ->
+            message.copy(senderName = names[message.senderId.lowercase()].orEmpty())
+        })
     }
 
     suspend fun setTyping(
         serverId: String,
         channelId: String,
         userId: String,
-        displayName: String,
         avatarUrl: String?,
         isTyping: Boolean
     ): Result<Unit> = withContext(ioDispatcher) {
@@ -211,11 +232,18 @@ class ServerChannelChatRepository(
                 "campus_channel_typing?channel_id=eq.$encodedChannel&user_id=eq.$encodedUser"
             ).map { }
         }
+        val resolvedDisplayName = try {
+            profileNameResolver.resolve(listOf(userId))[userId.trim().lowercase()]
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        } ?: return@withContext Result.failure(
+            IllegalStateException("A Supabase profile name is required to publish channel typing")
+        )
         val payload = JSONObject().apply {
             put("channel_id", channelId)
             put("user_id", userId)
             put("server_id", serverId)
-            put("display_name", displayName.ifBlank { "Member" })
+            put("display_name", resolvedDisplayName)
             if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
             put("updated_at_epoch_ms", System.currentTimeMillis())
         }.toString()
@@ -235,7 +263,7 @@ class ServerChannelChatRepository(
             "campus_channel_typing?channel_id=eq.$encoded" +
                 "&updated_at_epoch_ms=gt.$fresherThanEpochMs&order=updated_at_epoch_ms.desc&limit=20"
         )
-        result.mapCatching { raw -> parseTyping(raw) }
+        resolveTypingNames(result)
     }
 
     suspend fun fetchTypingForServer(
@@ -247,7 +275,7 @@ class ServerChannelChatRepository(
             "campus_channel_typing?server_id=eq.$encoded" +
                 "&updated_at_epoch_ms=gt.$fresherThanEpochMs&order=updated_at_epoch_ms.desc&limit=40"
         )
-        result.mapCatching { raw -> parseTyping(raw) }
+        resolveTypingNames(result)
     }
 
     private fun ServerChannelMessageEntity.toRemote(): RemoteChannelChatMessage {
@@ -263,7 +291,7 @@ class ServerChannelChatRepository(
             serverId = serverId,
             channelId = channelId,
             senderId = senderId,
-            senderName = senderName,
+            senderName = senderName.takeIf(String::isRealProfileDisplayName).orEmpty(),
             senderAvatarUrl = senderAvatarUrl,
             text = text,
             gifUrl = gifUrl,
@@ -292,7 +320,7 @@ class ServerChannelChatRepository(
                     serverId = obj.optString("server_id", ""),
                     channelId = obj.optString("channel_id", ""),
                     senderId = obj.optString("sender_id", ""),
-                    senderName = obj.optString("sender_name", "Member"),
+                    senderName = "",
                     senderAvatarUrl = obj.optString("sender_avatar_url").ifBlank { null },
                     text = obj.optString("text", ""),
                     gifUrl = obj.optString("gif_url").ifBlank { null },
@@ -316,12 +344,27 @@ class ServerChannelChatRepository(
                     channelId = obj.optString("channel_id", ""),
                     serverId = obj.optString("server_id", ""),
                     userId = obj.optString("user_id", ""),
-                    displayName = obj.optString("display_name", "Member"),
+                    displayName = "",
                     avatarUrl = obj.optString("avatar_url").ifBlank { null },
                     updatedAtEpochMs = obj.optLong("updated_at_epoch_ms", 0L)
                 )
             )
         }
         return out
+    }
+
+    private suspend fun resolveTypingNames(
+        result: Result<String>
+    ): Result<List<RemoteChannelTypingUser>> {
+        val parsed = result.mapCatching { raw -> parseTyping(raw) }
+        val users = parsed.getOrElse { return Result.failure(it) }
+        val names = try {
+            profileNameResolver.resolve(users.map { it.userId })
+        } catch (error: Exception) {
+            return Result.failure(error)
+        }
+        return Result.success(users.map { user ->
+            user.copy(displayName = names[user.userId.lowercase()].orEmpty())
+        })
     }
 }

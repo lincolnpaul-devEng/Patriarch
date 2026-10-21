@@ -34,6 +34,7 @@ fun MessagesScreen(
             }
             MessagesScreenMode.CHAT,
             MessagesScreenMode.NEW_CHAT,
+            MessagesScreenMode.FIND_FRIENDS,
             MessagesScreenMode.ADD_NOTE,
             MessagesScreenMode.BROADCAST -> {
                 viewModel.onEvent(MessagesEvent.BackToThreads)
@@ -148,10 +149,18 @@ fun MessagesScreen(
                     )
                 }
 
+                MessagesScreenMode.FIND_FRIENDS -> {
+                    FindFriendsScreen(
+                        uiState = uiState,
+                        onEvent = viewModel::onEvent,
+                        onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) }
+                    )
+                }
+
                 MessagesScreenMode.ADD_NOTE -> {
                     AddNoteScreen(
                         currentNote = uiState.currentUserNote,
-                        fullName = uiState.studentProfile?.fullName?.ifBlank { "Student" } ?: "Student",
+                        fullName = uiState.studentProfile?.fullName.orEmpty(),
                         avatarUrl = uiState.studentProfile?.avatarUrl,
                         onBack = { viewModel.onEvent(MessagesEvent.BackToThreads) },
                         onShareNote = { note ->

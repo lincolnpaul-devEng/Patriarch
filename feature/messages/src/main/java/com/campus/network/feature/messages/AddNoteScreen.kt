@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AddNoteScreen(
     currentNote: String,
-    fullName: String = "Student",
+    fullName: String = "",
     avatarUrl: String? = null,
     onBack: () -> Unit,
     onShareNote: (String) -> Unit,

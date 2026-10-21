@@ -6,6 +6,7 @@ import com.campus.network.core.database.entity.StreamCommentEntity
 import com.campus.network.core.database.entity.StreamerProfileEntity
 import com.campus.network.core.model.LiveStream
 import com.campus.network.core.model.StreamComment
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ class LiveStreamRepository(
     private val streamDao = database.liveStreamDao()
     private val profileDao = database.streamerProfileDao()
     private val commentDao = database.streamCommentDao()
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
 
     fun getAllStreams(): Flow<List<LiveStream>> {
         return streamDao.getAllStreams()
@@ -56,7 +58,6 @@ class LiveStreamRepository(
     suspend fun createLiveStream(
         id: String,
         broadcasterId: String,
-        broadcasterName: String,
         broadcasterHandle: String,
         broadcasterAvatarRes: Int,
         title: String,
@@ -65,11 +66,13 @@ class LiveStreamRepository(
         audience: String,
         streamPlaybackUrl: String? = null
     ): LiveStream = withContext(ioDispatcher) {
+        val resolvedBroadcasterName = profileNameResolver.resolve(listOf(broadcasterId))[broadcasterId.trim().lowercase()]
+            ?: throw IllegalStateException("A Supabase profile name is required to start a live stream")
         val now = System.currentTimeMillis()
         val entity = LiveStreamEntity(
             id = id,
             broadcasterId = broadcasterId,
-            broadcasterName = broadcasterName,
+            broadcasterName = resolvedBroadcasterName,
             broadcasterHandle = broadcasterHandle,
             broadcasterAvatarRes = broadcasterAvatarRes,
             title = title,
@@ -87,7 +90,7 @@ class LiveStreamRepository(
         val remotePayload = JSONObject().apply {
             put("id", id)
             put("broadcaster_id", broadcasterId)
-            put("broadcaster_name", broadcasterName)
+            put("broadcaster_name", resolvedBroadcasterName)
             put("broadcaster_handle", broadcasterHandle)
             put("broadcaster_avatar_res", broadcasterAvatarRes)
             put("title", title)
@@ -140,16 +143,17 @@ class LiveStreamRepository(
     suspend fun postComment(
         streamId: String,
         senderId: String,
-        senderName: String,
         senderAvatarRes: Int,
         commentText: String,
         senderAvatarUrl: String? = null
     ) = withContext(ioDispatcher) {
+        val resolvedSenderName = profileNameResolver.resolve(listOf(senderId))[senderId.trim().lowercase()]
+            ?: throw IllegalStateException("A Supabase profile name is required to post a stream comment")
         val comment = StreamCommentEntity(
             id = "c-${System.currentTimeMillis()}",
             streamId = streamId,
             senderId = senderId,
-            senderName = senderName,
+            senderName = resolvedSenderName,
             senderAvatarUrl = senderAvatarUrl,
             senderAvatarRes = senderAvatarRes,
             commentText = commentText,
@@ -160,14 +164,14 @@ class LiveStreamRepository(
             put("id", comment.id)
             put("stream_id", streamId)
             put("sender_id", senderId)
-            put("sender_name", senderName)
+            put("sender_name", resolvedSenderName)
             put("sender_avatar_url", senderAvatarUrl)
             put("sender_avatar_res", senderAvatarRes)
             put("comment_text", commentText)
             put("timestamp_epoch_ms", comment.timestampEpochMs)
         }.toString()
 
-        supabaseClient.upsertRecord("campus_stream_comments", commentPayload, onConflict = "id")
+        supabaseClient.upsertRecord("campus_stream_comments", commentPayload, onConflict = "id").getOrThrow()
 
         commentDao.insertComment(comment)
     }
@@ -183,6 +187,11 @@ class LiveStreamRepository(
         }
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
+        val broadcasterNames = try {
+            profileNameResolver.resolve((0 until array.length()).map { array.getJSONObject(it).optString("broadcaster_id") })
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        }
         val entities = mutableListOf<LiveStreamEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -190,7 +199,7 @@ class LiveStreamRepository(
                 LiveStreamEntity(
                     id = obj.getString("id"),
                     broadcasterId = obj.getString("broadcaster_id"),
-                    broadcasterName = obj.optString("broadcaster_name", "Broadcaster"),
+                    broadcasterName = broadcasterNames[obj.optString("broadcaster_id").lowercase()].orEmpty(),
                     broadcasterHandle = obj.optString("broadcaster_handle", "@broadcaster"),
                     broadcasterAvatarRes = obj.optInt("broadcaster_avatar_res", 0),
                     broadcasterAvatarUrl = obj.optString("broadcaster_avatar_url", "").ifBlank { null },
@@ -221,7 +230,7 @@ class LiveStreamRepository(
     private fun LiveStreamEntity.toDomain() = LiveStream(
         id = id,
         broadcasterId = broadcasterId,
-        broadcasterName = broadcasterName,
+        broadcasterName = broadcasterName.takeIf(String::isRealProfileDisplayName).orEmpty(),
         broadcasterHandle = broadcasterHandle,
         broadcasterAvatarRes = broadcasterAvatarRes,
         broadcasterAvatarUrl = broadcasterAvatarUrl,
@@ -246,7 +255,7 @@ class LiveStreamRepository(
         id = id,
         streamId = streamId,
         senderId = senderId,
-        senderName = senderName,
+        senderName = senderName.takeIf(String::isRealProfileDisplayName).orEmpty(),
         senderAvatarUrl = senderAvatarUrl,
         senderAvatarRes = senderAvatarRes,
         commentText = commentText,

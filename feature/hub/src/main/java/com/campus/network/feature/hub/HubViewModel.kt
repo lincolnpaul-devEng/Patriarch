@@ -16,6 +16,7 @@ import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.stableUserId
 import com.campus.network.feature.hub.components.ProductBasketConfig
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -52,6 +53,7 @@ sealed interface HubEvent {
     data class UpdateSearchQuery(val query: String) : HubEvent
     data class SelectAiSuggestion(val suggestion: String) : HubEvent
     data object ClearSearch : HubEvent
+    data object ClearFeedback : HubEvent
     data class PostItem(
         val title: String,
         val price: Double,
@@ -86,6 +88,9 @@ class HubViewModel(
     private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository(),
     private val escrowService: SafeTradeEscrowService = SafeTradeEscrowService()
 ) : ViewModel() {
+
+    private val _feedbackMessage = MutableStateFlow<String?>(null)
+    val feedbackMessage: StateFlow<String?> = _feedbackMessage
 
     private val _viewMode = MutableStateFlow(HubViewMode.MARKETPLACE_GRID)
     private val _filterCategory = MutableStateFlow<String?>(null)
@@ -122,13 +127,24 @@ class HubViewModel(
     ) { mode, items, gigs, category, isPostOpen ->
         CombinedBaseData(mode, items, gigs, category, isPostOpen)
     }.let { baseFlow ->
+        val profileAndKnownProfiles = combine(
+            studentProfileRepository.getProfile(),
+            studentProfileRepository.knownProfiles
+        ) { profile, knownProfiles -> profile to knownProfiles }
         combine(
             baseFlow,
             _searchQuery,
             _aiSuggestions,
             _isAiLoading,
-            studentProfileRepository.getProfile()
-        ) { base, query, suggestions, aiLoading, profile ->
+            profileAndKnownProfiles
+        ) { base, query, suggestions, aiLoading, profileAndKnown ->
+            val (profile, knownProfiles) = profileAndKnown
+            val stableId = profile.stableUserId()
+            val canonicalName = knownProfiles[stableId]?.fullName
+                ?: knownProfiles.values.firstOrNull {
+                    it.stableUserId().equals(stableId, ignoreCase = true)
+                }?.fullName
+            val canonicalProfile = profile.copy(fullName = canonicalName.orEmpty())
             val categoryFilteredItems = if (base.category == null || base.category == "All") {
                 base.items
             } else {
@@ -212,7 +228,7 @@ class HubViewModel(
                 searchQuery = query,
                 aiSuggestions = suggestions,
                 isAiLoading = aiLoading,
-                studentProfile = profile,
+                studentProfile = canonicalProfile,
                 isPaymentProviderReady = escrowService.isPaymentReady(),
                 paymentProviderName = escrowService.providerDisplayName(),
                 paymentMethods = escrowService.availablePaymentMethods()
@@ -312,53 +328,70 @@ class HubViewModel(
                 _searchQuery.value = ""
                 _aiSuggestions.value = emptyList()
             }
+            HubEvent.ClearFeedback -> _feedbackMessage.value = null
             is HubEvent.PostItem -> {
                 viewModelScope.launch {
                     val profile = uiState.value.studentProfile
-                    val authorName = profile?.fullName?.ifBlank { "Student Peer" } ?: "Student Peer"
                     val sellerUserId = profile?.stableUserId().orEmpty()
                     if (sellerUserId.isBlank()) {
-                        // Refuse to publish without a stable identity — name-based ownership is unsafe.
+                        _feedbackMessage.value = "A Supabase profile is required to publish a listing."
                         return@launch
                     }
-                    repository.postMarketItem(
-                        title = event.title,
-                        price = event.price,
-                        category = event.category,
-                        condition = event.condition,
-                        sellerName = "$authorName (Verified Student)",
-                        sellerUserId = sellerUserId,
-                        location = event.location,
-                        description = event.description,
-                        pickupSpotName = event.pickupSpotName,
-                        pickupSecurityLevel = event.pickupSecurityLevel,
-                        pickupLatitude = event.pickupLatitude,
-                        pickupLongitude = event.pickupLongitude,
-                        pickupTiming = event.pickupTiming,
-                        payoutMethod = event.payoutMethod,
-                        requiresQrReleaseCode = event.requiresQrReleaseCode,
-                        qrReleaseCode = event.qrReleaseCode,
-                        imageUrl = event.imageUrl,
-                        imageUrls = event.imageUrls,
-                        itemId = event.itemId
-                    )
-                    _isPostDialogOpen.value = false
+                    try {
+                        repository.postMarketItem(
+                            title = event.title,
+                            price = event.price,
+                            category = event.category,
+                            condition = event.condition,
+                            sellerUserId = sellerUserId,
+                            location = event.location,
+                            description = event.description,
+                            pickupSpotName = event.pickupSpotName,
+                            pickupSecurityLevel = event.pickupSecurityLevel,
+                            pickupLatitude = event.pickupLatitude,
+                            pickupLongitude = event.pickupLongitude,
+                            pickupTiming = event.pickupTiming,
+                            payoutMethod = event.payoutMethod,
+                            requiresQrReleaseCode = event.requiresQrReleaseCode,
+                            qrReleaseCode = event.qrReleaseCode,
+                            imageUrl = event.imageUrl,
+                            imageUrls = event.imageUrls,
+                            itemId = event.itemId
+                        )
+                        _isPostDialogOpen.value = false
+                        _feedbackMessage.value = "Listing published."
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        _feedbackMessage.value = error.message ?: "Unable to publish listing."
+                    }
                 }
             }
             is HubEvent.PostGig -> {
                 viewModelScope.launch {
                     val profile = uiState.value.studentProfile
-                    val authorName = profile?.fullName?.ifBlank { "Student Peer" } ?: "Student Peer"
-                    repository.postMicroGig(
-                        title = event.title,
-                        description = event.description,
-                        payoutAmount = event.payout,
-                        estimatedDuration = event.duration,
-                        posterName = "$authorName (Verified Student)",
-                        tag = event.tag,
-                        urgency = event.urgency
-                    )
-                    _isPostDialogOpen.value = false
+                    val posterUserId = profile?.stableUserId().orEmpty()
+                    if (posterUserId.isBlank()) {
+                        _feedbackMessage.value = "A Supabase profile is required to publish a gig."
+                        return@launch
+                    }
+                    try {
+                        repository.postMicroGig(
+                            title = event.title,
+                            description = event.description,
+                            payoutAmount = event.payout,
+                            estimatedDuration = event.duration,
+                            posterUserId = posterUserId,
+                            tag = event.tag,
+                            urgency = event.urgency
+                        )
+                        _isPostDialogOpen.value = false
+                        _feedbackMessage.value = "Gig published."
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        _feedbackMessage.value = error.message ?: "Unable to publish gig."
+                    }
                 }
             }
         }

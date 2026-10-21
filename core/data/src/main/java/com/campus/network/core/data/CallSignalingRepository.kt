@@ -4,6 +4,7 @@ import com.campus.network.core.model.CallMediaKind
 import com.campus.network.core.model.CallSession
 import com.campus.network.core.model.CallSessionStatus
 import com.campus.network.core.model.OutgoingCallInvite
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -21,16 +22,32 @@ class CallSignalingRepository(
     private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
+
     suspend fun createOutgoingInvite(invite: OutgoingCallInvite): Result<CallSession> =
         withContext(ioDispatcher) {
+            val profileNames = try {
+                profileNameResolver.resolve(listOf(invite.callerId, invite.calleeId))
+            } catch (error: Exception) {
+                return@withContext Result.failure(error)
+            }
+            val callerName = profileNames[invite.callerId.trim().lowercase()]
+                ?.takeIf(String::isRealProfileDisplayName)
+            val calleeName = profileNames[invite.calleeId.trim().lowercase()]
+                ?.takeIf(String::isRealProfileDisplayName)
+            if (callerName == null || calleeName == null) {
+                return@withContext Result.failure(
+                    IllegalStateException("Supabase profile names are required to start a call")
+                )
+            }
             val now = System.currentTimeMillis()
             val session = CallSession(
                 id = "call_${UUID.randomUUID()}",
                 channelId = invite.channelId,
                 callerId = invite.callerId,
-                callerName = invite.callerName,
+                callerName = callerName,
                 calleeId = invite.calleeId,
-                calleeName = invite.calleeName,
+                calleeName = calleeName,
                 mediaKind = invite.mediaKind,
                 status = CallSessionStatus.RINGING,
                 createdAtEpochMs = now,
@@ -68,7 +85,7 @@ class CallSignalingRepository(
             .getOrNull() ?: return@withContext null
         val array = runCatching { JSONArray(raw) }.getOrNull() ?: return@withContext null
         if (array.length() == 0) return@withContext null
-        parseSession(array.getJSONObject(0))
+        resolveSessionNames(listOfNotNull(parseSession(array.getJSONObject(0)))).firstOrNull()
     }
 
     /** Incoming RINGING invites for this user (newest first). */
@@ -80,11 +97,12 @@ class CallSignalingRepository(
                 "campus_call_sessions?callee_id=eq.$encoded&status=eq.RINGING&order=created_at_epoch_ms.desc&limit=5"
             ).getOrNull() ?: return@withContext emptyList()
             val array = runCatching { JSONArray(raw) }.getOrNull() ?: return@withContext emptyList()
-            buildList {
+            val sessions = buildList {
                 for (i in 0 until array.length()) {
                     parseSession(array.getJSONObject(i))?.let { add(it) }
                 }
             }
+            resolveSessionNames(sessions)
         }
 
     suspend fun registerPushToken(userId: String, fcmToken: String): Result<Unit> =
@@ -131,13 +149,26 @@ class CallSignalingRepository(
             id = id,
             channelId = obj.optString("channel_id"),
             callerId = obj.optString("caller_id"),
-            callerName = obj.optString("caller_name"),
+            callerName = "",
             calleeId = obj.optString("callee_id"),
-            calleeName = obj.optString("callee_name"),
+            calleeName = "",
             mediaKind = media,
             status = status,
             createdAtEpochMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis()),
             updatedAtEpochMs = obj.optLong("updated_at_epoch_ms", System.currentTimeMillis())
         )
+    }
+
+    private suspend fun resolveSessionNames(sessions: List<CallSession>): List<CallSession> {
+        if (sessions.isEmpty()) return emptyList()
+        val names = profileNameResolver.resolve(
+            sessions.flatMap { listOf(it.callerId, it.calleeId) }
+        )
+        return sessions.map { session ->
+            session.copy(
+                callerName = names[session.callerId.lowercase()].orEmpty(),
+                calleeName = names[session.calleeId.lowercase()].orEmpty()
+            )
+        }
     }
 }

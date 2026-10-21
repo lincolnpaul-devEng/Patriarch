@@ -4,6 +4,7 @@ import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.FlashMeetEntity
 import com.campus.network.core.model.FlashMeet
 import com.campus.network.core.model.MeetCategory
+import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,7 @@ class FlashMeetRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val dao = database.flashMeetDao()
+    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
 
     /**
      * Emits live meets continuously on the IO thread.
@@ -44,9 +46,13 @@ class FlashMeetRepository(
         latitude: Double,
         longitude: Double,
         locationName: String,
-        creatorName: String,
+        creatorUserId: String,
         durationMinutes: Int
     ): FlashMeet = withContext(ioDispatcher) {
+        val resolvedCreatorId = creatorUserId.trim()
+        require(resolvedCreatorId.isNotBlank()) { "creatorUserId is required to publish a flash meet" }
+        val resolvedCreatorName = profileNameResolver.resolve(listOf(resolvedCreatorId))[resolvedCreatorId.lowercase()]
+            ?: throw IllegalStateException("A Supabase profile name is required to publish a flash meet")
         val now = System.currentTimeMillis()
         val expiry = now + (durationMinutes * 60 * 1000L)
         val entity = FlashMeetEntity(
@@ -57,7 +63,7 @@ class FlashMeetRepository(
             latitude = latitude,
             longitude = longitude,
             locationName = locationName,
-            creatorName = creatorName,
+            creatorName = resolvedCreatorName,
             creatorAvatar = null,
             createdAtEpochMs = now,
             expiresAtEpochMs = expiry,
@@ -74,6 +80,7 @@ class FlashMeetRepository(
             put("longitude", entity.longitude)
             put("location_name", entity.locationName)
             put("creator_name", entity.creatorName)
+            put("creator_id", resolvedCreatorId)
             put("created_at_epoch_ms", entity.createdAtEpochMs)
             put("expires_at_epoch_ms", entity.expiresAtEpochMs)
             put("attendee_count", entity.attendeeCount)
@@ -124,12 +131,19 @@ class FlashMeetRepository(
      */
     suspend fun syncRemoteFlashMeets(): Result<Unit> = withContext(ioDispatcher) {
         val now = System.currentTimeMillis()
-        val queryResult = supabaseClient.queryTable("campus_flash_meets?expires_at_epoch_ms=gt.$now&order=created_at_epoch_ms.desc&limit=30")
+        val queryResult = supabaseClient.queryTable(
+            "campus_flash_meets?expires_at_epoch_ms=gt.$now&order=created_at_epoch_ms.desc&limit=30"
+        )
         if (queryResult.isFailure) {
             return@withContext Result.failure(queryResult.exceptionOrNull() ?: Exception("Failed to fetch flash meets"))
         }
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
+        val creatorNames = try {
+            profileNameResolver.resolve((0 until array.length()).map { array.getJSONObject(it).optString("creator_id") })
+        } catch (error: Exception) {
+            return@withContext Result.failure(error)
+        }
         val entities = mutableListOf<FlashMeetEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -142,7 +156,7 @@ class FlashMeetRepository(
                     latitude = obj.optDouble("latitude", 0.0),
                     longitude = obj.optDouble("longitude", 0.0),
                     locationName = obj.optString("location_name", ""),
-                    creatorName = obj.optString("creator_name", "Student Peer"),
+                    creatorName = creatorNames[obj.optString("creator_id").lowercase()].orEmpty(),
                     creatorAvatar = obj.optString("creator_avatar", "").ifBlank { null },
                     createdAtEpochMs = obj.optLong("created_at_epoch_ms", now),
                     expiresAtEpochMs = obj.optLong("expires_at_epoch_ms", now + 3600000L),

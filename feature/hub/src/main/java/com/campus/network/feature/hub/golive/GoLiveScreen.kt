@@ -95,6 +95,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.campus.network.core.network.OpenRouterAiClient
+import com.campus.network.core.model.stableUserId
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -205,11 +206,15 @@ fun GoLiveScreen(
     LaunchedEffect(phase) {
         if (phase == Phase.LIVE && liveStreamRepository != null) {
             val profile = activeProfile
+            val broadcasterId = profile?.stableUserId().orEmpty()
+            if (broadcasterId.isBlank()) {
+                phase = Phase.SETUP
+                return@LaunchedEffect
+            }
             liveStreamRepository.createLiveStream(
                 id = streamId,
-                broadcasterId = profile?.studentId?.ifBlank { "user_self" } ?: "user_self",
-                broadcasterName = profile?.fullName?.ifBlank { "You" } ?: "You",
-                broadcasterHandle = if (profile != null && profile.universityEmail.contains("@")) profile.universityEmail.substringBefore("@") else "you",
+                broadcasterId = broadcasterId,
+                broadcasterHandle = profile?.universityEmail?.substringBefore("@").orEmpty(),
                 broadcasterAvatarRes = 0,
                 title = draft.title.ifBlank { "Campus Live Stream" },
                 description = draft.description,

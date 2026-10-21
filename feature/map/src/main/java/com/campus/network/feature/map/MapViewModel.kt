@@ -13,6 +13,8 @@ import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.firstName
 import com.campus.network.core.model.initials
+import com.campus.network.core.model.isRealProfileDisplayName
+import com.campus.network.core.model.stableUserId
 import com.campus.network.feature.map.components.CampusFriend
 import androidx.compose.ui.graphics.Color
 import com.campus.network.feature.map.events.CampusEvent
@@ -54,13 +56,16 @@ data class MapUiState(
     val friends: List<CampusFriend> = emptyList()
 ) {
     val studentName: String
-        get() = studentProfile?.fullName?.ifBlank { "Student" } ?: "Student"
+        get() = studentProfile?.fullName?.takeIf(String::isRealProfileDisplayName).orEmpty()
 
     val studentFirstName: String
-        get() = studentProfile?.firstName?.ifBlank { "Student" } ?: "Student"
+        get() = studentProfile?.fullName
+            ?.takeIf(String::isRealProfileDisplayName)
+            ?.let { it.substringBefore(' ').trim() }
+            .orEmpty()
 
     val studentInitials: String
-        get() = studentProfile?.initials ?: "S"
+        get() = studentProfile?.takeIf { it.fullName.isRealProfileDisplayName() }?.initials.orEmpty()
 
     val studentAvatarUrl: String?
         get() = studentProfile?.avatarUrl
@@ -204,10 +209,20 @@ class MapViewModel(
         val currentProfile = args[19] as StudentProfile?
         @Suppress("UNCHECKED_CAST")
         val knownProfilesMap = (args[20] as? Map<String, StudentProfile>) ?: emptyMap()
+        val stableCurrentId = currentProfile?.stableUserId().orEmpty()
+        val canonicalCurrentName = knownProfilesMap[stableCurrentId]?.fullName
+            ?: knownProfilesMap.values.firstOrNull {
+                it.stableUserId().equals(stableCurrentId, ignoreCase = true)
+            }?.fullName
+        val canonicalCurrentProfile = currentProfile?.copy(fullName = canonicalCurrentName.orEmpty())
 
         val currentEmail = currentProfile?.universityEmail.orEmpty()
         val campusFriends = knownProfilesMap.values
-            .filter { it.universityEmail.isNotBlank() && it.universityEmail != currentEmail && it.fullName.isNotBlank() }
+            .filter {
+                it.universityEmail.isNotBlank() &&
+                    it.universityEmail != currentEmail &&
+                    it.fullName.isRealProfileDisplayName()
+            }
             .distinctBy { it.universityEmail }
             .map { profile ->
                 val initials = profile.initials.ifBlank {
@@ -271,7 +286,7 @@ class MapViewModel(
             events = eventList,
             selectedEvent = currentEvent,
             focusedEventLocation = focusedLocation,
-            studentProfile = currentProfile,
+            studentProfile = canonicalCurrentProfile,
             friends = campusFriends
         )
     }.stateIn(
@@ -340,6 +355,11 @@ class MapViewModel(
             is MapEvent.ToggleCreateDialog -> _isCreateDialogVisible.value = event.show
             is MapEvent.CreateMeet -> {
                 viewModelScope.launch {
+                    val creatorUserId = _currentProfile.value?.stableUserId().orEmpty()
+                    if (creatorUserId.isBlank()) {
+                        _feedbackMessage.value = "A Supabase profile is required to publish a flash meet."
+                        return@launch
+                    }
                     val defaultLat = _userLocation.value?.latitude ?: _selectedPlace.value?.latitude ?: -1.3094
                     val defaultLng = _userLocation.value?.longitude ?: _selectedPlace.value?.longitude ?: 36.8122
                     val targetLat = event.latitude ?: defaultLat
@@ -352,7 +372,7 @@ class MapViewModel(
                         latitude = targetLat,
                         longitude = targetLng,
                         locationName = event.locationName,
-                        creatorName = _currentProfile.value?.fullName ?: "You (Verified Student)",
+                        creatorUserId = creatorUserId,
                         durationMinutes = event.durationMinutes
                     )
                     _isCreateDialogVisible.value = false
@@ -361,7 +381,9 @@ class MapViewModel(
             }
             is MapEvent.CreateCampusEvent -> {
                 viewModelScope.launch {
-                    val updatedEvents = listOf(event.event) + _events.value
+                    val profileName = currentSupabaseProfileName().orEmpty()
+                    val profileEvent = event.event.copy(hostName = profileName)
+                    val updatedEvents = listOf(profileEvent) + _events.value
                     _events.value = updatedEvents
 
                     // Persist campus event to remote Supabase database
@@ -378,6 +400,11 @@ class MapViewModel(
                     )
 
                     if (event.alsoPublishAsFlashMeet) {
+                        val creatorUserId = _currentProfile.value?.stableUserId().orEmpty()
+                        if (creatorUserId.isBlank()) {
+                            _feedbackMessage.value = "A Supabase profile is required to publish a flash meet."
+                            return@launch
+                        }
                         flashMeetRepository.createFlashMeet(
                             title = event.event.title,
                             description = event.event.description,
@@ -385,7 +412,7 @@ class MapViewModel(
                             latitude = event.event.latitude,
                             longitude = event.event.longitude,
                             locationName = event.event.locationName,
-                            creatorName = event.event.hostName,
+                            creatorUserId = creatorUserId,
                             durationMinutes = event.durationMinutes
                         )
                     }
@@ -443,6 +470,15 @@ class MapViewModel(
                 _navigationMode.value = MapNavigationMode.MAP
             }
         }
+    }
+
+    private fun currentSupabaseProfileName(): String? {
+        val profile = _currentProfile.value ?: return null
+        val userId = profile.stableUserId()
+        val known = studentProfileRepository.knownProfiles.value
+        return (known[userId] ?: known.values.firstOrNull {
+            it.stableUserId().equals(userId, ignoreCase = true)
+        })?.fullName?.takeIf(String::isRealProfileDisplayName)
     }
 
     private fun haversineDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

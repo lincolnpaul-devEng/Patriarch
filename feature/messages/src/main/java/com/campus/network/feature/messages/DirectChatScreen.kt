@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Star
@@ -172,6 +173,9 @@ fun DirectChatScreen(
     val listState = rememberLazyListState()
     val keyboardController = LocalSoftwareKeyboardController.current
     val resolvedTypingLabel = typingLabel ?: thread.typingLabel
+    val displayPeerName = humanizePeerDisplayName(thread.peerName)
+    val displayPeerInitial = displayPeerName.firstOrNull()?.uppercaseChar()?.toString()
+        ?: thread.avatarInitials.take(1).ifBlank { "P" }
 
     // Publish typing presence while composer has text
     LaunchedEffect(inputText) {
@@ -348,7 +352,7 @@ fun DirectChatScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (thread.avatarInitials.isNotEmpty()) thread.avatarInitials.take(1) else "J",
+                            text = displayPeerInitial,
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp
@@ -368,7 +372,7 @@ fun DirectChatScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = thread.peerName,
+                                text = displayPeerName,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF0F172A),
@@ -689,6 +693,16 @@ fun DirectChatScreen(
                                 onClick = {
                                     showActionMenu = false
                                     photoPickerLauncher.launch("image/*")
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Find Friends") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFF5865F2))
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onEvent(MessagesEvent.OpenFindFriends)
                                 }
                             )
                         }
@@ -1966,4 +1980,16 @@ private fun SendSettlementDialog(
             }
         }
     }
+}
+
+/** Never show raw ids like thread_general in the chat title. */
+private fun humanizePeerDisplayName(raw: String): String {
+    val name = raw.trim()
+    if (name.isBlank()) return ""
+    val lower = name.lowercase()
+    if (lower.startsWith("thread_") || lower.startsWith("dm_") || lower.startsWith("ch_") || lower.startsWith("mem_")) {
+        return ""
+    }
+    if (lower == "general" || lower.endsWith("_general")) return ""
+    return name
 }

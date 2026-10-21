@@ -559,7 +559,7 @@ fun PlaceDetailSheet(
                     ) {
                         CampusStudentAvatar(
                             avatarUrl = null,
-                            fullName = "Student",
+                            fullName = "",
                             modifier = Modifier.size(36.dp)
                         )
 

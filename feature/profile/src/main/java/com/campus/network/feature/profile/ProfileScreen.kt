@@ -117,6 +117,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.campus.network.core.model.ConsistencyQuest
 import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.isRealProfileDisplayName
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -251,7 +252,7 @@ fun ProfileScreen(
         }
         ProfileSubScreen.ACADEMIC_PORTFOLIO -> {
             AcademicPortfolioScreen(
-                studentName = profile?.fullName?.ifBlank { "Student" } ?: "Student",
+                studentName = profile?.fullName?.takeIf(String::isRealProfileDisplayName).orEmpty(),
                 studentId = profile?.studentId ?: "",
                 degreeProgram = profile?.degreeProgram ?: "",
                 academicYear = profile?.academicYear ?: "",
@@ -992,7 +993,7 @@ private fun LuxuryGoldProfileCard(
     onViewActivityClick: () -> Unit,
     onOfferClick: () -> Unit
 ) {
-    val studentName = profile?.fullName?.ifBlank { "Student" } ?: "Student"
+    val studentName = profile?.fullName?.takeIf(String::isRealProfileDisplayName).orEmpty()
     val studentEmail = profile?.universityEmail ?: ""
     val initial = studentName.firstOrNull()?.toString()?.uppercase() ?: "S"
     val hasNote = !profile?.statusNote.isNullOrBlank()
@@ -1769,7 +1770,7 @@ private fun EditProfileDrawerSheet(
                             ) {
                                 CampusStudentAvatar(
                                     avatarUrl = avatarUrl.ifBlank { null },
-                                    fullName = fullName.ifBlank { "Student" },
+                                    fullName = fullName,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 if (isUploadingAvatar) {

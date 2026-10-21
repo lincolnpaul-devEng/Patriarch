@@ -66,12 +66,17 @@ fun MainAppScreen(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                // serverRepository wired below after remember — use database friends dao path via factory recreate
                 return MessagesViewModel(
                     streamChatEngine = streamChatEngine,
                     telecomCallManager = telecomCallManager,
                     studentProfileRepository = studentProfileRepository,
                     chatMessageDao = database.chatMessageDao(),
                     supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+                    serverRepository = com.campus.network.core.data.ServerRepository(
+                        database = database,
+                        supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+                    ),
                     context = context.applicationContext
                 ) as T
             }

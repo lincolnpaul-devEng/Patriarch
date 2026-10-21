@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.campus.network.core.model.FlashMeet
 import com.campus.network.core.model.MeetCategory
+import com.campus.network.core.model.isRealProfileDisplayName
 
 @Entity(tableName = "flash_meets")
 data class FlashMeetEntity(
@@ -29,7 +30,7 @@ data class FlashMeetEntity(
         latitude = latitude,
         longitude = longitude,
         locationName = locationName,
-        creatorName = creatorName,
+        creatorName = creatorName.takeIf(String::isRealProfileDisplayName).orEmpty(),
         creatorAvatar = creatorAvatar,
         createdAtEpochMs = createdAtEpochMs,
         expiresAtEpochMs = expiresAtEpochMs,
@@ -163,4 +164,3 @@ data class StreamCommentEntity(
     val commentText: String,
     val timestampEpochMs: Long = System.currentTimeMillis()
 )
-
