@@ -185,8 +185,8 @@ object CampusNotificationPollManager {
             val recipientEmail = prefs.getString(KEY_RECIPIENT_USER_EMAIL, null)?.takeIf { it.isNotBlank() }
 
             val recipientFilter = when {
-                !recipientId.isNullOrBlank() && !recipientEmail.isNullOrBlank() ->
-                    "&or=(recipient_user_id.eq.${URLEncoder.encode(recipientId, "UTF-8")},recipient_user_id.eq.${URLEncoder.encode(recipientEmail, "UTF-8")})"
+                !recipientId.isNullOrBlank() && !recipientEmail.isNullOrBlank() && !recipientId.equals(recipientEmail, ignoreCase = true) ->
+                    "&recipient_user_id=in.(${URLEncoder.encode(recipientId, "UTF-8")},${URLEncoder.encode(recipientEmail, "UTF-8")})"
                 !recipientId.isNullOrBlank() ->
                     "&recipient_user_id=eq.${URLEncoder.encode(recipientId, "UTF-8")}"
                 !recipientEmail.isNullOrBlank() ->
@@ -264,6 +264,18 @@ object CampusNotificationPollManager {
                                 body = message
                             )
                         }
+                        "FRIEND_REQUEST_ACCEPTED" -> {
+                            CampusSystemNotificationCenter.showFriendRequestNotification(
+                                context = context,
+                                peerUserId = newestObj.optString(
+                                    "actor_user_id",
+                                    newestObj.optString("thread_id", "unknown_peer")
+                                ),
+                                peerName = actorName,
+                                serverId = newestObj.optString("server_id").ifBlank { null },
+                                body = message.ifBlank { "$actorName accepted your friend request" }
+                            )
+                        }
                         else -> {
                             CampusSystemNotificationCenter.showDirectMessageNotification(
                                 context = context,
@@ -285,12 +297,20 @@ object CampusNotificationPollManager {
 
     /** Bind poll filter to the signed-in student so we only surface their inbox rows. */
     fun setRecipientUserId(context: Context, userId: String?, email: String? = null) {
-        context.applicationContext
-            .getSharedPreferences(PREFS_POLL, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_RECIPIENT_USER_ID, userId?.trim().orEmpty())
-            .putString(KEY_RECIPIENT_USER_EMAIL, email?.trim().orEmpty())
-            .apply()
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_POLL, Context.MODE_PRIVATE)
+        val oldUserId = prefs.getString(KEY_RECIPIENT_USER_ID, null)
+        val oldEmail = prefs.getString(KEY_RECIPIENT_USER_EMAIL, null)
+        val newUserId = userId?.trim().orEmpty()
+        val newEmail = email?.trim().orEmpty()
+        val editor = prefs.edit()
+            .putString(KEY_RECIPIENT_USER_ID, newUserId)
+            .putString(KEY_RECIPIENT_USER_EMAIL, newEmail)
+        if (oldUserId != newUserId || oldEmail != newEmail) {
+            editor.remove("last_supabase_notif_id")
+            editor.remove(KEY_LAST_CREATED_AT)
+            editor.remove(KEY_LAST_ETAG)
+        }
+        editor.apply()
     }
 }
 

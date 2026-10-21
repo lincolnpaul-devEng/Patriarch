@@ -243,6 +243,13 @@ fun ChannelChatScreen(
         }
     }
 
+    val networkState = com.campus.network.core.ui.components.rememberCampusNetworkState()
+    LaunchedEffect(networkState.isOnline) {
+        if (networkState.isOnline) {
+            viewModel.onEvent(ChannelsEvent.FlushPendingChannelMessages)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()

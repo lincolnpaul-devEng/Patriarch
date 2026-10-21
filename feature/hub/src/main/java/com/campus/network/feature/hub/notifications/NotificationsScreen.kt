@@ -28,8 +28,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -62,6 +65,8 @@ sealed interface NotificationDestination {
     data object None : NotificationDestination
     data class FlashMeet(val latitude: Double, val longitude: Double) : NotificationDestination
     data class DirectChat(val peerId: String, val peerName: String) : NotificationDestination
+    /** Pending inbound friend request — Accept / Decline inline (not a fake DM). */
+    data class FriendRequest(val peerUserId: String, val peerName: String) : NotificationDestination
     data object Marketplace : NotificationDestination
     data object GuildChannel : NotificationDestination
 }
@@ -101,6 +106,9 @@ fun NotificationsScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showTooltip by remember { mutableStateOf(true) }
+    val cleanUserIdForActions = currentUserId.trim().ifBlank {
+        currentUserEmail.trim().lowercase()
+    }
 
     // Real campus notifications list loaded from backend and local database
     val notifications = remember { mutableStateListOf<CampusNotification>() }
@@ -117,11 +125,16 @@ fun NotificationsScreen(
         withContext(Dispatchers.IO) {
             val list = mutableListOf<CampusNotification>()
 
-            // 1. Load pending friend requests from ServerRepository
+            // 1. Sync + load pending friend requests (Accept lives here — not in a fake DM)
             if (serverRepository != null && cleanUserId.isNotBlank()) {
                 runCatching {
-                    val requests = serverRepository.getPendingReceivedFriendRequests(cleanUserId).firstOrNull().orEmpty()
+                    serverRepository.syncRemoteFriends(cleanUserId, cleanEmail)
+                    val requests = serverRepository.getPendingReceivedFriendRequests(cleanUserId, cleanEmail)
+                        .firstOrNull()
+                        .orEmpty()
                     requests.forEach { req ->
+                        val peerId = req.friendUserId.trim()
+                        if (peerId.isBlank()) return@forEach
                         val initial = req.friendDisplayName.trim().take(1).uppercase().ifBlank { "P" }
                         val dateStr = formatNotificationDate(req.lastInteractionEpochMs)
                         list.add(
@@ -132,9 +145,12 @@ fun NotificationsScreen(
                                 initialTextColor = Color.White,
                                 title = req.friendDisplayName,
                                 date = dateStr,
-                                description = "${req.friendDisplayName} sent you a friend request. Tap to view and accept.",
+                                description = "${req.friendDisplayName} sent you a friend request.",
                                 isUnread = true,
-                                destination = NotificationDestination.DirectChat(req.friendUserId, req.friendDisplayName)
+                                destination = NotificationDestination.FriendRequest(
+                                    peerUserId = peerId,
+                                    peerName = req.friendDisplayName
+                                )
                             )
                         )
                     }
@@ -169,13 +185,30 @@ fun NotificationsScreen(
                             val initial = actorName.trim().take(1).uppercase().ifBlank { "C" }
                             val dateStr = formatNotificationDate(createdAtMs)
                             val dest = when (type) {
-                                "FRIEND_REQUEST" -> NotificationDestination.DirectChat(actorUserId, actorName)
-                                "DIRECT_MESSAGE" -> NotificationDestination.DirectChat(threadId.ifBlank { actorUserId }, actorName)
+                                "FRIEND_REQUEST" -> {
+                                    if (actorUserId.isNotBlank()) {
+                                        NotificationDestination.FriendRequest(actorUserId, actorName)
+                                    } else {
+                                        NotificationDestination.None
+                                    }
+                                }
+                                "DIRECT_MESSAGE" -> NotificationDestination.DirectChat(
+                                    threadId.ifBlank { actorUserId },
+                                    actorName
+                                )
                                 "FLASH_MEET" -> NotificationDestination.FlashMeet(-1.3094, 36.8122)
                                 else -> NotificationDestination.None
                             }
 
-                            if (type != "FRIEND_REQUEST" || list.none { it.id == "fr_$actorUserId:$cleanUserId" || it.id == id }) {
+                            // Skip duplicate friend-request rows already loaded from campus_friends
+                            val isDupFriend = type == "FRIEND_REQUEST" && (
+                                list.any {
+                                    it.destination is NotificationDestination.FriendRequest &&
+                                        (it.destination as NotificationDestination.FriendRequest)
+                                            .peerUserId.equals(actorUserId, ignoreCase = true)
+                                } || list.any { it.id == "fr_$actorUserId:$cleanUserId" || it.id == id }
+                            )
+                            if (!isDupFriend) {
                                 list.add(
                                     CampusNotification(
                                         id = id,
@@ -381,6 +414,8 @@ fun NotificationsScreen(
                         NotificationCard(
                             notification = item,
                             onClick = {
+                                // Friend-request cards handle Accept/Decline themselves
+                                if (item.destination is NotificationDestination.FriendRequest) return@NotificationCard
                                 // Mark as read on click
                                 val idx = notifications.indexOfFirst { it.id == item.id }
                                 if (idx != -1 && item.isUnread) {
@@ -401,6 +436,7 @@ fun NotificationsScreen(
                                     is NotificationDestination.DirectChat -> {
                                         onNavigateToMessages(dest.peerId, dest.peerName)
                                     }
+                                    is NotificationDestination.FriendRequest -> Unit
                                     is NotificationDestination.Marketplace -> {
                                         onNavigateToHub()
                                     }
@@ -408,6 +444,49 @@ fun NotificationsScreen(
                                         onNavigateToMessages(null, null)
                                     }
                                     is NotificationDestination.None -> Unit
+                                }
+                            },
+                            onAcceptFriend = { peerUserId, peerName ->
+                                scope.launch {
+                                    val repo = serverRepository
+                                    if (repo == null || cleanUserIdForActions.isBlank()) {
+                                        snackbarHostState.showSnackbar("Sign in to accept friend requests")
+                                        return@launch
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        repo.acceptFriendRequest(
+                                            userId = cleanUserIdForActions,
+                                            friendUserId = peerUserId,
+                                            userDisplayName = peerName
+                                        )
+                                    }
+                                    notifications.removeAll {
+                                        val dest = it.destination
+                                        dest is NotificationDestination.FriendRequest &&
+                                            dest.peerUserId.equals(peerUserId, ignoreCase = true)
+                                    }
+                                    snackbarHostState.showSnackbar("You are now friends with $peerName")
+                                }
+                            },
+                            onDeclineFriend = { peerUserId, peerName ->
+                                scope.launch {
+                                    val repo = serverRepository
+                                    if (repo == null || cleanUserIdForActions.isBlank()) {
+                                        snackbarHostState.showSnackbar("Sign in to decline friend requests")
+                                        return@launch
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        repo.declineOrRemoveFriend(
+                                            userId = cleanUserIdForActions,
+                                            friendUserId = peerUserId
+                                        )
+                                    }
+                                    notifications.removeAll {
+                                        val dest = it.destination
+                                        dest is NotificationDestination.FriendRequest &&
+                                            dest.peerUserId.equals(peerUserId, ignoreCase = true)
+                                    }
+                                    snackbarHostState.showSnackbar("Declined request from $peerName")
                                 }
                             }
                         )
@@ -478,8 +557,11 @@ fun NotificationsScreen(
 private fun NotificationCard(
     notification: CampusNotification,
     onClick: () -> Unit,
+    onAcceptFriend: (peerUserId: String, peerName: String) -> Unit = { _, _ -> },
+    onDeclineFriend: (peerUserId: String, peerName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    val friendRequest = notification.destination as? NotificationDestination.FriendRequest
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -492,7 +574,7 @@ private fun NotificationCard(
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
             .border(0.6.dp, Color(0xFFE5E7EB), RoundedCornerShape(20.dp))
-            .clickable { onClick() }
+            .clickable(enabled = friendRequest == null) { onClick() }
             .padding(16.dp)
     ) {
         Row(
@@ -565,6 +647,44 @@ private fun NotificationCard(
                     lineHeight = 19.sp,
                     color = Color(0xFF14171A)
                 )
+
+                if (friendRequest != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                onAcceptFriend(friendRequest.peerUserId, friendRequest.peerName)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF23A55A)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text(
+                                text = "Accept",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                onDeclineFriend(friendRequest.peerUserId, friendRequest.peerName)
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text(
+                                text = "Decline",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = Color(0xFFE11D48)
+                            )
+                        }
+                    }
+                }
             }
         }
     }

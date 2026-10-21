@@ -14,6 +14,7 @@ import com.campus.network.core.database.dao.StreamerProfileDao
 import com.campus.network.core.database.dao.StreamCommentDao
 import com.campus.network.core.database.dao.ServerDao
 import com.campus.network.core.database.dao.ServerChannelDao
+import com.campus.network.core.database.dao.ServerChannelMessageDao
 import com.campus.network.core.database.dao.ServerRuleDao
 import com.campus.network.core.database.dao.ServerMemberDao
 import com.campus.network.core.database.dao.FriendDao
@@ -30,6 +31,7 @@ import com.campus.network.core.database.entity.ServerEntity
 import com.campus.network.core.database.dao.StudentProfileDao
 import com.campus.network.core.database.entity.StudentProfileEntity
 import com.campus.network.core.database.entity.ServerChannelEntity
+import com.campus.network.core.database.entity.ServerChannelMessageEntity
 import com.campus.network.core.database.entity.ServerRuleEntity
 import com.campus.network.core.database.entity.ServerMemberEntity
 import com.campus.network.core.database.entity.FriendEntity
@@ -47,13 +49,14 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         StreamCommentEntity::class,
         ServerEntity::class,
         ServerChannelEntity::class,
+        ServerChannelMessageEntity::class,
         ServerRuleEntity::class,
         ServerMemberEntity::class,
         FriendEntity::class,
         ServerInviteEntity::class,
         StudentProfileEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class CampusDatabase : RoomDatabase() {
@@ -67,6 +70,7 @@ abstract class CampusDatabase : RoomDatabase() {
     abstract fun streamCommentDao(): StreamCommentDao
     abstract fun serverDao(): ServerDao
     abstract fun serverChannelDao(): ServerChannelDao
+    abstract fun serverChannelMessageDao(): ServerChannelMessageDao
     abstract fun serverRuleDao(): ServerRuleDao
     abstract fun serverMemberDao(): ServerMemberDao
     abstract fun friendDao(): FriendDao

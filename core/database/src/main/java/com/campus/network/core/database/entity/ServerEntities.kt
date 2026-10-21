@@ -253,3 +253,27 @@ data class ServerInviteEntity(
         )
     }
 }
+
+/**
+ * Local cache for server-channel chat.
+ * Offline: store with [isOptimistic]=true / [isDelivered]=false.
+ * Online: upsert remote then clear pending flags. Never treat remote sync as optional.
+ */
+@Entity(tableName = "server_channel_messages")
+data class ServerChannelMessageEntity(
+    @PrimaryKey val id: String,
+    val serverId: String,
+    val channelId: String,
+    val senderId: String,
+    val senderName: String,
+    val senderAvatarUrl: String? = null,
+    val text: String = "",
+    val gifUrl: String? = null,
+    /** JSON array string of image URLs. */
+    val imageUrlsJson: String = "[]",
+    val reactionCount: Int = 0,
+    val timestampEpochMs: Long,
+    val isOptimistic: Boolean = false,
+    val isDelivered: Boolean = false,
+    val isMine: Boolean = false
+)

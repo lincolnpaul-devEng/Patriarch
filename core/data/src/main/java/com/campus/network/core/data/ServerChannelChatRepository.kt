@@ -1,5 +1,7 @@
 package com.campus.network.core.data
 
+import com.campus.network.core.database.dao.ServerChannelMessageDao
+import com.campus.network.core.database.entity.ServerChannelMessageEntity
 import com.campus.network.core.network.SupabaseClientProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +22,9 @@ data class RemoteChannelChatMessage(
     val gifUrl: String?,
     val imageUrls: List<String>,
     val reactionCount: Int,
-    val timestampEpochMs: Long
+    val timestampEpochMs: Long,
+    /** True while waiting for mandatory remote upsert to succeed. */
+    val isPending: Boolean = false
 )
 
 data class RemoteChannelTypingUser(
@@ -33,13 +37,95 @@ data class RemoteChannelTypingUser(
 )
 
 /**
- * Streams server-channel chat + ephemeral typing presence via Supabase REST.
+ * Server-channel chat: Room is offline cache only; Supabase upsert is required once online.
  */
 class ServerChannelChatRepository(
     private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
+    private val messageDao: ServerChannelMessageDao? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
+    suspend fun upsertLocalPending(
+        serverId: String,
+        channelId: String,
+        senderId: String,
+        senderName: String,
+        senderAvatarUrl: String?,
+        text: String,
+        gifUrl: String? = null,
+        imageUrls: List<String> = emptyList(),
+        messageId: String,
+        timestampEpochMs: Long,
+        isMine: Boolean
+    ) = withContext(ioDispatcher) {
+        val dao = messageDao ?: return@withContext
+        dao.insertMessage(
+            ServerChannelMessageEntity(
+                id = messageId,
+                serverId = serverId,
+                channelId = channelId,
+                senderId = senderId,
+                senderName = senderName.ifBlank { "Member" },
+                senderAvatarUrl = senderAvatarUrl,
+                text = text,
+                gifUrl = gifUrl,
+                imageUrlsJson = JSONArray(imageUrls).toString(),
+                reactionCount = 0,
+                timestampEpochMs = timestampEpochMs,
+                isOptimistic = true,
+                isDelivered = false,
+                isMine = isMine
+            )
+        )
+    }
+
+    suspend fun loadLocalMessages(channelId: String): List<RemoteChannelChatMessage> =
+        withContext(ioDispatcher) {
+            val dao = messageDao ?: return@withContext emptyList()
+            dao.getMessagesForChannel(channelId).map { it.toRemote() }
+        }
+
+    suspend fun cacheRemoteMessages(
+        messages: List<RemoteChannelChatMessage>,
+        myUserId: String
+    ) = withContext(ioDispatcher) {
+        val dao = messageDao ?: return@withContext
+        if (messages.isEmpty()) return@withContext
+        dao.insertMessages(
+            messages.map { msg ->
+                ServerChannelMessageEntity(
+                    id = msg.id,
+                    serverId = msg.serverId,
+                    channelId = msg.channelId,
+                    senderId = msg.senderId,
+                    senderName = msg.senderName,
+                    senderAvatarUrl = msg.senderAvatarUrl,
+                    text = msg.text,
+                    gifUrl = msg.gifUrl,
+                    imageUrlsJson = JSONArray(msg.imageUrls).toString(),
+                    reactionCount = msg.reactionCount,
+                    timestampEpochMs = msg.timestampEpochMs,
+                    isOptimistic = false,
+                    isDelivered = true,
+                    isMine = myUserId.isNotBlank() &&
+                        msg.senderId.equals(myUserId, ignoreCase = true)
+                )
+            }
+        )
+    }
+
+    suspend fun markDelivered(messageId: String) = withContext(ioDispatcher) {
+        messageDao?.markMessageDelivered(messageId)
+    }
+
+    suspend fun getPendingMessages(): List<RemoteChannelChatMessage> = withContext(ioDispatcher) {
+        val dao = messageDao ?: return@withContext emptyList()
+        dao.getPendingMessages().map { it.toRemote() }
+    }
+
+    /**
+     * Mandatory remote upsert. Callers must keep the message pending until this succeeds.
+     */
     suspend fun sendMessage(
         serverId: String,
         channelId: String,
@@ -83,7 +169,8 @@ class ServerChannelChatRepository(
                     gifUrl = gifUrl,
                     imageUrls = imageUrls,
                     reactionCount = 0,
-                    timestampEpochMs = timestampEpochMs
+                    timestampEpochMs = timestampEpochMs,
+                    isPending = false
                 )
             }
     }
@@ -163,6 +250,30 @@ class ServerChannelChatRepository(
         result.mapCatching { raw -> parseTyping(raw) }
     }
 
+    private fun ServerChannelMessageEntity.toRemote(): RemoteChannelChatMessage {
+        val images = mutableListOf<String>()
+        runCatching {
+            val arr = JSONArray(imageUrlsJson)
+            for (i in 0 until arr.length()) {
+                arr.optString(i).takeIf { it.isNotBlank() }?.let { images.add(it) }
+            }
+        }
+        return RemoteChannelChatMessage(
+            id = id,
+            serverId = serverId,
+            channelId = channelId,
+            senderId = senderId,
+            senderName = senderName,
+            senderAvatarUrl = senderAvatarUrl,
+            text = text,
+            gifUrl = gifUrl,
+            imageUrls = images,
+            reactionCount = reactionCount,
+            timestampEpochMs = timestampEpochMs,
+            isPending = isOptimistic || !isDelivered
+        )
+    }
+
     private fun parseMessages(raw: String): List<RemoteChannelChatMessage> {
         val array = JSONArray(raw)
         val out = mutableListOf<RemoteChannelChatMessage>()
@@ -187,7 +298,8 @@ class ServerChannelChatRepository(
                     gifUrl = obj.optString("gif_url").ifBlank { null },
                     imageUrls = images,
                     reactionCount = obj.optInt("reaction_count", 0),
-                    timestampEpochMs = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis())
+                    timestampEpochMs = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis()),
+                    isPending = false
                 )
             )
         }

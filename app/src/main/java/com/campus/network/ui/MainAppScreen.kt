@@ -91,7 +91,12 @@ fun MainAppScreen(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository) as T
+                return ChannelsViewModel(
+                    repository = academicChannelsRepository,
+                    serverRepository = serverRepository,
+                    studentProfileRepository = studentProfileRepository,
+                    serverChannelMessageDao = database.serverChannelMessageDao()
+                ) as T
             }
         }
     )
@@ -190,15 +195,8 @@ fun MainAppScreen(
                     }
                 }
                 is com.campus.network.core.ui.notifications.CampusNotificationDeepLink.OpenFriendRequest -> {
-                    messagesViewModel.onEvent(
-                        com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
-                            peerId = deepLink.peerId,
-                            peerName = deepLink.peerName,
-                            serverName = deepLink.serverId,
-                            serverTag = "FRIEND"
-                        )
-                    )
-                    navController.navigate(Screen.Messages.route) {
+                    // Friend requests are accepted in Notifications — never invent a fake DM thread.
+                    navController.navigate(Screen.Notifications.route) {
                         launchSingleTop = true
                     }
                 }

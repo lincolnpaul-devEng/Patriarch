@@ -109,7 +109,12 @@ fun CampusNavHost(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ChannelsViewModel(academicChannelsRepository, serverRepository, studentProfileRepository) as T
+                return ChannelsViewModel(
+                    repository = academicChannelsRepository,
+                    serverRepository = serverRepository,
+                    studentProfileRepository = studentProfileRepository,
+                    serverChannelMessageDao = database.serverChannelMessageDao()
+                ) as T
             }
         }
     )
@@ -547,14 +552,12 @@ fun CampusNavHost(
                     }
                 },
                 onNavigateToMessages = { peerId, peerName ->
-                    if (peerId != null && peerName != null) {
+                    if (!peerId.isNullOrBlank() && !peerName.isNullOrBlank()) {
                         resolvedMessagesViewModel.onEvent(
                             com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
                                 peerId = peerId,
                                 peerName = peerName,
-                                peerHandle = "@$peerId",
-                                serverName = "Direct Chat",
-                                serverTag = "DM"
+                                peerHandle = "@${peerId.trim()}"
                             )
                         )
                     }

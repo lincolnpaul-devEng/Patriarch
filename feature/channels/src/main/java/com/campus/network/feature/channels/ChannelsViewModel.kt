@@ -209,6 +209,8 @@ sealed interface ChannelsEvent {
     ) : ChannelsEvent
     /** Local composer typing heartbeat for channel members. */
     data class SetChannelTyping(val isTyping: Boolean) : ChannelsEvent
+    /** Flush offline-queued channel messages to Supabase (mandatory remote sync). */
+    data object FlushPendingChannelMessages : ChannelsEvent
     data class ToggleReaction(val messageId: String) : ChannelsEvent
     data class SelectFaculty(val facultyName: String) : ChannelsEvent
     data class SelectDepartment(val departmentName: String) : ChannelsEvent
@@ -280,6 +282,20 @@ class ChannelsViewModel(
     private val channelChatRepository: ServerChannelChatRepository = ServerChannelChatRepository()
 ) : ViewModel() {
 
+    constructor(
+        repository: AcademicChannelsRepository,
+        serverRepository: ServerRepository?,
+        studentProfileRepository: StudentProfileRepository,
+        serverChannelMessageDao: com.campus.network.core.database.dao.ServerChannelMessageDao
+    ) : this(
+        repository = repository,
+        serverRepository = serverRepository,
+        studentProfileRepository = studentProfileRepository,
+        channelChatRepository = ServerChannelChatRepository(
+            messageDao = serverChannelMessageDao
+        )
+    )
+
     private val _currentProfile = MutableStateFlow<StudentProfile?>(null)
     private var channelMessagePollJob: Job? = null
     private var channelTypingPollJob: Job? = null
@@ -347,6 +363,8 @@ class ChannelsViewModel(
         _channelMessages.value = emptyMap()
         loadDefaultRules()
         seedDefaultServerMembers()
+        // Push any offline-queued channel messages as soon as the VM is alive
+        flushPendingChannelMessages()
 
         viewModelScope.launch {
             studentProfileRepository.getProfile().collect { profile ->
@@ -997,9 +1015,12 @@ class ChannelsViewModel(
                 }
                 viewModelScope.launch {
                     serverRepository?.markChannelRead(event.channel.id)
+                    // Hydrate from Room first so history survives logout / process death
+                    hydrateChannelMessagesFromLocal(event.channel.id)
                 }
                 startChannelMessageStream(event.channel.id)
                 startTypingPresencePoll(serverId = _selectedServerId.value, focusChannelId = event.channel.id)
+                flushPendingChannelMessages()
             }
             is ChannelsEvent.CloseChannelChat -> {
                 publishTyping(false)
@@ -1075,7 +1096,21 @@ class ChannelsViewModel(
                 publishTyping(false)
                 val serverId = _selectedServerId.value
                 viewModelScope.launch {
-                    channelChatRepository.sendMessage(
+                    // Always persist locally first (offline cache). Remote sync is mandatory when online.
+                    channelChatRepository.upsertLocalPending(
+                        serverId = serverId,
+                        channelId = activeChan.id,
+                        senderId = authorId,
+                        senderName = author,
+                        senderAvatarUrl = avatar,
+                        text = event.text,
+                        gifUrl = event.gifUrl,
+                        imageUrls = event.imageUris,
+                        messageId = msgId,
+                        timestampEpochMs = now,
+                        isMine = true
+                    )
+                    val remote = channelChatRepository.sendMessage(
                         serverId = serverId,
                         channelId = activeChan.id,
                         senderId = authorId,
@@ -1086,13 +1121,20 @@ class ChannelsViewModel(
                         imageUrls = event.imageUris,
                         messageId = msgId,
                         timestampEpochMs = now
-                    ).onFailure { err ->
-                        _feedbackMessage.value = "Message queued locally — sync failed: ${err.message}"
+                    )
+                    if (remote.isSuccess) {
+                        channelChatRepository.markDelivered(msgId)
+                    } else {
+                        _feedbackMessage.value =
+                            "Saved offline — will sync when you're back online"
                     }
                 }
             }
             is ChannelsEvent.SetChannelTyping -> {
                 publishTyping(event.isTyping)
+            }
+            is ChannelsEvent.FlushPendingChannelMessages -> {
+                flushPendingChannelMessages()
             }
             is ChannelsEvent.ToggleReaction -> {
                 val activeChan = _activeChatChannel.value ?: return
@@ -1885,12 +1927,55 @@ class ChannelsViewModel(
         channelMessagePollJob = null
     }
 
+    private suspend fun hydrateChannelMessagesFromLocal(channelId: String) {
+        val me = _currentProfile.value?.stableUserId().orEmpty()
+        val local = channelChatRepository.loadLocalMessages(channelId)
+        if (local.isEmpty()) return
+        val mapped = local.map { mapRemoteChannelMessage(it, me) }
+        var maxTs = channelMessageWatermarks[channelId] ?: 0L
+        local.forEach { msg ->
+            seenRemoteChannelMessageIds.add(msg.id)
+            maxTs = maxOf(maxTs, msg.timestampEpochMs)
+        }
+        channelMessageWatermarks[channelId] = maxTs
+        val existing = _channelMessages.value[channelId].orEmpty().associateBy { it.id }.toMutableMap()
+        mapped.forEach { existing[it.id] = it }
+        _channelMessages.value =
+            _channelMessages.value + (channelId to existing.values.sortedBy { it.timestampEpochMs })
+    }
+
+    private fun flushPendingChannelMessages() {
+        viewModelScope.launch {
+            val pending = channelChatRepository.getPendingMessages()
+            if (pending.isEmpty()) return@launch
+            for (msg in pending) {
+                val remote = channelChatRepository.sendMessage(
+                    serverId = msg.serverId,
+                    channelId = msg.channelId,
+                    senderId = msg.senderId,
+                    senderName = msg.senderName,
+                    senderAvatarUrl = msg.senderAvatarUrl,
+                    text = msg.text,
+                    gifUrl = msg.gifUrl,
+                    imageUrls = msg.imageUrls,
+                    messageId = msg.id,
+                    timestampEpochMs = msg.timestampEpochMs
+                )
+                if (remote.isSuccess) {
+                    channelChatRepository.markDelivered(msg.id)
+                }
+            }
+        }
+    }
+
     private suspend fun pullChannelMessages(channelId: String, fullHistory: Boolean) {
         val after = if (fullHistory) 0L else (channelMessageWatermarks[channelId] ?: 0L)
         val result = channelChatRepository.fetchMessages(channelId, afterEpochMs = after)
         val remote = result.getOrNull() ?: return
         if (remote.isEmpty()) return
         val me = _currentProfile.value?.stableUserId().orEmpty()
+        // Durable local cache of whatever we pulled from remote
+        channelChatRepository.cacheRemoteMessages(remote, me)
         val existing = _channelMessages.value[channelId].orEmpty().associateBy { it.id }.toMutableMap()
         var maxTs = channelMessageWatermarks[channelId] ?: 0L
         for (msg in remote) {

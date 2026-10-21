@@ -345,9 +345,9 @@ class MessagesViewModel(
                 text = text,
                 timestampEpochMs = ts,
                 isOptimistic = false,
-                imageUrl = obj.optString("image_url", "").ifBlank { null },
-                gifUrl = obj.optString("gif_url", "").ifBlank { null },
-                replyToText = obj.optString("reply_to_text", "").ifBlank { null },
+                imageUrl = obj.cleanJsonString("image_url"),
+                gifUrl = obj.cleanJsonString("gif_url"),
+                replyToText = obj.cleanJsonString("reply_to_text"),
                 isMine = false,
                 isDelivered = true,
                 isRead = viewingThis || isReadRemote
@@ -366,6 +366,39 @@ class MessagesViewModel(
             } else if (viewingThis) {
                 markThreadRead(channelId)
             }
+        }
+    }
+
+    /** org.json returns the literal "null" for JSON null — never treat that as a real value. */
+    private fun org.json.JSONObject.cleanJsonString(key: String): String? {
+        if (!has(key) || isNull(key)) return null
+        val value = optString(key, "").trim()
+        return value.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+    }
+
+    /** Peel mem_/thread_ prefixes and server suffixes down to a stable peer user id. */
+    private fun normalizePeerUserId(rawPeerId: String, myUserId: String): String {
+        var id = rawPeerId.trim()
+        if (id.isBlank()) return ""
+        if (id.startsWith("dm_") && myUserId.isNotBlank()) {
+            val without = id.removePrefix("dm_")
+            return without.replace(myUserId, "", ignoreCase = true).trim('_')
+        }
+        id = id.removePrefix("thread_").removePrefix("mem_")
+        val srvIdx = id.lastIndexOf("_srv")
+        if (srvIdx > 0) id = id.substring(0, srvIdx)
+        return id.trim('_')
+    }
+
+    private fun resolveDirectThreadId(myUserId: String, peerUserId: String, fallbackPeerId: String): String {
+        return when {
+            myUserId.isNotBlank() && peerUserId.isNotBlank() ->
+                runCatching { com.campus.network.core.model.directMessageChannelId(myUserId, peerUserId) }
+                    .getOrElse { "dm_${myUserId}_$peerUserId" }
+            peerUserId.isNotBlank() -> "thread_$peerUserId"
+            fallbackPeerId.startsWith("dm_") || fallbackPeerId.startsWith("thread_") -> fallbackPeerId
+            fallbackPeerId.isNotBlank() -> "thread_${fallbackPeerId.trim()}"
+            else -> "thread_unknown"
         }
     }
 
@@ -469,8 +502,15 @@ class MessagesViewModel(
             }
 
             is MessagesEvent.OpenOrCreateDirectChat -> {
+                val myId = resolveCurrentUserId()
+                val peerUserId = normalizePeerUserId(event.peerId, myId)
+                val threadId = resolveDirectThreadId(myId, peerUserId, event.peerId)
                 val existing = _uiState.value.threads.find {
-                    it.id == event.peerId || it.id == "thread_${event.peerId}" || it.peerName.equals(event.peerName, ignoreCase = true)
+                    it.id == threadId ||
+                        it.id == event.peerId ||
+                        it.id == "thread_${event.peerId}" ||
+                        (peerUserId.isNotBlank() && it.id.contains(peerUserId, ignoreCase = true)) ||
+                        it.peerName.equals(event.peerName, ignoreCase = true)
                 }
                 if (existing != null) {
                     com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = existing.id
@@ -485,21 +525,26 @@ class MessagesViewModel(
                     }
                     markThreadRead(existing.id)
                     startDmTypingPresencePoll(focusThreadId = existing.id)
+                    viewModelScope.launch { syncRemoteMessagesForChannel(existing.id) }
                 } else {
-                    val newThreadId = if (event.peerId.startsWith("thread_")) event.peerId else "thread_${event.peerId}"
-                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = newThreadId
-                    val initials = event.avatarInitials ?: event.peerName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
+                    // Never invent fake "Connected from server" welcome bubbles — empty until real messages sync.
+                    com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleThreadId = threadId
+                    val initials = event.avatarInitials
+                        ?: event.peerName.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")
                     val badge = if (!event.serverTag.isNullOrBlank()) {
                         "${event.serverTag.uppercase()} • ${event.serverName ?: "Server"}"
                     } else if (!event.serverName.isNullOrBlank()) {
                         event.serverName
                     } else null
                     val newThread = ConversationThread(
-                        id = newThreadId,
-                        peerName = event.peerName,
-                        peerHandle = event.peerHandle ?: "@${event.peerName.lowercase().replace(" ", "")}",
-                        avatarInitials = initials.ifBlank { "M" },
-                        lastMessage = if (!event.serverName.isNullOrBlank()) "Direct chat from ${event.serverName}" else "Started direct chat from server",
+                        id = threadId,
+                        peerName = event.peerName.ifBlank { "Campus peer" },
+                        peerHandle = event.peerHandle
+                            ?: "@${event.peerName.lowercase().replace(" ", "").ifBlank { peerUserId.take(12) }}",
+                        avatarInitials = initials.ifBlank {
+                            event.peerName.firstOrNull()?.uppercaseChar()?.toString() ?: "P"
+                        },
+                        lastMessage = "No messages yet",
                         lastTimestamp = "Just now",
                         unreadCount = 0,
                         isOnline = true,
@@ -507,26 +552,18 @@ class MessagesViewModel(
                         category = ThreadCategory.DIRECT,
                         serverBadgeText = badge
                     )
-                    val welcomeMsg = listOf(
-                        DirectMessageItem(
-                            id = "msg_${System.currentTimeMillis()}",
-                            senderName = event.peerName,
-                            isMine = false,
-                            text = if (!event.serverName.isNullOrBlank()) "Hey Lincoln! Connected from ${event.serverName} server." else "Hey Lincoln! Connected from campus server.",
-                            timestamp = "Just now"
-                        )
-                    )
-                    threadMessagesMap[newThreadId] = welcomeMsg
+                    threadMessagesMap[threadId] = emptyList()
                     _uiState.update {
                         it.copy(
                             currentScreen = MessagesScreenMode.CHAT,
                             selectedThread = newThread,
-                            threads = listOf(newThread) + it.threads,
-                            messages = welcomeMsg,
+                            threads = listOf(newThread) + it.threads.filterNot { t -> t.id == threadId },
+                            messages = emptyList(),
                             activeChatTypingLabel = null
                         )
                     }
-                    startDmTypingPresencePoll(focusThreadId = newThreadId)
+                    startDmTypingPresencePoll(focusThreadId = threadId)
+                    viewModelScope.launch { syncRemoteMessagesForChannel(threadId) }
                 }
             }
 
@@ -625,17 +662,19 @@ class MessagesViewModel(
                 )
 
                 viewModelScope.launch {
+                    // Local Room first (offline cache). Supabase remote sync is mandatory when online.
                     chatMessageDao?.insertMessage(entity)
+                        ?: run {
+                            Log.e(TAG, "chatMessageDao missing — cannot persist DM locally")
+                        }
                     val remoteOk = dispatchMessageToRemote(entity)
-                    val streamOk = streamChatEngine
+                    // Stream is supplemental fan-out only — never clears the pending clock by itself.
+                    streamChatEngine
                         ?.sendDirectMessage(
                             channelId = activeThread.id,
                             text = event.text.trim()
                         )
-                        ?.isSuccess == true
-                    // Clear clock as soon as any transport accepts the message.
-                    if (remoteOk || streamOk) {
-                        markLocalMessageSent(activeThread.id, entity.id)
+                    if (remoteOk) {
                         val peerId = resolvePeerUserId(activeThread, authorId)
                         inboxNotifier.notifyDirectMessage(
                             recipientUserId = peerId,
@@ -1366,9 +1405,9 @@ class MessagesViewModel(
                     text = obj.optString("text", ""),
                     timestampEpochMs = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis()),
                     isOptimistic = false,
-                    imageUrl = obj.optString("image_url", "").ifBlank { null },
-                    gifUrl = obj.optString("gif_url", "").ifBlank { null },
-                    replyToText = obj.optString("reply_to_text", "").ifBlank { null },
+                    imageUrl = obj.cleanJsonString("image_url"),
+                    gifUrl = obj.cleanJsonString("gif_url"),
+                    replyToText = obj.cleanJsonString("reply_to_text"),
                     isMine = isMine,
                     isDelivered = obj.optBoolean("is_delivered", true),
                     isRead = obj.optBoolean("is_read", false)
@@ -1379,11 +1418,19 @@ class MessagesViewModel(
     }
 
     fun flushPendingMessages() {
-        val dao = chatMessageDao ?: return
-        if (supabaseClient == null) return
+        val dao = chatMessageDao
+        if (dao == null) {
+            Log.e(TAG, "flushPendingMessages skipped — chatMessageDao not wired")
+            return
+        }
+        if (supabaseClient == null) {
+            Log.e(TAG, "flushPendingMessages skipped — supabaseClient not wired")
+            return
+        }
         viewModelScope.launch {
             val pending = runCatching { dao.getPendingMessages() }.getOrDefault(emptyList())
             for (msg in pending) {
+                // Mandatory remote upsert; stays pending until Supabase accepts it.
                 dispatchMessageToRemote(msg)
             }
         }

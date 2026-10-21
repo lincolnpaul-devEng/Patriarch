@@ -1058,7 +1058,14 @@ private fun DirectChatBubble(
     onLongClick: () -> Unit
 ) {
     val timeString = formatMessageTime(message.timestampEpochMs)
-    val mediaData = message.imageUri ?: message.imageUrl ?: message.gifUrl ?: message.imageResId?.toString()
+    // Never treat JSON-null leftovers ("null") or blank strings as media — that inflated empty squares.
+    val mediaData = sequenceOf(message.imageUri, message.imageUrl, message.gifUrl)
+        .mapNotNull { url ->
+            url?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+        }
+        .firstOrNull()
+    val replyPreview = message.replyToText?.trim()
+        ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
 
     if (message.isHandwritten) {
         Column(
@@ -1120,7 +1127,7 @@ private fun DirectChatBubble(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     // Quoted replied message preview
-                    if (!message.replyToText.isNullOrBlank()) {
+                    if (replyPreview != null) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0x2EFFFFFF),
@@ -1137,7 +1144,7 @@ private fun DirectChatBubble(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = message.replyToText,
+                                    text = replyPreview,
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontSize = 12.sp,
                                     maxLines = 2,
@@ -1252,7 +1259,7 @@ private fun DirectChatBubble(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     // Quoted replied message preview
-                    if (!message.replyToText.isNullOrBlank()) {
+                    if (replyPreview != null) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0x1F000000),
@@ -1269,7 +1276,7 @@ private fun DirectChatBubble(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = message.replyToText,
+                                    text = replyPreview,
                                     color = Color(0xFF0F172A),
                                     fontSize = 12.sp,
                                     maxLines = 2,

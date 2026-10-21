@@ -901,7 +901,7 @@ object CampusSystemNotificationCenter {
     }
 
     /**
-     * Friend request from a server member — opens Messages so the user can Accept / DM.
+     * Friend request from a server member — opens Notifications so the user can Accept / Decline.
      */
     fun showFriendRequestNotification(
         context: Context,

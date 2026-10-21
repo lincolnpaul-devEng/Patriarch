@@ -283,9 +283,16 @@ fun ChannelsScreen(
                 onDirectMessage = { member ->
                     viewModel.onEvent(ChannelsEvent.CloseMemberProfile)
                     val currentServerName = uiState.selectedServer?.name
-                    if (onNavigateToDirectChat != null) {
+                    // Always use stable userId — member.id is mem_{user}_{server} and created bogus threads.
+                    val peerUserId = member.userId.trim().ifBlank {
+                        member.id.removePrefix("mem_").let { raw ->
+                            val srv = member.serverId
+                            if (srv.isNotBlank() && raw.endsWith("_$srv")) raw.removeSuffix("_$srv") else raw
+                        }
+                    }
+                    if (onNavigateToDirectChat != null && peerUserId.isNotBlank()) {
                         onNavigateToDirectChat(
-                            member.id,
+                            peerUserId,
                             member.serverNickname ?: member.name,
                             member.handle,
                             currentServerName,

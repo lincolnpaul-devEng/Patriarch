@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.campus.network.core.database.entity.FriendEntity
 import com.campus.network.core.database.entity.ServerChannelEntity
+import com.campus.network.core.database.entity.ServerChannelMessageEntity
 import com.campus.network.core.database.entity.ServerEntity
 import com.campus.network.core.database.entity.ServerInviteEntity
 import com.campus.network.core.database.entity.ServerMemberEntity
@@ -180,4 +181,52 @@ interface ServerInviteDao {
 
     @Query("UPDATE server_invites SET isRevoked = 1 WHERE code = :code")
     suspend fun revokeInvite(code: String)
+}
+
+@Dao
+interface ServerChannelMessageDao {
+    @Query(
+        """
+        SELECT * FROM server_channel_messages
+        WHERE channelId = :channelId
+        ORDER BY timestampEpochMs ASC
+        """
+    )
+    fun observeMessagesForChannel(channelId: String): Flow<List<ServerChannelMessageEntity>>
+
+    @Query(
+        """
+        SELECT * FROM server_channel_messages
+        WHERE channelId = :channelId
+        ORDER BY timestampEpochMs ASC
+        """
+    )
+    suspend fun getMessagesForChannel(channelId: String): List<ServerChannelMessageEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: ServerChannelMessageEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessages(messages: List<ServerChannelMessageEntity>)
+
+    @Query(
+        """
+        UPDATE server_channel_messages
+        SET isOptimistic = 0, isDelivered = 1
+        WHERE id = :messageId
+        """
+    )
+    suspend fun markMessageDelivered(messageId: String)
+
+    @Query(
+        """
+        SELECT * FROM server_channel_messages
+        WHERE isOptimistic = 1 OR isDelivered = 0
+        ORDER BY timestampEpochMs ASC
+        """
+    )
+    suspend fun getPendingMessages(): List<ServerChannelMessageEntity>
+
+    @Query("DELETE FROM server_channel_messages WHERE channelId = :channelId")
+    suspend fun clearChannelMessages(channelId: String)
 }
