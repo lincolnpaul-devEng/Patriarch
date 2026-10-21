@@ -23,26 +23,18 @@ object PaymentProviderRegistry {
     }
 
     fun resolve(): PaymentProvider {
-        overrideProvider?.let { return it }
+        return overrideProvider ?: UnconfiguredPaymentProvider()
+    }
 
-        val http = HttpEscrowPaymentProvider()
-        return if (http.isConfigured) {
-            http
-        } else {
-            UnconfiguredPaymentProvider()
-        }
+    /** Explicitly wire a provider from out-of-band configuration (never app BuildConfig). */
+    fun installHttpProvider(baseUrl: String, apiKey: String, apiSecret: String,
+                            providerId: String, displayName: String) {
+        overrideProvider = HttpEscrowPaymentProvider(baseUrl, apiKey, apiSecret, providerId, displayName)
     }
 
     fun isPaymentReady(): Boolean = resolve().isConfigured
 
-    fun configurationHint(): String {
-        val base = BuildConfig.PAYMENT_API_BASE_URL.trim()
-        val id = BuildConfig.PAYMENT_PROVIDER_ID.trim().ifBlank { "(unset)" }
-        return if (base.isBlank()) {
-            "Payment socket empty. Add PAYMENT_API_BASE_URL, PAYMENT_API_KEY, " +
-                "PAYMENT_API_SECRET, PAYMENT_PROVIDER_ID to secrets.properties."
-        } else {
-            "Payment socket ready for provider=$id at $base"
-        }
-    }
+    fun configurationHint(): String =
+        "Payment socket empty. Configure an Edge Function and install the provider via " +
+            "PaymentProviderRegistry.installHttpProvider(...) — never ship payment secrets in BuildConfig."
 }

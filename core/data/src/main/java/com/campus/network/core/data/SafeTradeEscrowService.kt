@@ -135,10 +135,7 @@ class SafeTradeEscrowService(
                             null
                         }
                     )
-                    val persist = persistOrder(order)
-                    if (persist is PaymentResult.Failure) {
-                        return@withContext persist
-                    }
+                    // Order persistence happens server-side after a real provider hold.
                     PaymentResult.Success(
                         LockEscrowSuccess(order = order, nextActionUrl = hold.nextActionUrl)
                     )
@@ -148,7 +145,7 @@ class SafeTradeEscrowService(
 
     suspend fun releaseFundsToSeller(
         order: EscrowOrder,
-        releaseCodeVerified: Boolean
+        scannedCode: String
     ): PaymentResult<EscrowOrder> = withContext(ioDispatcher) {
         val holdId = order.providerHoldId?.trim().orEmpty()
         if (holdId.isBlank()) {
@@ -157,33 +154,33 @@ class SafeTradeEscrowService(
                 "Escrow order has no provider hold id"
             )
         }
-        if (!releaseCodeVerified) {
+        if (scannedCode.isBlank()) {
             return@withContext PaymentResult.Failure(
                 PaymentErrorCode.RELEASE_CODE_REQUIRED,
                 "Scan/verify the seller release QR before payout"
             )
         }
-        when (
-            val release = paymentProvider.releaseToSeller(
-                EscrowReleaseRequest(
-                    orderId = order.id,
-                    providerHoldId = holdId,
-                    marketItemId = order.marketItemId,
-                    sellerUserId = order.sellerUserId,
-                    amount = order.amount,
-                    currencyCode = order.currencyCode,
-                    releaseCodeVerified = true
-                )
+        // Payment release, code verification and order persistence all happen server-side
+        // behind a JWT-guarded Edge Function; the client never holds payment secrets.
+        val result = paymentProvider.releaseToSeller(
+            EscrowReleaseRequest(
+                orderId = order.id,
+                providerHoldId = holdId,
+                marketItemId = order.marketItemId,
+                sellerUserId = order.sellerUserId,
+                amount = order.amount,
+                currencyCode = order.currencyCode,
+                scannedCode = scannedCode
             )
-        ) {
-            is PaymentResult.Failure -> release
+        )
+        when (result) {
+            is PaymentResult.Failure -> result
             is PaymentResult.Success -> {
                 val updated = order.copy(
                     status = EscrowOrderStatus.RELEASED_TO_SELLER,
                     releasedAtEpochMs = System.currentTimeMillis()
                 )
-                val persist = persistOrder(updated)
-                if (persist is PaymentResult.Failure) persist else PaymentResult.Success(updated)
+                PaymentResult.Success(updated)
             }
         }
     }
@@ -197,63 +194,19 @@ class SafeTradeEscrowService(
                     "Escrow order has no provider hold id"
                 )
             }
-            when (
-                val refund = paymentProvider.refundBuyer(
-                    EscrowRefundRequest(
-                        orderId = order.id,
-                        providerHoldId = holdId,
-                        buyerUserId = order.buyerUserId,
-                        amount = order.amount,
-                        currencyCode = order.currencyCode,
-                        reason = reason
-                    )
+            val result = paymentProvider.refundBuyer(
+                EscrowRefundRequest(
+                    orderId = order.id,
+                    providerHoldId = holdId,
+                    buyerUserId = order.buyerUserId,
+                    amount = order.amount,
+                    currencyCode = order.currencyCode,
+                    reason = reason
                 )
-            ) {
-                is PaymentResult.Failure -> refund
-                is PaymentResult.Success -> {
-                    val updated = order.copy(status = EscrowOrderStatus.REFUNDED_TO_BUYER)
-                    val persist = persistOrder(updated)
-                    if (persist is PaymentResult.Failure) persist else PaymentResult.Success(updated)
-                }
+            )
+            if (result is PaymentResult.Failure) result else {
+                val updated = order.copy(status = EscrowOrderStatus.REFUNDED_TO_BUYER)
+                PaymentResult.Success(updated)
             }
         }
-
-    private suspend fun persistOrder(order: EscrowOrder): PaymentResult<Unit> {
-        val payload = JSONObject().apply {
-            put("id", order.id)
-            put("order_number", order.orderNumber)
-            put("market_item_id", order.marketItemId)
-            put("buyer_user_id", order.buyerUserId)
-            put("seller_user_id", order.sellerUserId)
-            put("item_title", order.itemTitle)
-            put("amount", order.amount)
-            put("currency_code", order.currencyCode)
-            put("payment_provider", order.paymentProvider)
-            put("payment_method", order.paymentMethodId)
-            put("provider_hold_id", order.providerHoldId)
-            put("status", order.status.name)
-            put("rendezvous_spot", order.rendezvousSpot)
-            put("buyer_note", order.buyerNote)
-            put("created_at_epoch_ms", order.createdAtEpochMs)
-            order.fundedAtEpochMs?.let { put("funded_at_epoch_ms", it) }
-            order.releasedAtEpochMs?.let { put("released_at_epoch_ms", it) }
-        }.toString()
-
-        val result = supabaseClient.upsertRecord(
-            tableName = "campus_escrow_orders",
-            jsonPayload = payload,
-            onConflict = "id"
-        )
-        return if (result.isSuccess) {
-            PaymentResult.Success(Unit)
-        } else {
-            PaymentResult.Failure(
-                code = PaymentErrorCode.PERSISTENCE_FAILED,
-                message = result.exceptionOrNull()?.message
-                    ?: "Failed to persist escrow order",
-                retryable = true,
-                cause = result.exceptionOrNull()
-            )
-        }
-    }
 }

@@ -68,7 +68,7 @@
         <!-- Google Maps API Key (UniHub) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78" />
+            android:value="${GOOGLE_MAPS_API_KEY}" />
 
         <activity
             android:name=".MainActivity"

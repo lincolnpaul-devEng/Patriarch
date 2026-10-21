@@ -10,18 +10,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
  * Cloudinary Image Uploader Service for Campus Network.
  * Handles fast, direct-from-device image uploads (avatars, server banners, media attachments)
- * using signed HMAC-SHA1 requests against the Cloudinary REST API.
+ * using short-lived upload parameters signed by an authenticated Edge Function.
  */
 class CloudinaryUploader(
-    private val cloudName: String = BuildConfig.CLOUDINARY_CLOUD_NAME,
-    private val apiKey: String = BuildConfig.CLOUDINARY_API_KEY,
-    private val apiSecret: String = BuildConfig.CLOUDINARY_API_SECRET
+    private val supabase: SupabaseClientProvider = SupabaseClientProvider()
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -59,15 +56,17 @@ class CloudinaryUploader(
         mimeType: String = "image/jpeg"
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val timestamp = (System.currentTimeMillis() / 1000).toString()
-            // Cloudinary signed upload signature: SHA-1 of sorted parameters concatenated with api_secret
-            val toSign = "timestamp=$timestamp$apiSecret"
-            val signature = sha1(toSign)
+            require(bytes.size <= 10 * 1024 * 1024) { "Image exceeds 10 MB" }
+            require(mimeType in setOf("image/jpeg", "image/png", "image/webp", "image/gif")) { "Unsupported image type" }
+            val signed = JSONObject(supabase.invokeFunction("cloudinary-signature", "{}").getOrThrow())
+            val timestamp = signed.getString("timestamp")
+            val signature = signed.getString("signature")
 
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("api_key", apiKey)
+                .addFormDataPart("api_key", signed.getString("apiKey"))
                 .addFormDataPart("timestamp", timestamp)
+                .addFormDataPart("folder", signed.getString("folder"))
                 .addFormDataPart("signature", signature)
                 .addFormDataPart(
                     name = "file",
@@ -77,7 +76,7 @@ class CloudinaryUploader(
                 .build()
 
             val request = Request.Builder()
-                .url("https://api.cloudinary.com/v1_1/$cloudName/image/upload")
+                .url("https://api.cloudinary.com/v1_1/${signed.getString("cloudName")}/image/upload")
                 .post(requestBody)
                 .build()
 
@@ -98,9 +97,4 @@ class CloudinaryUploader(
         }
     }
 
-    private fun sha1(input: String): String {
-        val md = MessageDigest.getInstance("SHA-1")
-        val digest = md.digest(input.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
-    }
 }

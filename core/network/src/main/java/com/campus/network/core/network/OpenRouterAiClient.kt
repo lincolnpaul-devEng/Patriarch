@@ -1,14 +1,5 @@
 package com.campus.network.core.network
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,12 +12,10 @@ import org.json.JSONObject
  * Credentials and configuration extracted securely from the UniHub project.
  */
 class OpenRouterAiClient(
-    private val apiKey: String = DEFAULT_OPENROUTER_KEY,
+    private val supabase: SupabaseClientProvider = SupabaseClientProvider(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
-        val DEFAULT_OPENROUTER_KEY = BuildConfig.OPENROUTER_API_KEY
-        private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
         private const val MODEL_NAME = "google/gemini-2.0-flash-exp:free"
 
         val DEFAULT_TRENDING_SUGGESTIONS = listOf(
@@ -39,7 +28,6 @@ class OpenRouterAiClient(
         )
     }
 
-    private val client = HttpClient(OkHttp)
 
     /**
      * Fetches dynamic AI search suggestions for the given query.
@@ -87,15 +75,7 @@ class OpenRouterAiClient(
             put("temperature", 0.3)
         }
 
-        val response: HttpResponse = client.post(OPENROUTER_URL) {
-            header("Authorization", "Bearer $apiKey")
-            header("HTTP-Referer", "https://unihub.campus")
-            header("X-Title", "Patriarch Campus Network")
-            contentType(ContentType.Application.Json)
-            setBody(requestJson.toString())
-        }
-
-        val responseBody = response.bodyAsText()
+        val responseBody = supabase.invokeFunction("ai-completions", requestJson.toString()).getOrThrow()
         return parseSuggestionsFromResponse(responseBody)
     }
 
@@ -170,15 +150,7 @@ class OpenRouterAiClient(
             put("temperature", 0.8)
         }
 
-        val response: HttpResponse = client.post(OPENROUTER_URL) {
-            header("Authorization", "Bearer $apiKey")
-            header("HTTP-Referer", "https://unihub.campus")
-            header("X-Title", "Patriarch Campus Network")
-            contentType(ContentType.Application.Json)
-            setBody(requestJson.toString())
-        }
-
-        val content = JSONObject(response.bodyAsText())
+        val content = JSONObject(supabase.invokeFunction("ai-completions", requestJson.toString()).getOrThrow())
             .getJSONArray("choices").getJSONObject(0)
             .getJSONObject("message").getString("content")
             .trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()

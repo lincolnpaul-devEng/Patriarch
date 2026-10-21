@@ -829,8 +829,8 @@ fun HubScreen(
             onVerifyReleaseCode = { itemId, scannedCode ->
                 viewModel.verifyReleaseCode(itemId, scannedCode)
             },
-            onReleaseEscrowFunds = { itemId ->
-                when (val result = viewModel.releaseEscrowFunds(itemId, releaseCodeVerified = true)) {
+            onReleaseEscrowFunds = { itemId, scannedCode ->
+                when (val result = viewModel.releaseEscrowFunds(itemId, scannedCode)) {
                     is com.campus.network.core.model.PaymentResult.Success -> true
                     is com.campus.network.core.model.PaymentResult.Failure -> {
                         snackbarHostState.showSnackbar(result.message)

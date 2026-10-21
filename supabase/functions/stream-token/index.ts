@@ -71,13 +71,44 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { userId, name, image } = await req.json();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const jwt = req.headers.get("Authorization")?.match(/^Bearer (.+)$/i)?.[1];
+    if (!supabaseUrl || !anonKey || !serviceKey || !jwt || jwt === anonKey) {
+      return new Response(JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${jwt}` },
+    });
+    if (!authResponse.ok) {
+      return new Response(JSON.stringify({ error: "Invalid session" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const authenticatedUser = await authResponse.json();
+    const { userId } = await req.json();
 
     if (!userId || typeof userId !== "string") {
       return new Response(
         JSON.stringify({ error: "userId is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Stream ids are the app's stable campusprofile student_id (or email before sync).
+    // Never trust a requested id, even with a valid JWT for another account.
+    const profileResponse = await fetch(
+      `${supabaseUrl}/rest/v1/campusprofile?user_id=eq.${encodeURIComponent(authenticatedUser.id)}&select=student_id,university_email&limit=1`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!profileResponse.ok) throw new Error("Profile lookup failed");
+    const [profile] = await profileResponse.json();
+    const allowedIds = [authenticatedUser.id, profile?.student_id, profile?.university_email]
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    if (!allowedIds.some((id) => id.toLowerCase() === userId.toLowerCase())) {
+      return new Response(JSON.stringify({ error: "User id does not belong to this session" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Generate compliant Stream User Token signed with secretKey
@@ -92,9 +123,8 @@ Deno.serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal Server Error";
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: "Unable to create Stream token" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

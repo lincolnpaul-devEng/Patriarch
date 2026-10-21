@@ -24,7 +24,10 @@ import kotlinx.coroutines.withContext
 class SupabaseClientProvider(
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
     private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val userJwtProvider: suspend () -> String = {
+        SupabaseSessionStore.validAccessToken(supabaseUrl, anonKey)
+    }
 ) {
     private val client = HttpClient(OkHttp)
 
@@ -40,10 +43,11 @@ class SupabaseClientProvider(
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(userJwt)
             val querySeparator = if ('?' in tableName) '&' else '?'
             val response: HttpResponse = client.get("$supabaseUrl/rest/v1/$tableName${querySeparator}select=$selectQuery") {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Authorization", "Bearer $jwt")
                 header("Accept", "application/json")
             }
             response.bodyOrThrow()
@@ -59,9 +63,10 @@ class SupabaseClientProvider(
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(userJwt)
             val response: HttpResponse = client.post("$supabaseUrl/rest/v1/$tableName") {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Authorization", "Bearer $jwt")
                 header("Prefer", "return=representation")
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
@@ -79,9 +84,10 @@ class SupabaseClientProvider(
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(userJwt)
             val response: HttpResponse = client.patch("$supabaseUrl/rest/v1/$tableAndQuery") {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Authorization", "Bearer $jwt")
                 header("Prefer", "return=representation")
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
@@ -98,9 +104,11 @@ class SupabaseClientProvider(
         jsonPayload: String,
         onConflict: String? = null,
         ignoreDuplicates: Boolean = false,
-        userJwt: String? = null
+        userJwt: String? = null,
+        returnMinimal: Boolean = false
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(userJwt)
             val endpoint = if (onConflict.isNullOrBlank()) {
                 "$supabaseUrl/rest/v1/$tableName"
             } else {
@@ -109,8 +117,8 @@ class SupabaseClientProvider(
             val resolution = if (ignoreDuplicates) "resolution=ignore-duplicates" else "resolution=merge-duplicates"
             val response: HttpResponse = client.post(endpoint) {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer ${userJwt ?: anonKey}")
-                header("Prefer", "$resolution,return=representation")
+                header("Authorization", "Bearer $jwt")
+                header("Prefer", "$resolution,return=${if (returnMinimal) "minimal" else "representation"}")
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
             }
@@ -127,9 +135,10 @@ class SupabaseClientProvider(
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(userJwt)
             val response: HttpResponse = client.post("$supabaseUrl/rest/v1/rpc/$functionName") {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Authorization", "Bearer $jwt")
                 header("Content-Type", "application/json")
                 contentType(ContentType.Application.Json)
                 setBody(jsonPayload)
@@ -146,9 +155,10 @@ class SupabaseClientProvider(
         userJwt: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(userJwt)
             val response: HttpResponse = client.delete("$supabaseUrl/rest/v1/$tableAndQuery") {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer ${userJwt ?: anonKey}")
+                header("Authorization", "Bearer $jwt")
             }
             response.bodyOrThrow()
         }
@@ -162,6 +172,20 @@ class SupabaseClientProvider(
         return body
     }
 
+    /** Calls a JWT-protected Edge Function; no provider API secret is held on-device. */
+    suspend fun invokeFunction(name: String, jsonPayload: String): Result<String> = withContext(ioDispatcher) {
+        runCatching {
+            val jwt = requireUserJwt(null)
+            val response = client.post("$supabaseUrl/functions/v1/$name") {
+                header("apikey", anonKey)
+                header("Authorization", "Bearer $jwt")
+                contentType(ContentType.Application.Json)
+                setBody(jsonPayload)
+            }
+            response.bodyOrThrow()
+        }
+    }
+
     /**
      * Calls the Supabase Edge Function to fetch a signed Stream JWT token.
      */
@@ -171,6 +195,7 @@ class SupabaseClientProvider(
         avatarUrl: String? = null
     ): Result<String> = withContext(ioDispatcher) {
         runCatching {
+            val jwt = requireUserJwt(null)
             val payload = org.json.JSONObject().apply {
                 put("userId", userId)
                 if (!displayName.isNullOrBlank()) put("name", displayName)
@@ -178,7 +203,7 @@ class SupabaseClientProvider(
             }
             val response: HttpResponse = client.post("$supabaseUrl/functions/v1/stream-token") {
                 header("apikey", anonKey)
-                header("Authorization", "Bearer $anonKey")
+                header("Authorization", "Bearer $jwt")
                 contentType(ContentType.Application.Json)
                 setBody(payload.toString())
             }
@@ -191,4 +216,10 @@ class SupabaseClientProvider(
             }
         }
     }
+
+    /** Never silently downgrade an authenticated operation to the public anon role. */
+    private suspend fun requireUserJwt(explicitJwt: String?): String =
+        (explicitJwt ?: userJwtProvider())
+            .takeIf { it.isNotBlank() && it != anonKey }
+            ?: throw SecurityException("Sign in to access campus data")
 }

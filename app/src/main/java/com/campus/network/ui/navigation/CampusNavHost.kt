@@ -195,10 +195,15 @@ fun CampusNavHost(
             SplashScreen(
                 onSplashComplete = {
                     coroutineScope.launch {
-                        val savedSession = authClient.getSavedSession()
-                        val localProfile = studentProfileRepository.getProfileSync()
+                        val savedSession = authClient.getSavedSession()?.takeIf {
+                            runCatching {
+                                com.campus.network.core.network.SupabaseSessionStore.validAccessToken(
+                                    com.campus.network.BuildConfig.SUPABASE_URL,
+                                    com.campus.network.BuildConfig.SUPABASE_ANON_KEY
+                                )
+                            }.isSuccess
+                        }
                         val email = savedSession?.email?.trim()?.ifBlank { null }
-                            ?: localProfile?.universityEmail?.trim()?.ifBlank { null }
 
                         if (email.isNullOrBlank()) {
                             val targetRoute = if (authClient.hasSeenIntroOnboarding()) {
@@ -214,6 +219,7 @@ fun CampusNavHost(
 
                         // Sync latest profile state from Supabase
                         studentProfileRepository.syncProfileWithRemote(email)
+                        val localProfile = studentProfileRepository.getProfileSync()
 
                         runCatching {
                             serverRepository.syncRemoteServers()

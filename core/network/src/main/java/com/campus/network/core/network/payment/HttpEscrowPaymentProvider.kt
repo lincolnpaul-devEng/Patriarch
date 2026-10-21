@@ -54,20 +54,21 @@ import org.json.JSONObject
  * Hub checkout already calls this provider; no UI rewrite required.
  */
 class HttpEscrowPaymentProvider(
-    private val baseUrl: String = BuildConfig.PAYMENT_API_BASE_URL.trim().trimEnd('/'),
-    private val apiKey: String = BuildConfig.PAYMENT_API_KEY.trim(),
-    private val apiSecret: String = BuildConfig.PAYMENT_API_SECRET.trim(),
-    private val configuredProviderId: String = BuildConfig.PAYMENT_PROVIDER_ID.trim()
-        .ifBlank { "http_escrow" },
-    private val configuredDisplayName: String = BuildConfig.PAYMENT_PROVIDER_DISPLAY_NAME.trim()
-        .ifBlank { "Campus SafePay" },
+    private val baseUrl: String,
+    private val apiKey: String,
+    private val apiSecret: String,
+    private val configuredProviderId: String = "http_escrow",
+    private val configuredDisplayName: String = "Campus SafePay",
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : PaymentProvider {
 
     private val client = HttpClient(OkHttp)
 
-    override val providerId: String = configuredProviderId
-    override val displayName: String = configuredDisplayName
+    private val resolvedProviderId = configuredProviderId.takeIf { it.isNotBlank() } ?: "http_escrow"
+    private val resolvedDisplayName = configuredDisplayName.takeIf { it.isNotBlank() } ?: "Campus SafePay"
+
+    override val providerId: String = resolvedProviderId
+    override val displayName: String = resolvedDisplayName
     override val isConfigured: Boolean =
         baseUrl.isNotBlank() && (apiKey.isNotBlank() || apiSecret.isNotBlank())
 
@@ -147,7 +148,7 @@ class HttpEscrowPaymentProvider(
                 "PAYMENT_API_BASE_URL / keys are missing"
             )
         }
-        if (!request.releaseCodeVerified) {
+        if (request.scannedCode.isBlank()) {
             return PaymentResult.Failure(
                 PaymentErrorCode.RELEASE_CODE_REQUIRED,
                 "Seller release QR must be verified before payout"
@@ -159,7 +160,7 @@ class HttpEscrowPaymentProvider(
             put("marketItemId", request.marketItemId)
             put("amount", request.amount)
             put("currency", request.currencyCode)
-            put("releaseCodeVerified", true)
+            put("scannedCode", request.scannedCode)
         }
         return apiCall(
             HttpMethod.Post,

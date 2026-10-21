@@ -112,8 +112,12 @@ class FlashMeetRepository(
         category: String,
         attendeeCount: Int
     ): Result<Unit> = withContext(ioDispatcher) {
+        val creatorId = com.campus.network.core.network.SupabaseSessionStore.session()
+            ?.optString("user_id")?.takeIf(String::isNotBlank)
+            ?: return@withContext Result.failure(SecurityException("Sign in to create a campus event"))
         val payload = JSONObject().apply {
             put("id", id)
+            put("creator_id", creatorId)
             put("title", title)
             put("description", description)
             put("location_name", locationName)

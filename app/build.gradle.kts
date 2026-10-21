@@ -33,8 +33,8 @@ android {
         buildConfigField("String", "EXPECTED_SIGNATURE_SHA256", "\"${secretsProperties.getProperty("RELEASE_SIGNATURE_SHA256", "")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"${secretsProperties.getProperty("SUPABASE_URL", "")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${secretsProperties.getProperty("SUPABASE_ANON_KEY", "")}\"")
-        buildConfigField("String", "OPENROUTER_API_KEY", "\"${secretsProperties.getProperty("OPENROUTER_API_KEY", "")}\"")
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${secretsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")}\"")
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = secretsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")
         buildConfigField("String", "GOOGLE_CLIENT_ID_ANDROID", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_ANDROID", "")}\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID_WEB", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_WEB", "")}\"")
 

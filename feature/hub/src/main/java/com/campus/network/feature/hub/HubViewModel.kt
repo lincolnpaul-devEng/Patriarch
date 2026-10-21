@@ -296,13 +296,13 @@ class HubViewModel(
     /**
      * Releases held funds to the seller after QR verification.
      */
-    suspend fun releaseEscrowFunds(itemId: String, releaseCodeVerified: Boolean): PaymentResult<EscrowOrder> {
+    suspend fun releaseEscrowFunds(itemId: String, scannedCode: String): PaymentResult<EscrowOrder> {
         val order = escrowOrdersByItemId[itemId]
             ?: return PaymentResult.Failure(
                 com.campus.network.core.model.PaymentErrorCode.INVALID_REQUEST,
                 "No active escrow order for this listing on this device"
             )
-        return when (val released = escrowService.releaseFundsToSeller(order, releaseCodeVerified)) {
+        return when (val released = escrowService.releaseFundsToSeller(order, scannedCode)) {
             is PaymentResult.Failure -> released
             is PaymentResult.Success -> {
                 escrowOrdersByItemId[itemId] = released.value

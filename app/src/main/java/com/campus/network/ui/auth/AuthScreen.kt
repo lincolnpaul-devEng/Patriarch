@@ -158,12 +158,7 @@ fun AuthScreen(
                     fallbackAvatarUrl = photoUrl
                 )
             } else {
-                authClient.signInWithGoogleAccountProfile(
-                    email = cleanEmail,
-                    fullName = cleanName,
-                    avatarUrl = photoUrl,
-                    googleId = account.id
-                )
+                Result.failure(IllegalStateException("Google ID token unavailable. Check the Google OAuth client configuration."))
             }
 
             result.onSuccess { sessionUser ->
@@ -185,25 +180,6 @@ fun AuthScreen(
         }
     }
 
-    // Fallback launcher if Play Services returns DEVELOPER_ERROR (code 10) due to SHA-1 not yet added in Google Cloud Console
-    val fallbackGoogleLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)
-            handleGoogleAccountAuthenticated(account)
-        } catch (e: ApiException) {
-            isLoading = false
-            if (e.statusCode != 12501) { // 12501 = SIGN_IN_CANCELLED
-                showFeedback(
-                    SupabaseGoogleAuthClient.getFriendlyErrorMessage(e),
-                    isError = true
-                )
-            }
-        }
-    }
-
     // Primary Native Google Sign-In Launcher configured with SocialPulse's GOOGLE_CLIENT_ID_WEB
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -213,25 +189,9 @@ fun AuthScreen(
             val account = task.getResult(ApiException::class.java)
             handleGoogleAccountAuthenticated(account)
         } catch (e: ApiException) {
-            if (e.statusCode == 10) {
-                // Code 10 = DEVELOPER_ERROR (SHA-1 fingerprint or package name not yet registered for requestIdToken).
-                // Automatically fall back to basic Google Sign-In profile picker so Google Sign-In still works on device.
-                val fallbackGso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestEmail()
-                    .requestProfile()
-                    .build()
-                val fallbackClient = GoogleSignIn.getClient(context, fallbackGso)
-                fallbackClient.signOut().addOnCompleteListener {
-                    fallbackGoogleLauncher.launch(fallbackClient.signInIntent)
-                }
-            } else {
-                isLoading = false
-                if (e.statusCode != 12501 && result.resultCode != Activity.RESULT_CANCELED) {
-                    showFeedback(
-                        SupabaseGoogleAuthClient.getFriendlyErrorMessage(e),
-                        isError = true
-                    )
-                }
+            isLoading = false
+            if (e.statusCode != 12501 && result.resultCode != Activity.RESULT_CANCELED) {
+                showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(e), isError = true)
             }
         }
     }

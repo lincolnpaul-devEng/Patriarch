@@ -118,7 +118,7 @@ fun SafeTradeEscrowBuyerSheet(
     /** Server-side verify — buyers must not rely on a locally cached release secret. */
     onVerifyReleaseCode: (suspend (itemId: String, scannedCode: String) -> Boolean)? = null,
     /** Calls the payment socket to release held funds to the seller after QR verify. */
-    onReleaseEscrowFunds: (suspend (itemId: String) -> Boolean)? = null,
+    onReleaseEscrowFunds: (suspend (itemId: String, scannedCode: String) -> Boolean)? = null,
     modifier: Modifier = Modifier
 ) {
     if (!isOpen || item == null) return
@@ -181,9 +181,9 @@ fun SafeTradeEscrowBuyerSheet(
             }
             // QR ok → ask payment socket to release escrow (no fake “transferred” without provider).
             val payoutOk = if (onReleaseEscrowFunds != null) {
-                runCatching { onReleaseEscrowFunds(item.id) }.getOrDefault(false)
+                runCatching { onReleaseEscrowFunds(item.id, cleanInput) }.getOrDefault(false)
             } else {
-                true
+                false
             }
             isVerifying = false
             if (payoutOk) {

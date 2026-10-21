@@ -7,6 +7,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -17,8 +18,9 @@ import org.junit.Test
  */
 class RemoteDatabaseWritesIntegrationTest {
 
-    private val supabaseUrl = "https://mgurbmoubtqzsgfdlgur.supabase.co"
-    private val anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ndXJibW91YnRxenNnZmRsZ3VyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMjYyMTAsImV4cCI6MjEwMjYwMjIxMH0.fcjlhwoln44uisxPfddIlWD1zmLm9nJaoYIfTYTMaV0"
+    private val supabaseUrl = System.getenv("SUPABASE_TEST_URL").orEmpty()
+    private val anonKey = System.getenv("SUPABASE_TEST_ANON_KEY").orEmpty()
+    private val userJwt = System.getenv("SUPABASE_TEST_USER_JWT").orEmpty()
 
     private lateinit var client: SupabaseClientProvider
     private val testServerId = "srv_test_integration_${System.currentTimeMillis()}"
@@ -27,11 +29,16 @@ class RemoteDatabaseWritesIntegrationTest {
 
     @Before
     fun setUp() {
-        client = SupabaseClientProvider(supabaseUrl = supabaseUrl, anonKey = anonKey)
+        assumeTrue("Live writes require an explicitly opted-in disposable test project",
+            System.getenv("RUN_LIVE_SUPABASE_TESTS") == "1" &&
+                supabaseUrl.isNotBlank() && anonKey.isNotBlank() && userJwt.isNotBlank())
+        client = SupabaseClientProvider(supabaseUrl = supabaseUrl, anonKey = anonKey,
+            userJwtProvider = { userJwt })
     }
 
     @After
     fun tearDown() {
+        if (!::client.isInitialized) return
         runBlocking {
             // Clean up test server and cascading entries
             client.deleteRecord("servers?id=eq.$testServerId")

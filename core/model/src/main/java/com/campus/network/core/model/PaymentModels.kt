@@ -56,7 +56,7 @@ data class EscrowReleaseRequest(
     val sellerUserId: String,
     val amount: Double,
     val currencyCode: String,
-    val releaseCodeVerified: Boolean
+    val scannedCode: String
 )
 
 data class EscrowRefundRequest(

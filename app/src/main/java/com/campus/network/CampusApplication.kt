@@ -11,6 +11,7 @@ import coil.decode.ImageDecoderDecoder
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSessionStore
 import com.campus.network.core.network.call.CallMediaProviderRegistry
 import com.campus.network.core.network.call.StreamVideoCallMediaProvider
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +48,7 @@ class CampusApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        SupabaseSessionStore.initialize(this)
 
         // 0. Runtime integrity: debugger, tracer, Frida/Xposed, signature. Release builds stop on critical hits.
         val integrity = com.campus.network.core.security.RuntimeIntegrityGuard.evaluate(

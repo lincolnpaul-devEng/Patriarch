@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.campus.network.core.database.dao.AcademicChannelDao
 import com.campus.network.core.database.dao.ChatMessageDao
 import com.campus.network.core.database.dao.FlashMeetDao
@@ -57,7 +59,7 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         StudentProfileEntity::class
     ],
     version = 14,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class CampusDatabase : RoomDatabase() {
     abstract fun flashMeetDao(): FlashMeetDao
@@ -78,6 +80,18 @@ abstract class CampusDatabase : RoomDatabase() {
     abstract fun studentProfileDao(): StudentProfileDao
 
     companion object {
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""CREATE TABLE IF NOT EXISTS `server_channel_messages` (
+                    `id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `channelId` TEXT NOT NULL,
+                    `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT,
+                    `text` TEXT NOT NULL, `gifUrl` TEXT, `imageUrlsJson` TEXT NOT NULL,
+                    `reactionCount` INTEGER NOT NULL, `timestampEpochMs` INTEGER NOT NULL,
+                    `isOptimistic` INTEGER NOT NULL, `isDelivered` INTEGER NOT NULL,
+                    `isMine` INTEGER NOT NULL, PRIMARY KEY(`id`))""")
+            }
+        }
+
         @Volatile
         private var INSTANCE: CampusDatabase? = null
 
@@ -88,7 +102,7 @@ abstract class CampusDatabase : RoomDatabase() {
                     CampusDatabase::class.java,
                     "campus_network.db"
                 )
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_13_14)
                     .build()
                     .also { INSTANCE = it }
             }

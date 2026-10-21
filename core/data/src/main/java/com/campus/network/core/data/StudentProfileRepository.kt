@@ -11,6 +11,7 @@ import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.model.stableUserId
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.StudentProfileEntity
+import com.campus.network.core.network.SupabaseSessionStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,9 +79,7 @@ class StudentProfileRepository(
                         _studentProfile.value = cachedProfile.copy(
                             fullName = profileNameFromKnown(cachedProfile, _knownProfiles.value).orEmpty()
                         )
-                        if (cachedEntity.universityEmail.isNotBlank()) {
-                            _isAuthenticatedSession.value = true
-                        }
+                        _isAuthenticatedSession.value = SupabaseSessionStore.accessToken() != null
                     }
                 }
             }
@@ -144,20 +143,14 @@ class StudentProfileRepository(
                 throw IllegalArgumentException("A real profile name is required before saving profile changes.")
             }
             val json = org.json.JSONObject().apply {
-                put("student_id", profile.studentId)
                 put("full_name", profile.fullName)
-                put("university_email", cleanEmail)
                 put("university_name", profile.universityName)
                 put("degree_program", profile.degreeProgram)
                 put("academic_year", profile.academicYear)
-                put("behavioral_trust_score", profile.behavioralTrustScore)
-                put("campus_merit_points", profile.campusMeritPoints)
                 put("bio", profile.bio)
                 if (profile.avatarUrl != null) put("avatar_url", profile.avatarUrl)
                 put("campus_residence", profile.campusResidence)
                 put("phone_number", profile.phoneNumber)
-                put("wallet_balance", profile.walletBalance)
-                put("vault_balance", profile.vaultProtectedBalance)
                 put("preferred_rendezvous_point", profile.preferredRendezvousPoint)
                 put("notifications_enabled", profile.notificationsEnabled)
                 put("escrow_alerts_enabled", profile.escrowAlertsEnabled)
@@ -170,52 +163,13 @@ class StudentProfileRepository(
                 put("onboarding_preferences", org.json.JSONObject(StudentProfileEntity.serializeOnboardingPreferences(profile.onboardingPreferences)))
             }
             val payload = json.toString()
-            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-
-            var updated = false
-            var remoteError: Throwable? = null
-
-            val patchIlikeResult = client.updateRecord(
-                "campusprofile?university_email=ilike.$encodedEmail",
+            val userId = SupabaseSessionStore.session()?.optString("user_id")?.takeIf(String::isNotBlank)
+                ?: throw SecurityException("Sign in before updating your profile")
+            val rows = org.json.JSONArray(client.updateRecord(
+                "campusprofile?user_id=eq.${java.net.URLEncoder.encode(userId, "UTF-8")}",
                 payload
-            )
-            if (patchIlikeResult.isSuccess) {
-                val rows = runCatching { org.json.JSONArray(patchIlikeResult.getOrNull()) }.getOrNull()
-                if (rows != null && rows.length() > 0) {
-                    updated = true
-                }
-            } else {
-                remoteError = patchIlikeResult.exceptionOrNull()
-            }
-
-            if (!updated) {
-                val patchEqResult = client.updateRecord(
-                    "campusprofile?university_email=eq.$encodedEmail",
-                    payload
-                )
-                if (patchEqResult.isSuccess) {
-                    val rows = runCatching { org.json.JSONArray(patchEqResult.getOrNull()) }.getOrNull()
-                    if (rows != null && rows.length() > 0) {
-                        updated = true
-                    }
-                } else if (remoteError == null) {
-                    remoteError = patchEqResult.exceptionOrNull()
-                }
-            }
-
-            if (!updated) {
-                val insertResult = client.upsertRecord("campusprofile", payload, onConflict = "university_email")
-                if (insertResult.isSuccess) {
-                    updated = true
-                } else if (remoteError == null) {
-                    remoteError = insertResult.exceptionOrNull()
-                }
-            }
-
-            // If remote database transfer failed, abort and DO NOT save locally!
-            if (!updated) {
-                throw remoteError ?: IllegalStateException("Database transaction failed. Profile changes were not saved.")
-            }
+            ).getOrThrow())
+            check(rows.length() == 1) { "Your authenticated profile could not be updated" }
             profileNamePersistedRemotely = true
         }
 

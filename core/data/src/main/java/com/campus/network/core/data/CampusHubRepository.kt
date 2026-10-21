@@ -130,7 +130,7 @@ class CampusHubRepository(
             put("qr_release_code", generatedReleaseCode)
         }.toString()
 
-        val remoteResult = supabaseClient.upsertRecord("campus_market_items", remotePayload, onConflict = "id")
+        val remoteResult = supabaseClient.upsertRecord("campus_market_items", remotePayload, onConflict = "id", returnMinimal = true)
         if (remoteResult.isFailure) {
             throw remoteResult.exceptionOrNull() ?: Exception("Failed to publish market item to cloud")
         }
@@ -228,19 +228,14 @@ class CampusHubRepository(
         val ownerSecrets = mutableMapOf<String, String>()
         val viewerId = currentUserId?.trim().orEmpty()
         if (viewerId.isNotBlank()) {
-            val secretSelect = "id,qr_release_code"
-            val ownedQuery = supabaseClient.queryTable(
-                "campus_market_items?seller_id=eq.${java.net.URLEncoder.encode(viewerId, Charsets.UTF_8.name())}&limit=50",
-                selectQuery = secretSelect
-            )
-            ownedQuery.getOrNull()?.let { ownedRaw ->
-                val ownedArray = JSONArray(ownedRaw)
-                for (i in 0 until ownedArray.length()) {
-                    val row = ownedArray.getJSONObject(i)
-                    val code = row.optString("qr_release_code", "")
-                    if (code.isNotBlank()) {
-                        ownerSecrets[row.getString("id")] = code
-                    }
+            for (i in 0 until array.length()) {
+                val row = array.getJSONObject(i)
+                if (row.optString("seller_id").equals(viewerId, ignoreCase = true)) {
+                    val code = supabaseClient.callRpc("get_market_item_release_code", JSONObject().apply {
+                        put("p_item_id", row.getString("id"))
+                        put("p_caller_id", viewerId)
+                    }.toString()).getOrNull()?.trim()?.trim('"').orEmpty()
+                    if (code.isNotBlank() && code != "null") ownerSecrets[row.getString("id")] = code
                 }
             }
         }
