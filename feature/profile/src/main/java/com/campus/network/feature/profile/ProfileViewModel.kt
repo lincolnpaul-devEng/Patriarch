@@ -1,7 +1,9 @@
 package com.campus.network.feature.profile
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.model.StudentProfile
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -57,8 +59,11 @@ sealed interface ProfileEvent {
 }
 
 class ProfileViewModel(
+    context: Context,
     private val repository: StudentProfileRepository
 ) : ViewModel() {
+
+    private val deltaSyncManager = DeltaSyncManager.get(context)
 
     private val _userMessage = MutableSharedFlow<String>()
     val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
@@ -184,6 +189,11 @@ class ProfileViewModel(
         }
     }
 
+    suspend fun retryFailedUploads() {
+        repository.markFailedWritesPending()
+        _userMessage.emit("Retry queued. Profile upload will resume when connected.")
+    }
+
     private suspend fun saveFeedback(
         result: Result<Unit>,
         successMessage: String,
@@ -203,7 +213,6 @@ class ProfileViewModel(
     }
 
     suspend fun saveProfile(
-        fullName: String,
         universityName: String,
         degreeProgram: String,
         academicYear: String,

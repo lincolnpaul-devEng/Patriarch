@@ -21,6 +21,7 @@ import androidx.navigation.navArgument
 import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.data.CampusDirectoryRepository
 import com.campus.network.core.data.CampusHubRepository
+import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.FlashMeetRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.database.CampusDatabase
@@ -81,7 +82,7 @@ fun CampusNavHost(
     val flashMeetRepository = remember(database) { FlashMeetRepository(database) }
     val placesRepository = remember { com.campus.network.core.data.PlacesRepository() }
     val academicChannelsRepository = remember(database) { AcademicChannelsRepository(database) }
-    val campusHubRepository = remember(database) { CampusHubRepository(database) }
+    val campusHubRepository = remember(context) { CampusHubRepository(context, database) }
     val serverRepository = remember(database) {
         com.campus.network.core.data.ServerRepository(
             database = database,
@@ -143,7 +144,7 @@ fun CampusNavHost(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ProfileViewModel(studentProfileRepository) as T
+                return ProfileViewModel(context, studentProfileRepository) as T
             }
         }
     )
@@ -398,7 +399,9 @@ fun CampusNavHost(
                 },
                 onToggleBottomBar = onToggleBottomBar,
                 onRetrySync = {
-                    com.campus.network.notifications.SyncRetryWorker.runNow(context, retryFailed = true)
+                    coroutineScope.launch {
+                        DeltaSyncManager.get(context).retryFailedSyncs()
+                    }
                 }
             )
         }
@@ -482,7 +485,11 @@ fun CampusNavHost(
             HubScreen(
                 viewModel = hubViewModel,
                 unreadNotificationsCount = pendingFriendsCount,
-                onRetrySync = { com.campus.network.notifications.SyncRetryWorker.runNow(context) },
+                onRetrySync = {
+                    coroutineScope.launch {
+                        DeltaSyncManager.get(context).retryFailedSyncs()
+                    }
+                },
                 onNavigateToChat = { peerId, peerName ->
                     val resolvedPeerId = peerId.trim().ifBlank {
                         peerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
@@ -608,7 +615,9 @@ fun CampusNavHost(
                     navController.popBackStack()
                 },
                 onRetrySync = {
-                    com.campus.network.notifications.SyncRetryWorker.runNow(context, retryFailed = true)
+                    coroutineScope.launch {
+                        profileViewModel.retryFailedUploads()
+                    }
                 },
                 onSignOut = {
                     coroutineScope.launch {

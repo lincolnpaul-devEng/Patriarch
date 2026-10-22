@@ -122,7 +122,12 @@ class MessagesViewModel(
         val profiles = profileNameResolver?.resolveWithAvatars(userIds).orEmpty()
         remoteProfileNames.putAll(profiles.mapValues { it.value.name })
         profiles.forEach { (userId, profile) ->
-            profile.avatarUrl?.let { remoteProfileAvatars[userId] = it }
+            val avatarUrl = profile.avatarUrl
+            if (avatarUrl == null) {
+                remoteProfileAvatars.remove(userId)
+            } else {
+                remoteProfileAvatars[userId] = avatarUrl
+            }
         }
         return profiles.mapValues { it.value.name }
     }

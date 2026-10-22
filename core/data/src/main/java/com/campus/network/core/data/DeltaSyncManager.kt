@@ -35,7 +35,7 @@ class DeltaSyncManager private constructor(
                 val supabase = SupabaseClientProvider()
                 DeltaSyncManager(
                     serverRepository = ServerRepository(database, supabase),
-                    hubRepository = CampusHubRepository(database, supabase),
+                    hubRepository = CampusHubRepository(context, database, supabase),
                     flashMeetRepository = FlashMeetRepository(database, supabase),
                     liveStreamRepository = LiveStreamRepository(database, supabase),
                     profileRepository = StudentProfileRepository(database, supabase),

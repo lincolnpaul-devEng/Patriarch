@@ -14,9 +14,15 @@ class SupabaseProfileNameResolver(
     private val supabaseClient: SupabaseClientProvider
 ) {
     suspend fun resolve(userIds: Collection<String>): Map<String, String> =
-        resolveWithAvatars(userIds).mapValues { it.value.name }
+        resolveProfiles(userIds, includeAvatar = false).mapValues { it.value.name }
 
-    suspend fun resolveWithAvatars(userIds: Collection<String>): Map<String, ResolvedCampusProfile> {
+    suspend fun resolveWithAvatars(userIds: Collection<String>): Map<String, ResolvedCampusProfile> =
+        resolveProfiles(userIds, includeAvatar = true)
+
+    private suspend fun resolveProfiles(
+        userIds: Collection<String>,
+        includeAvatar: Boolean
+    ): Map<String, ResolvedCampusProfile> {
         val requestedIds = userIds.map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase() }
@@ -35,15 +41,23 @@ class SupabaseProfileNameResolver(
         val query = "campusprofile?or=(${filters.joinToString(",")})&limit=200"
         val raw = supabaseClient.queryTable(
             query,
-            selectQuery = "user_id,student_id,university_email,full_name,avatar_url"
+            selectQuery = if (includeAvatar) {
+                "user_id,student_id,university_email,full_name,avatar_url"
+            } else {
+                "user_id,student_id,university_email,full_name"
+            }
         ).getOrThrow()
         val profiles = JSONArray(raw)
         val profilesById = mutableMapOf<String, ResolvedCampusProfile>()
         for (index in 0 until profiles.length()) {
             val profile = profiles.getJSONObject(index)
             val name = profile.optString("full_name").takeIf(String::isRealProfileDisplayName) ?: continue
-            val avatarUrl = profile.optString("avatar_url")
-                .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.startsWith("avatar_") }
+            val avatarUrl = if (includeAvatar) {
+                profile.optString("avatar_url")
+                    .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.startsWith("avatar_") }
+            } else {
+                null
+            }
             val resolved = ResolvedCampusProfile(name.trim(), avatarUrl)
             listOf("user_id", "student_id", "university_email").forEach { field ->
                 profile.optString(field)

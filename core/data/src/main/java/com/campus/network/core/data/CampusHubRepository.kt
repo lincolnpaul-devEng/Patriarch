@@ -1,5 +1,6 @@
 package com.campus.network.core.data
 
+import android.content.Context
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.MarketItemEntity
 import com.campus.network.core.database.entity.MicroGigEntity
@@ -23,6 +24,7 @@ import org.json.JSONObject
  * Powers the dual-view switcher hosting hyper-local item marketplace and real-time micro-gig board.
  */
 class CampusHubRepository(
+    private val context: Context,
     private val database: CampusDatabase,
     private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
     private val aiClient: OpenRouterAiClient = OpenRouterAiClient(),
@@ -216,6 +218,8 @@ class CampusHubRepository(
         gigDao.getFailedGigs().forEach {
             gigDao.updateSyncStatus(it.id, it.syncId, com.campus.network.core.model.SyncStatus.PENDING.name)
         }
+        // Trigger full retry of all failed syncs via DeltaSyncManager
+        DeltaSyncManager.get(context).retryFailedSyncs()
     }
 
     /**

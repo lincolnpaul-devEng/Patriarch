@@ -439,6 +439,17 @@ class StudentProfileRepository(
         persistToDatabase(profile)
     }
 
+    suspend fun markFailedWritesPending() = withContext(ioDispatcher) {
+        val failedProfile = profileDao?.getFailedProfile()
+        if (failedProfile != null) {
+            profileDao?.updateProfileSyncStatus(
+                failedProfile.id,
+                com.campus.network.core.model.SyncStatus.PENDING.name,
+                failedProfile.syncId
+            )
+        }
+    }
+
     suspend fun applyGuestSession() = withContext(ioDispatcher) {
         _isAuthenticatedSession.value = false
         _isGuestSession.value = true
