@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        maven { url = java.net.URI("https://maven-central.storage-download.googleapis.com/maven2/") }
         google {
             content {
                 includeGroupByRegex("com\\.android.*")
@@ -15,6 +16,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        maven { url = java.net.URI("https://maven-central.storage-download.googleapis.com/maven2/") }
         google()
         mavenCentral()
         maven { url = java.net.URI("https://stream-io-repo.com") }

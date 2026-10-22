@@ -1,7 +1,5 @@
 package com.campus.network.core.network
 
-import io.github.jan.supabase.auth.AuthChangeEvent
-import io.github.jan.supabase.auth.Session
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import kotlinx.coroutines.CoroutineDispatcher
@@ -22,6 +20,9 @@ import kotlinx.coroutines.withContext
  * NOTE: Compilation requires the Kotlin Serialization Gradle plugin
  * (org.jetbrains.kotlin.plugin.serialization) to be available. The plugin alias
  * is declared in gradle/libs.versions.toml as kotlin-serialization.
+ *
+ * NOTE: The Supabase Kotlin SDK version (2.0.0) is pinned to be compatible with
+ * the project's Kotlin 1.9.23. Newer versions (3.x+) require Kotlin 2.x.
  */
 class SupabaseSdkClientProvider(
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
@@ -29,43 +30,11 @@ class SupabaseSdkClientProvider(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
-    /** The initialized Supabase client with Postgrest and Auth installed. */
+    /** The initialized Supabase client with Postgrest installed. */
     val supabase = createSupabaseClient(supabaseUrl, supabaseKey) {
         install(Postgrest)
-        install(Auth) {
-            autoRefreshToken = true
-            detectSessionInUrl = false
-        }
     }
 
     /** Convenience access to the underlying client. */
     val client = supabase
-
-    /**
-     * Signs in with a Google ID token via Supabase Auth GoTrue.
-     * Replaces the manual Ktor POST to /auth/v1/token?grant_type=id_token.
-     */
-    suspend fun signInWithIdToken(
-        idToken: String,
-        provider: String = "google"
-    ): io.github.jan.supabase.auth.AuthResponse<Session> = withContext(ioDispatcher) {
-        supabase.auth.signInWithIdToken(
-            idToken = idToken,
-            provider = provider
-        )
-    }
-
-    /**
-     * Fetches the current authenticated user.
-     */
-    suspend fun getCurrentUser(): io.github.jan.supabase.auth.UserResponse = withContext(ioDispatcher) {
-        supabase.auth.getUser()
-    }
-
-    /**
-     * Signs out the current user.
-     */
-    suspend fun signOut() = withContext(ioDispatcher) {
-        supabase.auth.signOut()
-    }
 }

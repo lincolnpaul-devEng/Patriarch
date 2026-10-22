@@ -163,12 +163,18 @@ class StudentProfileRepository(
     private suspend fun refreshKnownProfilesViaSdk(sinceMs: Long): Map<String, StudentProfile> = withContext(ioDispatcher) {
         val client = sdkClient ?: return@withContext _knownProfiles.value
         try {
-            val query = client.supabase.from("campusprofile").select("*")
-            val filtered = if (sinceMs > 0L) query.gt("updated_at", sinceMs) else query
-            val rows: List<CampusProfileRow> = filtered.decodeList()
+            val rows: List<CampusProfileRow> = client.supabase
+                .from("campusprofile")
+                .select {
+                    if (sinceMs > 0L) {
+                        val cursor = java.time.Instant.ofEpochMilli(sinceMs).toString()
+                        filter { gt("updated_at", cursor) }
+                    }
+                }
+                .decodeList()
             val map = mutableMapOf<String, StudentProfile>()
             for (row in rows) {
-                val avatar = row.avatar_url.takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
+                val avatar = row.avatar_url?.takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
                 if (row.full_name.isRealProfileDisplayName()) {
                     val prof = StudentProfile(
                         studentId = row.student_id.ifBlank { row.id },

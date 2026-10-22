@@ -58,7 +58,7 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         ServerInviteEntity::class,
         StudentProfileEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 abstract class CampusDatabase : RoomDatabase() {
@@ -97,6 +97,105 @@ abstract class CampusDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE micro_gigs ADD COLUMN posterUserId TEXT NOT NULL DEFAULT ''")
             }
         }
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                rebuildFlashMeets(db)
+                rebuildMicroGigs(db)
+            }
+        }
+
+        private fun rebuildFlashMeets(db: SupportSQLiteDatabase) {
+            rebuildTable(
+                db = db,
+                tableName = "flash_meets",
+                temporaryTableName = "_flash_meets_v16",
+                createTableSql = """CREATE TABLE `_flash_meets_v16` (
+                    `id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL,
+                    `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL,
+                    `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL,
+                    `creatorUserId` TEXT NOT NULL, `creatorAvatar` TEXT,
+                    `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL,
+                    `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL,
+                    `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))""",
+                columns = listOf(
+                    "id", "title", "description", "categoryName", "latitude", "longitude",
+                    "locationName", "creatorName", "creatorUserId", "creatorAvatar",
+                    "createdAtEpochMs", "expiresAtEpochMs", "attendeeCount", "maxAttendees",
+                    "syncStatus", "syncId"
+                ),
+                fallbackExpressions = mapOf(
+                    "creatorUserId" to "''",
+                    "creatorAvatar" to "NULL",
+                    "syncStatus" to "'SYNCED'",
+                    "syncId" to "NULL"
+                )
+            )
+        }
+
+        private fun rebuildMicroGigs(db: SupportSQLiteDatabase) {
+            rebuildTable(
+                db = db,
+                tableName = "micro_gigs",
+                temporaryTableName = "_micro_gigs_v16",
+                createTableSql = """CREATE TABLE `_micro_gigs_v16` (
+                    `id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL,
+                    `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL,
+                    `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL,
+                    `posterUserId` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL,
+                    `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL,
+                    `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL,
+                    `bannerUrl` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT,
+                    PRIMARY KEY(`id`))""",
+                columns = listOf(
+                    "id", "title", "description", "payoutAmount", "currency",
+                    "estimatedDuration", "posterName", "posterUserId", "posterTrustScore",
+                    "tag", "urgencyName", "spotsAvailable", "timestampMs", "bannerUrl",
+                    "syncStatus", "syncId"
+                ),
+                fallbackExpressions = mapOf(
+                    "posterUserId" to "''",
+                    "bannerUrl" to "NULL",
+                    "syncStatus" to "'SYNCED'",
+                    "syncId" to "NULL"
+                )
+            )
+        }
+
+        private fun rebuildTable(
+            db: SupportSQLiteDatabase,
+            tableName: String,
+            temporaryTableName: String,
+            createTableSql: String,
+            columns: List<String>,
+            fallbackExpressions: Map<String, String>
+        ) {
+            val existingColumns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(`$tableName`)").use { cursor ->
+                val nameColumnIndex = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    existingColumns += cursor.getString(nameColumnIndex)
+                }
+            }
+
+            db.execSQL("DROP TABLE IF EXISTS `$temporaryTableName`")
+            db.execSQL(createTableSql)
+            val sourceExpressions = columns.map { column ->
+                if (column in existingColumns) {
+                    "`$column`"
+                } else {
+                    checkNotNull(fallbackExpressions[column]) {
+                        "Cannot migrate $tableName: required column $column is missing"
+                    }
+                }
+            }
+            val columnList = columns.joinToString(", ") { "`$it`" }
+            db.execSQL(
+                "INSERT INTO `$temporaryTableName` ($columnList) " +
+                    "SELECT ${sourceExpressions.joinToString(", ")} FROM `$tableName`"
+            )
+            db.execSQL("DROP TABLE `$tableName`")
+            db.execSQL("ALTER TABLE `$temporaryTableName` RENAME TO `$tableName`")
+        }
 
         @Volatile
         private var INSTANCE: CampusDatabase? = null
@@ -108,7 +207,7 @@ abstract class CampusDatabase : RoomDatabase() {
                     CampusDatabase::class.java,
                     "campus_network.db"
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .build()
                     .also { INSTANCE = it }
             }

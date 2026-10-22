@@ -43,6 +43,24 @@ android {
 }
 
 dependencies {
+    constraints {
+        api("org.jetbrains.kotlin:kotlin-stdlib:1.9.23") {
+            because("Supabase BOM pulls in incompatible Kotlin stdlib version")
+        }
+        api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0") {
+            because("Supabase BOM pulls in incompatible coroutines version")
+        }
+        api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0") {
+            because("Supabase BOM pulls in incompatible coroutines version")
+        }
+    }
+    configurations.all {
+        resolutionStrategy {
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.23")
+            force("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+            force("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+        }
+    }
     implementation(project(":core:model"))
     implementation(project(":core:security"))
 
@@ -65,7 +83,6 @@ dependencies {
     // Supabase Kotlin SDK (migrating from custom Ktor REST — side-by-side during transition)
     api(platform(libs.supabase.bom))
     api(libs.supabase.postgrest)
-    api(libs.supabase.auth)
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")

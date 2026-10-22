@@ -21,6 +21,7 @@ import androidx.navigation.navArgument
 import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.data.CampusDirectoryRepository
 import com.campus.network.core.data.CampusHubRepository
+import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.FlashMeetRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.database.CampusDatabase
