@@ -166,8 +166,8 @@ class SupabaseClientProvider(
 
     private suspend fun HttpResponse.bodyOrThrow(): String {
         val body = bodyAsText()
-        check(status.isSuccess()) {
-            "Supabase request failed (HTTP ${status.value}): ${body.take(500)}"
+        if (!status.isSuccess()) {
+            throw SupabaseHttpException(status.value, body)
         }
         return body
     }

@@ -77,6 +77,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import com.campus.network.core.ui.components.CampusInlineNetworkAlertCard
 import com.campus.network.core.ui.components.MessageThreadRowSkeleton
 import com.campus.network.core.ui.components.rememberCampusNetworkState
@@ -708,24 +709,15 @@ private fun MessagePeopleRail(
                         contentAlignment = Alignment.Center
                     ) {
                         // Avatar
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF5865F2), Color(0xFF7289DA))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = friend.avatarInitials,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
+                        CampusStudentAvatar(
+                            avatarUrl = friend.avatarUrl,
+                            fullName = friend.peerName,
+                            modifier = Modifier.size(44.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            initialsColor = Color.White,
+                            backgroundColor = Color(0xFF5865F2),
+                            fontSize = 14.sp
+                        )
 
                         // Green online dot
                         Box(
@@ -908,24 +900,15 @@ private fun ServerMessageThreadRow(
             modifier = Modifier.size(48.dp),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF5865F2), Color(0xFF3B82F6))
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = thread.avatarInitials,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
+            CampusStudentAvatar(
+                avatarUrl = thread.avatarUrl,
+                fullName = thread.peerName,
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(16.dp),
+                initialsColor = Color.White,
+                backgroundColor = Color(0xFF5865F2),
+                fontSize = 16.sp
+            )
 
             if (thread.isOnline) {
                 Box(

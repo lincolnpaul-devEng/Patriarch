@@ -58,7 +58,7 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         ServerInviteEntity::class,
         StudentProfileEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class CampusDatabase : RoomDatabase() {
@@ -91,6 +91,12 @@ abstract class CampusDatabase : RoomDatabase() {
                     `isMine` INTEGER NOT NULL, PRIMARY KEY(`id`))""")
             }
         }
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE flash_meets ADD COLUMN creatorUserId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE micro_gigs ADD COLUMN posterUserId TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         @Volatile
         private var INSTANCE: CampusDatabase? = null
@@ -102,7 +108,7 @@ abstract class CampusDatabase : RoomDatabase() {
                     CampusDatabase::class.java,
                     "campus_network.db"
                 )
-                    .addMigrations(MIGRATION_13_14)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15)
                     .build()
                     .also { INSTANCE = it }
             }

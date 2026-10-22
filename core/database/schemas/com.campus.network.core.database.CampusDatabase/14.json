@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 14,
-    "identityHash": "8780a7355c7896e4b915c23f2815eb2d",
+    "identityHash": "dc3f0d956ad2a19cfa5c96953cdf8999",
     "entities": [
       {
         "tableName": "flash_meets",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL, `creatorAvatar` TEXT, `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL, `creatorAvatar` TEXT, `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -85,6 +85,18 @@
             "columnName": "maxAttendees",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -172,7 +184,7 @@
       },
       {
         "tableName": "chat_messages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `channelId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `text` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `isOptimistic` INTEGER NOT NULL, `settlementPayloadJson` TEXT, `imageUri` TEXT, `imageUrl` TEXT, `gifUrl` TEXT, `replyToText` TEXT, `isMine` INTEGER NOT NULL, `isDelivered` INTEGER NOT NULL, `isRead` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `channelId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `text` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `isOptimistic` INTEGER NOT NULL, `settlementPayloadJson` TEXT, `imageUri` TEXT, `imageUrl` TEXT, `gifUrl` TEXT, `replyToText` TEXT, `isMine` INTEGER NOT NULL, `isDelivered` INTEGER NOT NULL, `isRead` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -263,6 +275,18 @@
             "columnName": "isRead",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -276,7 +300,7 @@
       },
       {
         "tableName": "market_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `price` REAL NOT NULL, `currency` TEXT NOT NULL, `category` TEXT NOT NULL, `condition` TEXT NOT NULL, `sellerName` TEXT NOT NULL, `sellerUserId` TEXT NOT NULL, `sellerRating` REAL NOT NULL, `isCampusVerifiedSeller` INTEGER NOT NULL, `campusHallLocation` TEXT NOT NULL, `imageUrl` TEXT, `timestampMs` INTEGER NOT NULL, `description` TEXT NOT NULL, `pickupSpotName` TEXT NOT NULL, `pickupSecurityLevel` TEXT NOT NULL, `pickupLatitude` REAL NOT NULL, `pickupLongitude` REAL NOT NULL, `pickupTiming` TEXT NOT NULL, `payoutMethod` TEXT NOT NULL, `requiresQrReleaseCode` INTEGER NOT NULL, `qrReleaseCode` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `price` REAL NOT NULL, `currency` TEXT NOT NULL, `category` TEXT NOT NULL, `condition` TEXT NOT NULL, `sellerName` TEXT NOT NULL, `sellerUserId` TEXT NOT NULL, `sellerRating` REAL NOT NULL, `isCampusVerifiedSeller` INTEGER NOT NULL, `campusHallLocation` TEXT NOT NULL, `imageUrl` TEXT, `timestampMs` INTEGER NOT NULL, `description` TEXT NOT NULL, `pickupSpotName` TEXT NOT NULL, `pickupSecurityLevel` TEXT NOT NULL, `pickupLatitude` REAL NOT NULL, `pickupLongitude` REAL NOT NULL, `pickupTiming` TEXT NOT NULL, `payoutMethod` TEXT NOT NULL, `requiresQrReleaseCode` INTEGER NOT NULL, `qrReleaseCode` TEXT NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -409,6 +433,18 @@
             "columnName": "qrReleaseCode",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -422,7 +458,7 @@
       },
       {
         "tableName": "micro_gigs",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL, `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL, `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL, `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL, `bannerUrl` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL, `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL, `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL, `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL, `bannerUrl` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -501,6 +537,18 @@
             "columnName": "bannerUrl",
             "affinity": "TEXT",
             "notNull": false
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -514,7 +562,7 @@
       },
       {
         "tableName": "live_streams",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `broadcasterId` TEXT NOT NULL, `broadcasterName` TEXT NOT NULL, `broadcasterHandle` TEXT NOT NULL, `broadcasterAvatarRes` INTEGER NOT NULL, `broadcasterAvatarUrl` TEXT, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `audience` TEXT NOT NULL, `isLive` INTEGER NOT NULL, `streamPlaybackUrl` TEXT, `backdropImageRes` INTEGER NOT NULL, `backdropImageUrl` TEXT, `viewerCount` INTEGER NOT NULL, `peakViewers` INTEGER NOT NULL, `likeCount` INTEGER NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, `durationSeconds` INTEGER NOT NULL, `serverId` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `broadcasterId` TEXT NOT NULL, `broadcasterName` TEXT NOT NULL, `broadcasterHandle` TEXT NOT NULL, `broadcasterAvatarRes` INTEGER NOT NULL, `broadcasterAvatarUrl` TEXT, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `audience` TEXT NOT NULL, `isLive` INTEGER NOT NULL, `streamPlaybackUrl` TEXT, `backdropImageRes` INTEGER NOT NULL, `backdropImageUrl` TEXT, `viewerCount` INTEGER NOT NULL, `peakViewers` INTEGER NOT NULL, `likeCount` INTEGER NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `endedAtEpochMs` INTEGER, `durationSeconds` INTEGER NOT NULL, `serverId` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -641,6 +689,18 @@
             "columnName": "serverId",
             "affinity": "TEXT",
             "notNull": false
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -722,7 +782,7 @@
       },
       {
         "tableName": "stream_comments",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `streamId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT, `senderAvatarRes` INTEGER NOT NULL, `commentText` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `streamId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT, `senderAvatarRes` INTEGER NOT NULL, `commentText` TEXT NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -771,6 +831,18 @@
             "columnName": "timestampEpochMs",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -784,7 +856,7 @@
       },
       {
         "tableName": "servers",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `avatarResName` TEXT NOT NULL, `bannerResName` TEXT, `isVerified` INTEGER NOT NULL, `memberCount` INTEGER NOT NULL, `inviteCode` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `avatarResName` TEXT NOT NULL, `bannerResName` TEXT, `isVerified` INTEGER NOT NULL, `memberCount` INTEGER NOT NULL, `inviteCode` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -851,6 +923,18 @@
             "columnName": "createdAtEpochMs",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -864,7 +948,7 @@
       },
       {
         "tableName": "server_channels",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `channelType` TEXT NOT NULL, `topic` TEXT NOT NULL, `unreadCount` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, `orderIndex` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `name` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `channelType` TEXT NOT NULL, `topic` TEXT NOT NULL, `unreadCount` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, `orderIndex` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -919,6 +1003,18 @@
             "columnName": "orderIndex",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -932,7 +1028,7 @@
       },
       {
         "tableName": "server_channel_messages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT, `text` TEXT NOT NULL, `gifUrl` TEXT, `imageUrlsJson` TEXT NOT NULL, `reactionCount` INTEGER NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `isOptimistic` INTEGER NOT NULL, `isDelivered` INTEGER NOT NULL, `isMine` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `channelId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `senderAvatarUrl` TEXT, `text` TEXT NOT NULL, `gifUrl` TEXT, `imageUrlsJson` TEXT NOT NULL, `reactionCount` INTEGER NOT NULL, `timestampEpochMs` INTEGER NOT NULL, `isOptimistic` INTEGER NOT NULL, `isDelivered` INTEGER NOT NULL, `isMine` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1017,6 +1113,18 @@
             "columnName": "isMine",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -1030,7 +1138,7 @@
       },
       {
         "tableName": "server_rules",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `ruleIndex` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `ruleIndex` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1061,6 +1169,18 @@
             "columnName": "description",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -1074,7 +1194,7 @@
       },
       {
         "tableName": "server_members",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `serverId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `handle` TEXT NOT NULL, `role` TEXT NOT NULL, `roleTitle` TEXT NOT NULL, `roleColorHex` INTEGER NOT NULL, `avatarUrl` TEXT, `avatarResName` TEXT NOT NULL, `isOnline` INTEGER NOT NULL, `customStatus` TEXT, `joinedAtEpochMs` INTEGER NOT NULL, `badge` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `serverId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `handle` TEXT NOT NULL, `role` TEXT NOT NULL, `roleTitle` TEXT NOT NULL, `roleColorHex` INTEGER NOT NULL, `avatarUrl` TEXT, `avatarResName` TEXT NOT NULL, `isOnline` INTEGER NOT NULL, `customStatus` TEXT, `joinedAtEpochMs` INTEGER NOT NULL, `badge` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1159,6 +1279,18 @@
             "columnName": "badge",
             "affinity": "TEXT",
             "notNull": false
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -1172,7 +1304,7 @@
       },
       {
         "tableName": "friends",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `friendUserId` TEXT NOT NULL, `friendDisplayName` TEXT NOT NULL, `friendHandle` TEXT NOT NULL, `friendAvatarResName` TEXT NOT NULL, `status` TEXT NOT NULL, `lastInteractionEpochMs` INTEGER NOT NULL, `dmChannelId` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `friendUserId` TEXT NOT NULL, `friendDisplayName` TEXT NOT NULL, `friendHandle` TEXT NOT NULL, `friendAvatarResName` TEXT NOT NULL, `status` TEXT NOT NULL, `lastInteractionEpochMs` INTEGER NOT NULL, `dmChannelId` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1227,6 +1359,18 @@
             "columnName": "dmChannelId",
             "affinity": "TEXT",
             "notNull": false
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -1240,7 +1384,7 @@
       },
       {
         "tableName": "server_invites",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`code` TEXT NOT NULL, `serverId` TEXT NOT NULL, `serverName` TEXT NOT NULL, `inviterId` TEXT NOT NULL, `inviterName` TEXT NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `maxUses` INTEGER NOT NULL, `usesCount` INTEGER NOT NULL, `isRevoked` INTEGER NOT NULL, PRIMARY KEY(`code`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`code` TEXT NOT NULL, `serverId` TEXT NOT NULL, `serverName` TEXT NOT NULL, `inviterId` TEXT NOT NULL, `inviterName` TEXT NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL, `maxUses` INTEGER NOT NULL, `usesCount` INTEGER NOT NULL, `isRevoked` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`code`))",
         "fields": [
           {
             "fieldPath": "code",
@@ -1295,6 +1439,18 @@
             "columnName": "isRevoked",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -1308,7 +1464,7 @@
       },
       {
         "tableName": "campusprofile",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `studentId` TEXT NOT NULL, `fullName` TEXT NOT NULL, `avatarUrl` TEXT, `universityEmail` TEXT NOT NULL, `universityName` TEXT NOT NULL, `degreeProgram` TEXT NOT NULL, `academicYear` TEXT NOT NULL, `campusResidence` TEXT NOT NULL, `phoneNumber` TEXT NOT NULL, `bio` TEXT NOT NULL, `consistencyStreakDays` INTEGER NOT NULL, `behavioralTrustScore` INTEGER NOT NULL, `campusMeritPoints` INTEGER NOT NULL, `preferredRendezvousPoint` TEXT NOT NULL, `personaRole` TEXT NOT NULL, `statusNote` TEXT, `statusNoteEmoji` TEXT, `statusNoteExpiry` TEXT, `storageUsedBytes` INTEGER NOT NULL, `storageQuotaBytes` INTEGER NOT NULL, `notificationsEnabled` INTEGER NOT NULL, `escrowAlertsEnabled` INTEGER NOT NULL, `questRemindersEnabled` INTEGER NOT NULL, `isTrustScorePublic` INTEGER NOT NULL, `isOnlineStatusVisible` INTEGER NOT NULL, `activityLedgerVisibility` TEXT NOT NULL, `locationPrivacyScope` TEXT NOT NULL, `walletBalance` REAL NOT NULL, `vaultProtectedBalance` REAL NOT NULL, `onboardingPreferencesJson` TEXT NOT NULL, `interestsCsv` TEXT NOT NULL, `savedListingIdsCsv` TEXT NOT NULL, `watchlistIdsCsv` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `studentId` TEXT NOT NULL, `fullName` TEXT NOT NULL, `avatarUrl` TEXT, `universityEmail` TEXT NOT NULL, `universityName` TEXT NOT NULL, `degreeProgram` TEXT NOT NULL, `academicYear` TEXT NOT NULL, `campusResidence` TEXT NOT NULL, `phoneNumber` TEXT NOT NULL, `bio` TEXT NOT NULL, `consistencyStreakDays` INTEGER NOT NULL, `behavioralTrustScore` INTEGER NOT NULL, `campusMeritPoints` INTEGER NOT NULL, `preferredRendezvousPoint` TEXT NOT NULL, `personaRole` TEXT NOT NULL, `statusNote` TEXT, `statusNoteEmoji` TEXT, `statusNoteExpiry` TEXT, `storageUsedBytes` INTEGER NOT NULL, `storageQuotaBytes` INTEGER NOT NULL, `notificationsEnabled` INTEGER NOT NULL, `escrowAlertsEnabled` INTEGER NOT NULL, `questRemindersEnabled` INTEGER NOT NULL, `isTrustScorePublic` INTEGER NOT NULL, `isOnlineStatusVisible` INTEGER NOT NULL, `activityLedgerVisibility` TEXT NOT NULL, `locationPrivacyScope` TEXT NOT NULL, `walletBalance` REAL NOT NULL, `vaultProtectedBalance` REAL NOT NULL, `onboardingPreferencesJson` TEXT NOT NULL, `interestsCsv` TEXT NOT NULL, `savedListingIdsCsv` TEXT NOT NULL, `watchlistIdsCsv` TEXT NOT NULL, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1513,6 +1669,18 @@
             "columnName": "watchlistIdsCsv",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncId",
+            "columnName": "syncId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -1528,7 +1696,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8780a7355c7896e4b915c23f2815eb2d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dc3f0d956ad2a19cfa5c96953cdf8999')"
     ]
   }
 }

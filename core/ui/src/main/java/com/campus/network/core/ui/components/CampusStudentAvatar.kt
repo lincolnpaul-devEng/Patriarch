@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ fun CampusStudentAvatar(
     avatarUrl: String?,
     fullName: String,
     modifier: Modifier = Modifier,
+    shape: Shape = CircleShape,
     initialsColor: Color = Color(0xFFF1F5F9),
     backgroundColor: Color = Color(0xFF1E293B),
     fontSize: androidx.compose.ui.unit.TextUnit = 14.sp
@@ -45,7 +47,7 @@ fun CampusStudentAvatar(
 
     Box(
         modifier = modifier
-            .clip(CircleShape)
+            .clip(shape)
             .background(backgroundColor),
         contentAlignment = Alignment.Center
     ) {

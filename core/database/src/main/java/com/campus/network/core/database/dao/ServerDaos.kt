@@ -45,6 +45,15 @@ interface ServerDao {
     @Query("DELETE FROM servers")
     suspend fun clearAllServers()
 
+    @Query("UPDATE servers SET syncStatus = :status WHERE id = :serverId AND syncId = :syncId")
+    suspend fun updateSyncStatus(serverId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM servers WHERE syncStatus = 'PENDING' ORDER BY createdAtEpochMs ASC")
+    suspend fun getPendingServers(): List<ServerEntity>
+
+    @Query("SELECT * FROM servers WHERE syncStatus = 'FAILED' ORDER BY createdAtEpochMs ASC")
+    suspend fun getFailedServers(): List<ServerEntity>
+
     @Query("""
         SELECT DISTINCT s.* FROM servers s
         LEFT JOIN server_members m ON s.id = m.serverId
@@ -68,6 +77,15 @@ interface ServerChannelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChannels(channels: List<ServerChannelEntity>)
 
+    @Query("UPDATE server_channels SET syncStatus = :status WHERE id = :channelId AND syncId = :syncId")
+    suspend fun updateSyncStatus(channelId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM server_channels WHERE syncStatus = 'PENDING' ORDER BY orderIndex ASC")
+    suspend fun getPendingChannels(): List<ServerChannelEntity>
+
+    @Query("SELECT * FROM server_channels WHERE syncStatus = 'FAILED' ORDER BY orderIndex ASC")
+    suspend fun getFailedChannels(): List<ServerChannelEntity>
+
     @Query("DELETE FROM server_channels WHERE id = :channelId")
     suspend fun deleteChannel(channelId: String)
 
@@ -85,6 +103,15 @@ interface ServerRuleDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRules(rules: List<ServerRuleEntity>)
+
+    @Query("UPDATE server_rules SET syncStatus = :status WHERE id = :ruleId AND syncId = :syncId")
+    suspend fun updateSyncStatus(ruleId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM server_rules WHERE syncStatus = 'PENDING' ORDER BY ruleIndex ASC")
+    suspend fun getPendingRules(): List<ServerRuleEntity>
+
+    @Query("SELECT * FROM server_rules WHERE syncStatus = 'FAILED' ORDER BY ruleIndex ASC")
+    suspend fun getFailedRules(): List<ServerRuleEntity>
 
     @Query("DELETE FROM server_rules WHERE id = :ruleId")
     suspend fun deleteRule(ruleId: String)
@@ -106,6 +133,15 @@ interface ServerMemberDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMembers(members: List<ServerMemberEntity>)
+
+    @Query("UPDATE server_members SET syncStatus = :status WHERE id = :memberId AND syncId = :syncId")
+    suspend fun updateSyncStatus(memberId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM server_members WHERE syncStatus = 'PENDING' ORDER BY joinedAtEpochMs ASC")
+    suspend fun getPendingMembers(): List<ServerMemberEntity>
+
+    @Query("SELECT * FROM server_members WHERE syncStatus = 'FAILED' ORDER BY joinedAtEpochMs ASC")
+    suspend fun getFailedMembers(): List<ServerMemberEntity>
 
     @Query("UPDATE server_members SET role = :role, roleTitle = :roleTitle, roleColorHex = :roleColorHex WHERE serverId = :serverId AND userId = :userId")
     suspend fun updateMemberRole(serverId: String, userId: String, role: String, roleTitle: String, roleColorHex: Long)
@@ -151,6 +187,15 @@ interface FriendDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFriends(friends: List<FriendEntity>)
+
+    @Query("UPDATE friends SET syncStatus = :status WHERE id = :friendId AND syncId = :syncId")
+    suspend fun updateSyncStatus(friendId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM friends WHERE syncStatus = 'PENDING' ORDER BY lastInteractionEpochMs ASC")
+    suspend fun getPendingFriends(): List<FriendEntity>
+
+    @Query("SELECT * FROM friends WHERE syncStatus = 'FAILED' ORDER BY lastInteractionEpochMs ASC")
+    suspend fun getFailedFriends(): List<FriendEntity>
 
     @Query("UPDATE friends SET status = :status, lastInteractionEpochMs = :lastInteractionMs WHERE id = :id")
     suspend fun updateFriendStatus(id: String, status: String, lastInteractionMs: Long)
@@ -209,6 +254,15 @@ interface ServerChannelMessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessages(messages: List<ServerChannelMessageEntity>)
 
+    @Query("UPDATE server_channel_messages SET syncStatus = :status WHERE id = :messageId AND syncId = :syncId")
+    suspend fun updateSyncStatus(messageId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM server_channel_messages WHERE syncStatus = 'PENDING' ORDER BY timestampEpochMs ASC")
+    suspend fun getPendingSyncMessages(): List<ServerChannelMessageEntity>
+
+    @Query("SELECT * FROM server_channel_messages WHERE syncStatus = 'FAILED' ORDER BY timestampEpochMs ASC")
+    suspend fun getFailedSyncMessages(): List<ServerChannelMessageEntity>
+
     @Query(
         """
         UPDATE server_channel_messages
@@ -229,4 +283,5 @@ interface ServerChannelMessageDao {
 
     @Query("DELETE FROM server_channel_messages WHERE channelId = :channelId")
     suspend fun clearChannelMessages(channelId: String)
+
 }

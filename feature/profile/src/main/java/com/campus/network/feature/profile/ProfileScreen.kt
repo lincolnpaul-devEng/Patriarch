@@ -153,6 +153,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel,
     onBackClick: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    onRetrySync: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -172,7 +173,14 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) {
         viewModel.userMessage.collectLatest { message ->
-            snackbarHostState.showSnackbar(message)
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = if (message.contains("Tap to Retry")) "Tap to Retry" else null,
+                withDismissAction = message.contains("Tap to Retry")
+            )
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                onRetrySync()
+            }
         }
     }
 
@@ -625,17 +633,6 @@ fun ProfileScreen(
                                 }
                             }
                         )
-
-                        HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFF1F3F6))
-
-                        ActionListRow(
-                            icon = Icons.AutoMirrored.Filled.Logout,
-                            title = "Sign Out of Account",
-                            badgeText = "Sign out",
-                            badgeBg = PillPinkBg,
-                            badgeTextColor = PillPinkText,
-                            onClick = { showLogOutDialog = true }
-                        )
                     }
                 }
             }
@@ -736,41 +733,39 @@ fun ProfileScreen(
             }
 
             // -------------------------------------------------------------
-            // 9. Danger Zone: Log Out & Account Deletion
+            // 9. Account Lifecycle & Security (industry-standard fluid buttons)
             // -------------------------------------------------------------
             item {
                 SectionHeader(title = "Account Lifecycle & Security", color = SectionRed)
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
-                    border = BorderStroke(1.dp, SectionRed.copy(alpha = 0.35f)),
+                Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
-                        ActionListRow(
-                            icon = Icons.AutoMirrored.Filled.Logout,
-                            title = "Log Out of Patriarch",
-                            badgeText = "Sign out",
-                            badgeBg = PillGreyBg,
-                            badgeTextColor = PillGreyText,
-                            onClick = { showLogOutDialog = true }
-                        )
+                    Button(
+                        onClick = { showLogOutDialog = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFDC2626),
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Text("Sign Out", color = Color.White, fontWeight = FontWeight.Medium)
+                    }
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 58.dp),
-                            thickness = 0.8.dp,
-                            color = Color(0xFFF1F3F6)
-                        )
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                        ActionListRow(
-                            icon = Icons.Default.DeleteForever,
-                            title = "Delete Account (Irreversible)",
-                            badgeText = "Danger",
-                            badgeBg = PillPinkBg,
-                            badgeTextColor = PillPinkText,
-                            onClick = { showDeleteAccountDialog = true }
-                        )
+                    Button(
+                        onClick = { showDeleteAccountDialog = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SectionRed,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Text("Delete Account", color = Color.White, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -849,11 +844,11 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showLogOutDialog = false },
             title = {
-                Text("Log Out of Patriarch?", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Sign Out?", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             },
             text = {
                 Text(
-                    "You will need to re-authenticate with your university credentials. Offline cached files will remain until expired.",
+                    "You will need to sign in again to access your account.",
                     fontSize = 14.sp,
                     color = Color(0xFF64748B)
                 )
@@ -869,7 +864,7 @@ fun ProfileScreen(
                         contentColor = Color.White
                     )
                 ) {
-                    Text("Sign Out", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Sign Out", color = Color.White, fontWeight = FontWeight.Medium)
                 }
             },
             dismissButton = {
@@ -2344,7 +2339,7 @@ private fun DeleteAccountDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Warning, contentDescription = null, tint = SectionRed)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Delete Account Permanently", fontWeight = FontWeight.Bold, fontSize = 17.5.sp, color = SectionRed)
+                Text("Delete Account?", fontWeight = FontWeight.Bold, fontSize = 17.5.sp, color = SectionRed)
             }
         },
         text = {
@@ -2407,12 +2402,19 @@ private fun DeleteAccountDialog(
                 OutlinedTextField(
                     value = confirmationInput,
                     onValueChange = { confirmationInput = it },
-                    placeholder = { Text("Type DELETE") },
+                    placeholder = { Text("Type DELETE", color = Color(0xFF94A3B8)) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = SectionRed,
-                        unfocusedBorderColor = CardBorderLight
+                        unfocusedBorderColor = CardBorderLight,
+                        focusedLabelColor = SectionRed,
+                        unfocusedLabelColor = Color(0xFF64748B),
+                        disabledLabelColor = Color(0xFF94A3B8),
+                        focusedTextColor = Color(0xFF1E293B),
+                        unfocusedTextColor = Color(0xFF1E293B),
+                        disabledTextColor = Color(0xFF64748B),
+                        cursorColor = SectionRed
                     )
                 )
             }
@@ -2426,7 +2428,7 @@ private fun DeleteAccountDialog(
                     disabledContainerColor = SectionRed.copy(alpha = 0.35f)
                 )
             ) {
-                Text("Permanently Delete", color = Color.White)
+                Text("Delete Account", color = Color.White)
             }
         },
         dismissButton = {

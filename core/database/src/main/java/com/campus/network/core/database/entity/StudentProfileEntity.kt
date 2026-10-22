@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 import com.campus.network.core.model.LocationPrivacyScope
 import com.campus.network.core.model.OnboardingPreferences
 import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.SyncStatus
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -43,7 +44,9 @@ data class StudentProfileEntity(
     val onboardingPreferencesJson: String = "",
     val interestsCsv: String = "",
     val savedListingIdsCsv: String = "",
-    val watchlistIdsCsv: String = ""
+    val watchlistIdsCsv: String = "",
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): StudentProfile {
         val interestsList = if (interestsCsv.isBlank()) emptyList() else interestsCsv.split(";;").map { it.trim() }.filter { it.isNotEmpty() }
@@ -88,7 +91,9 @@ data class StudentProfileEntity(
             verifiedSkillBadges = emptyList(),
             privateQuestDeck = emptyList(),
             alternateProfiles = emptyList(),
-            onboardingPreferences = deserializedPrefs
+            onboardingPreferences = deserializedPrefs,
+            syncStatus = syncStatus,
+            syncId = syncId
         )
     }
 
@@ -147,7 +152,7 @@ data class StudentProfileEntity(
                     favoriteCategories = catList,
                     priorities = priList,
                     pushNotificationsOptIn = obj.optBoolean("pushNotificationsOptIn", false),
-                    personalizedNewsConsent = obj.optBoolean("personalizedNewsConsent", true),
+                    personalizedNewsConsent = obj.optBoolean("personalizedNewsConsent", false),
                     hasCompletedSurvey = obj.optBoolean("hasCompletedSurvey", false)
                 )
             }.getOrDefault(OnboardingPreferences())
@@ -188,7 +193,9 @@ data class StudentProfileEntity(
                 onboardingPreferencesJson = serializeOnboardingPreferences(domain.onboardingPreferences),
                 interestsCsv = domain.interests.joinToString(";;"),
                 savedListingIdsCsv = domain.savedListingIds.joinToString(";;"),
-                watchlistIdsCsv = domain.watchlistIds.joinToString(";;")
+                watchlistIdsCsv = domain.watchlistIds.joinToString(";;"),
+                syncStatus = domain.syncStatus,
+                syncId = domain.syncId
             )
         }
     }

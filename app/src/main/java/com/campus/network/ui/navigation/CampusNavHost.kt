@@ -74,6 +74,7 @@ fun CampusNavHost(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
 
     // Repositories backed by local database cache and worker thread dispatchers
     val directoryRepository = remember(context) { CampusDirectoryRepository(context.applicationContext) }
@@ -155,17 +156,24 @@ fun CampusNavHost(
     val currentEntry by navController.currentBackStackEntryAsState()
     androidx.compose.runtime.LaunchedEffect(currentEntry?.destination?.route, isAuthenticated, isGuest, currentProfile) {
         val route = currentEntry?.destination?.route ?: return@LaunchedEffect
+        val baseRoute = route.substringBefore("?").substringBefore("/")
+        val setupRoutes = setOf("splash", "onboarding", "onboarding_transition", "auth", "verify")
+        val surveyComplete = currentProfile?.onboardingPreferences?.hasCompletedSurvey == true
         val tier = com.campus.network.core.security.CampusSecurityGuard.evaluateSessionAccessTier(
             profile = currentProfile,
             isAuthenticated = isAuthenticated,
             isGuestMode = isGuest
         )
-        if (!com.campus.network.core.model.CampusSecurityPolicy.canAccessRoute(route, tier)) {
-            val target = if (tier == com.campus.network.core.model.CampusAccessTier.UNAUTHENTICATED) {
-                Screen.Auth.route
-            } else {
-                Screen.Hub.route
-            }
+        val target = when {
+            isAuthenticated && !surveyComplete && baseRoute !in setupRoutes &&
+                baseRoute != Screen.OnboardingSurvey.route -> Screen.OnboardingSurvey.route
+            isAuthenticated && surveyComplete && baseRoute == Screen.OnboardingSurvey.route -> Screen.Hub.route
+            !com.campus.network.core.model.CampusSecurityPolicy.canAccessRoute(route, tier) &&
+                tier == com.campus.network.core.model.CampusAccessTier.UNAUTHENTICATED -> Screen.Auth.route
+            !com.campus.network.core.model.CampusSecurityPolicy.canAccessRoute(route, tier) -> Screen.Hub.route
+            else -> null
+        }
+        if (target != null) {
             navController.navigate(target) {
                 popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
                 launchSingleTop = true
@@ -191,7 +199,6 @@ fun CampusNavHost(
     ) {
         // Splash Screen (Brand navy blue canvas with Patriarch logo)
         composable(route = Screen.Splash.route) {
-            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             SplashScreen(
                 onSplashComplete = {
                     coroutineScope.launch {
@@ -228,8 +235,8 @@ fun CampusNavHost(
                             resolvedChannelsViewModel.refreshServers()
                         }
 
-                        val isSurveyDone = authClient.isSurveyCompleted(email) ||
-                            (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
+                        val isSurveyDone =
+                            studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true
 
                         val targetRoute = if (isSurveyDone) {
                             Screen.Hub.route
@@ -256,7 +263,6 @@ fun CampusNavHost(
 
         // Second Onboarding Screen: 3D Balloon Typography & Kinetic Rocket Launch
         composable(route = Screen.OnboardingTransition.route) {
-            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             OnboardingTransitionScreen(
                 onTransitionComplete = {
                     authClient.setHasSeenIntroOnboarding(true)
@@ -269,7 +275,6 @@ fun CampusNavHost(
 
         // Auth Screen (Sign in with Google / Log in with Email / Join Patriarch program)
         composable(route = Screen.Auth.route) {
-            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             AuthScreen(
                 onLoginSuccess = { email, fullName, avatarUrl ->
                     coroutineScope.launch {
@@ -277,6 +282,7 @@ fun CampusNavHost(
                         val countryEntry = matchedUni?.let { u ->
                             directoryRepository.getCountries().firstOrNull { it.code.equals(u.countryCode, ignoreCase = true) }
                         }
+                        studentProfileRepository.syncProfileWithRemote(email)
                         studentProfileRepository.applyAuthenticatedUser(
                             fullName = fullName,
                             email = email,
@@ -285,7 +291,6 @@ fun CampusNavHost(
                             countryName = countryEntry?.name,
                             currencyCode = countryEntry?.currencyCode
                         )
-                        studentProfileRepository.syncProfileWithRemote(email)
                         studentProfileRepository.setAvatarFallbackIfMissing(avatarUrl)
                         runCatching {
                             serverRepository.syncRemoteServers()
@@ -294,8 +299,8 @@ fun CampusNavHost(
                             resolvedChannelsViewModel.refreshServers()
                         }
 
-                        val isSurveyDone = authClient.isSurveyCompleted(email) ||
-                            (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
+                        val isSurveyDone =
+                            studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true
 
                         val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
                         navController.navigate(nextDestination) {
@@ -343,6 +348,7 @@ fun CampusNavHost(
                         val countryEntry = matchedUni?.let { u ->
                             directoryRepository.getCountries().firstOrNull { it.code.equals(u.countryCode, ignoreCase = true) }
                         }
+                        studentProfileRepository.syncProfileWithRemote(sessionUser.email)
                         studentProfileRepository.applyAuthenticatedUser(
                             fullName = sessionUser.fullName,
                             email = sessionUser.email,
@@ -351,12 +357,10 @@ fun CampusNavHost(
                             countryName = countryEntry?.name,
                             currencyCode = countryEntry?.currencyCode
                         )
-                        studentProfileRepository.syncProfileWithRemote(sessionUser.email)
                         studentProfileRepository.setAvatarFallbackIfMissing(sessionUser.avatarUrl)
 
-                        val authClient = com.campus.network.core.network.SupabaseGoogleAuthClient(context)
-                        val isSurveyDone = authClient.isSurveyCompleted(sessionUser.email) ||
-                            (studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true)
+                        val isSurveyDone =
+                            studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true
 
                         val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
                         navController.navigate(nextDestination) {
@@ -369,13 +373,10 @@ fun CampusNavHost(
 
         // First-Time User Onboarding Survey Flow (Steps A - K)
         composable(route = Screen.OnboardingSurvey.route) {
-            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             OnboardingSurveyScreen(
                 studentProfileRepository = studentProfileRepository,
                 directoryRepository = directoryRepository,
                 onSurveyCompleted = {
-                    val email = currentProfile?.universityEmail ?: authClient.getSavedSession()?.email
-                    authClient.setSurveyCompleted(email, true)
                     navController.navigate(Screen.Hub.route) {
                         popUpTo(Screen.OnboardingSurvey.route) { inclusive = true }
                     }
@@ -395,7 +396,10 @@ fun CampusNavHost(
                 onNavigateToNotifications = {
                     navController.navigate(Screen.Notifications.route)
                 },
-                onToggleBottomBar = onToggleBottomBar
+                onToggleBottomBar = onToggleBottomBar,
+                onRetrySync = {
+                    com.campus.network.notifications.SyncRetryWorker.runNow(context, retryFailed = true)
+                }
             )
         }
 
@@ -478,6 +482,7 @@ fun CampusNavHost(
             HubScreen(
                 viewModel = hubViewModel,
                 unreadNotificationsCount = pendingFriendsCount,
+                onRetrySync = { com.campus.network.notifications.SyncRetryWorker.runNow(context) },
                 onNavigateToChat = { peerId, peerName ->
                     val resolvedPeerId = peerId.trim().ifBlank {
                         peerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
@@ -597,11 +602,13 @@ fun CampusNavHost(
 
         // Tab 5: Profile (Gamified Persona)
         composable(route = Screen.Profile.route) {
-            val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
             ProfileScreen(
                 viewModel = profileViewModel,
                 onBackClick = {
                     navController.popBackStack()
+                },
+                onRetrySync = {
+                    com.campus.network.notifications.SyncRetryWorker.runNow(context, retryFailed = true)
                 },
                 onSignOut = {
                     coroutineScope.launch {

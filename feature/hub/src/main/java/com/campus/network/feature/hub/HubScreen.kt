@@ -104,6 +104,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -184,6 +185,7 @@ fun HubScreen(
     onNavigateToNotifications: () -> Unit = {},
     onToggleBottomBar: ((Boolean) -> Unit)? = null,
     unreadNotificationsCount: Int = 0,
+    onRetrySync: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -193,7 +195,15 @@ fun HubScreen(
 
     androidx.compose.runtime.LaunchedEffect(feedbackMessage) {
         val message = feedbackMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
+        val result = snackbarHostState.showSnackbar(
+            message = message,
+            actionLabel = if (message.contains("Tap to Retry")) "Tap to Retry" else null,
+            withDismissAction = message.contains("Tap to Retry")
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.retryFailedUploads()
+            onRetrySync()
+        }
         viewModel.onEvent(HubEvent.ClearFeedback)
     }
 

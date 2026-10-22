@@ -464,7 +464,8 @@ private fun SingleLiveFeedPage(
                         senderId = authorId,
                         senderAvatarRes = 0,
                         commentText = trimmed,
-                        senderAvatarUrl = authorAvatar
+                        senderAvatarUrl = authorAvatar,
+                        senderDisplayName = authorName
                     )
                 }
             }

@@ -47,7 +47,9 @@ data class Server(
     val isVerified: Boolean = false,
     val memberCount: Int = 1,
     val inviteCode: String = "",
-    val createdAtEpochMs: Long = System.currentTimeMillis()
+    val createdAtEpochMs: Long = System.currentTimeMillis(),
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 /**
@@ -62,7 +64,9 @@ data class ServerChannel(
     val topic: String = "",
     val unreadCount: Int = 0,
     val isPinned: Boolean = false,
-    val orderIndex: Int = 0
+    val orderIndex: Int = 0,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 /**
@@ -73,7 +77,9 @@ data class ServerRule(
     val serverId: String,
     val ruleIndex: Int,
     val title: String,
-    val description: String
+    val description: String,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 /**
@@ -92,7 +98,9 @@ data class ServerMember(
     val isOnline: Boolean = false,
     val customStatus: String? = null,
     val joinedAtEpochMs: Long = System.currentTimeMillis(),
-    val badge: String? = null
+    val badge: String? = null,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 /**
@@ -107,7 +115,9 @@ data class FriendRelationship(
     val friendAvatarResName: String? = null,
     val status: FriendStatus = FriendStatus.NONE,
     val lastInteractionEpochMs: Long = System.currentTimeMillis(),
-    val dmChannelId: String? = null
+    val dmChannelId: String? = null,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 /**
@@ -122,5 +132,7 @@ data class ServerInvite(
     val expiresAtEpochMs: Long = Long.MAX_VALUE,
     val maxUses: Int = 0,
     val usesCount: Int = 0,
-    val isRevoked: Boolean = false
+    val isRevoked: Boolean = false,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )

@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.campus.network.core.model.FlashMeet
 import com.campus.network.core.model.MeetCategory
+import com.campus.network.core.model.SyncStatus
 import com.campus.network.core.model.isRealProfileDisplayName
 
 @Entity(tableName = "flash_meets")
@@ -16,11 +17,16 @@ data class FlashMeetEntity(
     val longitude: Double,
     val locationName: String,
     val creatorName: String,
+    val creatorUserId: String = "",
     val creatorAvatar: String?,
     val createdAtEpochMs: Long,
     val expiresAtEpochMs: Long,
     val attendeeCount: Int,
-    val maxAttendees: Int
+    val maxAttendees: Int,
+    /** Offline-first sync status. Defaults to SYNCED for server-pulled rows; PENDING for local-first writes. */
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    /** Client-generated UUID used as idempotency key for remote retries. */
+    val syncId: String? = null
 ) {
     fun toDomain(): FlashMeet = FlashMeet(
         id = id,
@@ -31,11 +37,14 @@ data class FlashMeetEntity(
         longitude = longitude,
         locationName = locationName,
         creatorName = creatorName.takeIf(String::isRealProfileDisplayName).orEmpty(),
+        creatorUserId = creatorUserId,
         creatorAvatar = creatorAvatar,
         createdAtEpochMs = createdAtEpochMs,
         expiresAtEpochMs = expiresAtEpochMs,
         attendeeCount = attendeeCount,
-        maxAttendees = maxAttendees
+        maxAttendees = maxAttendees,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 }
 
@@ -69,7 +78,9 @@ data class ChatMessageEntity(
     val replyToText: String? = null,
     val isMine: Boolean = false,
     val isDelivered: Boolean = true,
-    val isRead: Boolean = true
+    val isRead: Boolean = true,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 @Entity(tableName = "market_items")
@@ -96,7 +107,9 @@ data class MarketItemEntity(
     val payoutMethod: String = "Campus SafePay Escrow",
     val requiresQrReleaseCode: Boolean = true,
     /** Empty for non-owners; only populated for the listing owner. */
-    val qrReleaseCode: String = ""
+    val qrReleaseCode: String = "",
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 @Entity(tableName = "micro_gigs")
@@ -108,12 +121,15 @@ data class MicroGigEntity(
     val currency: String,
     val estimatedDuration: String,
     val posterName: String,
+    val posterUserId: String = "",
     val posterTrustScore: Int,
     val tag: String,
     val urgencyName: String,
     val spotsAvailable: Int,
     val timestampMs: Long,
-    val bannerUrl: String? = null
+    val bannerUrl: String? = null,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 @Entity(tableName = "live_streams")
 data class LiveStreamEntity(
@@ -137,7 +153,9 @@ data class LiveStreamEntity(
     val startedAtEpochMs: Long = System.currentTimeMillis(),
     val endedAtEpochMs: Long? = null,
     val durationSeconds: Int = 0,
-    val serverId: String? = null
+    val serverId: String? = null,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 @Entity(tableName = "streamer_profiles")
@@ -162,5 +180,7 @@ data class StreamCommentEntity(
     val senderAvatarUrl: String? = null,
     val senderAvatarRes: Int = 0,
     val commentText: String,
-    val timestampEpochMs: Long = System.currentTimeMillis()
+    val timestampEpochMs: Long = System.currentTimeMillis(),
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )

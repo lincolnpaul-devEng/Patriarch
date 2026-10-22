@@ -1844,7 +1844,7 @@ fun BasketEscrowCheckoutSheet(
     onMessageSeller: (sellerId: String, sellerName: String, initialOrderMessage: String) -> Unit,
     onOpenQrScanner: () -> Unit,
     paymentProviderReady: Boolean = false,
-    paymentProviderName: String = "Payment provider not connected",
+    paymentProviderName: String = "Payment unavailable",
     paymentMethods: List<PaymentMethodOption> = emptyList()
 ) {
     if (!isOpen || config == null) return
@@ -1852,16 +1852,7 @@ fun BasketEscrowCheckoutSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val item = config.item
-    val methods = paymentMethods.ifEmpty {
-        listOf(
-            PaymentMethodOption(
-                id = "pending_provider",
-                kind = com.campus.network.core.model.PaymentMethodKind.OTHER,
-                title = "Connect a payment API",
-                subtitle = "Add PAYMENT_API_* secrets to enable SafeTrade escrow"
-            )
-        )
-    }
+    val methods = paymentMethods
     var selectedPaymentMethodId by remember(methods) {
         mutableStateOf(methods.firstOrNull()?.id.orEmpty())
     }
@@ -2048,7 +2039,7 @@ fun BasketEscrowCheckoutSheet(
                     text = if (paymentProviderReady) {
                         "Provider: $paymentProviderName"
                     } else {
-                        "Payment API not connected yet — lock is disabled until you plug in credentials"
+                        "Payment service unavailable"
                     },
                     fontSize = 12.sp,
                     color = if (paymentProviderReady) TextMuted else RoseRareAccent,
@@ -2150,7 +2141,7 @@ fun BasketEscrowCheckoutSheet(
                     onClick = {
                         if (isLocking) return@Button
                         if (!paymentProviderReady) {
-                            lockError = "No payment API configured. Set PAYMENT_API_BASE_URL + keys in secrets.properties, rebuild, and retry."
+                            lockError = "Payment service is not available right now. Please try again later."
                             return@Button
                         }
                         if (selectedMethod.requiresPhoneNumber && buyerPhone.trim().length < 9) {
@@ -2212,7 +2203,7 @@ fun BasketEscrowCheckoutSheet(
                             text = if (paymentProviderReady) {
                                 "Confirm & Lock Escrow • ${item.currency} ${"%,.0f".format(config.totalAmount)}"
                             } else {
-                                "Payment API not connected"
+                                "Payment unavailable"
                             },
                             fontSize = 15.5.sp,
                             fontWeight = FontWeight.Bold,

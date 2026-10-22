@@ -102,13 +102,13 @@ DROP POLICY IF EXISTS "Users can update chat messages" ON public.campus_chat_mes
 DROP POLICY IF EXISTS "Users can delete chat messages" ON public.campus_chat_messages;
 CREATE POLICY "Participants read direct messages" ON public.campus_chat_messages
   FOR SELECT TO authenticated USING (
-    public.is_current_campus_user(sender_id) OR EXISTS (
+    public.is_current_campus_user(campus_chat_messages.sender_id) OR EXISTS (
       SELECT 1 FROM public.campusprofile p WHERE p.user_id = auth.uid()
-        AND channel_id IN (
-          'dm_' || lower(sender_id) || '_' || lower(p.student_id),
-          'dm_' || lower(p.student_id) || '_' || lower(sender_id),
-          'dm_' || lower(sender_id) || '_' || lower(p.university_email),
-          'dm_' || lower(p.university_email) || '_' || lower(sender_id)
+        AND campus_chat_messages.channel_id IN (
+          'dm_' || lower(campus_chat_messages.sender_id) || '_' || lower(p.student_id),
+          'dm_' || lower(p.student_id) || '_' || lower(campus_chat_messages.sender_id),
+          'dm_' || lower(campus_chat_messages.sender_id) || '_' || lower(p.university_email),
+          'dm_' || lower(p.university_email) || '_' || lower(campus_chat_messages.sender_id)
         )));
 CREATE POLICY "Send own direct messages" ON public.campus_chat_messages
   FOR INSERT TO authenticated WITH CHECK (public.is_current_campus_user(sender_id));
@@ -121,13 +121,13 @@ CREATE POLICY "Delete own direct messages" ON public.campus_chat_messages
 DROP POLICY IF EXISTS "Select dm typing" ON public.campus_dm_typing;
 DROP POLICY IF EXISTS "Upsert dm typing" ON public.campus_dm_typing;
 CREATE POLICY "Participants read dm typing" ON public.campus_dm_typing FOR SELECT TO authenticated
-  USING (public.is_current_campus_user(user_id) OR EXISTS (
+  USING (public.is_current_campus_user(campus_dm_typing.user_id) OR EXISTS (
     SELECT 1 FROM public.campusprofile p WHERE p.user_id = auth.uid()
-      AND thread_id IN (
-        'dm_' || lower(user_id) || '_' || lower(p.student_id),
-        'dm_' || lower(p.student_id) || '_' || lower(user_id),
-        'dm_' || lower(user_id) || '_' || lower(p.university_email),
-        'dm_' || lower(p.university_email) || '_' || lower(user_id))));
+      AND campus_dm_typing.thread_id IN (
+        'dm_' || lower(campus_dm_typing.user_id) || '_' || lower(p.student_id),
+        'dm_' || lower(p.student_id) || '_' || lower(campus_dm_typing.user_id),
+        'dm_' || lower(campus_dm_typing.user_id) || '_' || lower(p.university_email),
+        'dm_' || lower(p.university_email) || '_' || lower(campus_dm_typing.user_id))));
 CREATE POLICY "Own dm typing" ON public.campus_dm_typing FOR ALL TO authenticated
   USING (public.is_current_campus_user(user_id)) WITH CHECK (public.is_current_campus_user(user_id));
 

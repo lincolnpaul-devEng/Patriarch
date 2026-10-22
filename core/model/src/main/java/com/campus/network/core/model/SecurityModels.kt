@@ -114,8 +114,7 @@ object CampusSecurityPolicy {
         "onboarding",
         "onboarding_transition",
         "auth",
-        "verify",
-        "onboarding_survey"
+        "verify"
     )
 
     private val PRIVILEGED_WRITE_ROUTES = setOf(

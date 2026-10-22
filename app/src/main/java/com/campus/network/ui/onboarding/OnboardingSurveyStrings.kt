@@ -57,7 +57,8 @@ data class OnboardingSurveyStrings(
     val pushBody: String,
     // Step K: Personalized News
     val personalizedTitle: String,
-    val personalizedBody: String
+    val personalizedBody: String,
+    val declinePersonalizedBtn: String
 )
 
 object OnboardingSurveyCatalog {
@@ -95,13 +96,14 @@ object OnboardingSurveyCatalog {
                 q1YearSectionLabel = "MWAKA WA MASOMO",
                 q1CalloutBubble = "Tutakuunganisha na wanafunzi wa kozi yako na vikundi vya masomo vya mwaka wako!",
                 q2Prompt = "Ni nini kilichokuleta hapa? (Unaweza kuchagua zaidi ya moja)",
-                q2CalloutBubble = "Tutakutumia mapendekezo na taarifa za chuo kulingana na uchaguzi wako!",
+                q2CalloutBubble = "Ukikubali mapendekezo yaliyobinafsishwa, tutatumia chaguo hizi kuyapanga.",
                 q3Prompt = "Unavutiwa na kategoria zipi? (Unaweza kuchagua zaidi ya moja)",
                 q4Prompt = "Ni mambo gani muhimu kwako unapotumia Soko la Chuo? (Unaweza kuchagua zaidi ya moja)",
                 pushPrompt = "Je, ungependa kupokea taarifa za ofa mpya za chuo, mikutano ya ghafla na ujumbe wa SafeTrade?",
                 pushBody = "Washa arifa (Push Notifications) kwenye simu yako ili usipitwe na mikutano ya masomo, punguzo la vitabu na uthibitisho wa malipo!",
-                personalizedTitle = "Pokea habari na mapendekezo yanayokufaa.",
-                personalizedBody = "Kwa kubonyeza endelea, unakubali kupokea mapendekezo yaliyoandaliwa mahususi kwako kulingana na chuo chako, masomo yako na vitu unavyovipenda."
+                personalizedTitle = "Ruhusu mapendekezo yaliyobinafsishwa?",
+                personalizedBody = "Ukiendelea, tutahifadhi na kutumia malengo, kategoria na vipaumbele vyako kubinafsisha bidhaa na kazi fupi. Hatutumii majibu haya kwa uchanganuzi au kugawa hadhira. Ukikataa, hatutayahifadhi wala kuyatuma; akaunti na mipangilio ya chuo itahifadhiwa.",
+                declinePersonalizedBtn = "Hapana, asante"
             )
         } else {
             OnboardingSurveyStrings(
@@ -130,19 +132,20 @@ object OnboardingSurveyCatalog {
                 customUniversityConfirmBtn = "USE THIS UNIVERSITY",
                 verifiedEmailBadge = "Auto-matched via your university email",
                 welcomeTitle = "Welcome to Campus Network.",
-                welcomeBody = "Tell us about yourself!\nTake a quick survey so we can recommend\nthe best items, channels, and services for you.",
+                welcomeBody = "Add optional profile details and choose recommendation preferences. We’ll ask before saving those preferences.",
                 q1Prompt = "Which faculty are you in and what is your year of study?",
                 q1FacultySectionLabel = "FACULTY / SCHOOL",
                 q1YearSectionLabel = "YEAR OF STUDY",
                 q1CalloutBubble = "We'll pin your faculty servers and connect you with course-mates in your year!",
                 q2Prompt = "What brings you here? (You can select multiple options)",
-                q2CalloutBubble = "We'll send you recommendations and information based on your choices!",
+                q2CalloutBubble = "If you opt in to personalized recommendations, we'll use these choices to sort content.",
                 q3Prompt = "Which categories are you interested in? (You can select multiple options)",
                 q4Prompt = "What are the important aspects when purchasing on Campus Marketplace? (You can select multiple options)",
                 pushPrompt = "Would you like to receive the latest campus deals, flash-meets, and SafeTrade updates?",
                 pushBody = "Please enable Push Notifications in your device settings to receive exclusive campus deals, study jam alerts, and escrow notifications!",
-                personalizedTitle = "Receive personalized news and recommendations.",
-                personalizedBody = "By clicking continue, you consent to receive tailored recommendations based on your campus profile, academic interests, and marketplace activity."
+                personalizedTitle = "Allow personalized recommendations?",
+                personalizedBody = "Continue saves and uses your goals, categories, and marketplace priorities to personalize listings and gigs. We don’t use these answers for analytics or audience segmentation. No thanks discards them without upload. Your account and campus settings are saved either way.",
+                declinePersonalizedBtn = "No, thanks"
             )
         }
     }

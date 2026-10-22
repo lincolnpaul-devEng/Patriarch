@@ -365,7 +365,7 @@ class MapViewModel(
                     val targetLat = event.latitude ?: defaultLat
                     val targetLng = event.longitude ?: defaultLng
 
-                    flashMeetRepository.createFlashMeet(
+                    val meet = flashMeetRepository.createFlashMeet(
                         title = event.title,
                         description = event.description,
                         category = event.category,
@@ -373,21 +373,23 @@ class MapViewModel(
                         longitude = targetLng,
                         locationName = event.locationName,
                         creatorUserId = creatorUserId,
-                        durationMinutes = event.durationMinutes
+                        durationMinutes = event.durationMinutes,
+                        creatorDisplayName = _currentProfile.value?.fullName
                     )
                     _isCreateDialogVisible.value = false
-                    _feedbackMessage.value = "Campus Flash Meet published live!"
+                    _feedbackMessage.value = when (meet.syncStatus) {
+                        "PENDING" -> "Flash meet saved on this device; upload pending."
+                        "FAILED" -> "Flash meet saved on this device but sync failed. Tap to Retry."
+                        else -> "Campus Flash Meet published live!"
+                    }
                 }
             }
             is MapEvent.CreateCampusEvent -> {
                 viewModelScope.launch {
                     val profileName = currentSupabaseProfileName().orEmpty()
                     val profileEvent = event.event.copy(hostName = profileName)
-                    val updatedEvents = listOf(profileEvent) + _events.value
-                    _events.value = updatedEvents
 
-                    // Persist campus event to remote Supabase database
-                    flashMeetRepository.createCampusEvent(
+                    val eventResult = flashMeetRepository.createCampusEvent(
                         id = event.event.id,
                         title = event.event.title,
                         description = event.event.description,
@@ -398,14 +400,23 @@ class MapViewModel(
                         category = event.event.category,
                         attendeeCount = event.event.guestCount
                     )
+                    if (eventResult.isFailure) {
+                        _isCreateDialogVisible.value = false
+                        _feedbackMessage.value = "Campus event was not published: ${
+                            eventResult.exceptionOrNull()?.localizedMessage ?: "sync failed"
+                        }"
+                        return@launch
+                    }
+                    _events.value = listOf(profileEvent) + _events.value
 
+                    var confirmation = "Campus Event published to Events Hub!"
                     if (event.alsoPublishAsFlashMeet) {
                         val creatorUserId = _currentProfile.value?.stableUserId().orEmpty()
                         if (creatorUserId.isBlank()) {
                             _feedbackMessage.value = "A Supabase profile is required to publish a flash meet."
                             return@launch
                         }
-                        flashMeetRepository.createFlashMeet(
+                        val meet = flashMeetRepository.createFlashMeet(
                             title = event.event.title,
                             description = event.event.description,
                             category = event.flashMeetCategory,
@@ -413,16 +424,22 @@ class MapViewModel(
                             longitude = event.event.longitude,
                             locationName = event.event.locationName,
                             creatorUserId = creatorUserId,
-                            durationMinutes = event.durationMinutes
+                            durationMinutes = event.durationMinutes,
+                            creatorDisplayName = _currentProfile.value?.fullName
                         )
+                        if (meet.syncStatus != "SYNCED") {
+                            confirmation = if (meet.syncStatus == "PENDING") {
+                                "Campus event published. Flash meet saved locally; upload pending."
+                            } else {
+                                "Campus event published. Flash meet saved locally but sync failed. Tap to Retry."
+                            }
+                        } else {
+                            confirmation = "Flash Meet & Campus Event published live!"
+                        }
                     }
 
                     _isCreateDialogVisible.value = false
-                    _feedbackMessage.value = if (event.alsoPublishAsFlashMeet) {
-                        "Flash Meet & Campus Event published live!"
-                    } else {
-                        "Campus Event published to Events Hub!"
-                    }
+                    _feedbackMessage.value = confirmation
                 }
             }
 

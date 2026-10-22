@@ -62,13 +62,15 @@ class CampusHubRepository(
         qrReleaseCode: String = "",
         imageUrl: String? = null,
         imageUrls: List<String> = emptyList(),
+        sellerDisplayName: String? = null,
         itemId: String = "item_${java.util.UUID.randomUUID()}"
     ): MarketItem = withContext(ioDispatcher) {
         val resolvedSellerId = sellerUserId.trim()
         require(resolvedSellerId.isNotBlank()) {
             "sellerUserId is required — marketplace ownership cannot rely on display names"
         }
-        val resolvedSellerName = profileNameResolver.resolve(listOf(resolvedSellerId))[resolvedSellerId.lowercase()]
+        val resolvedSellerName = sellerDisplayName?.takeIf(String::isRealProfileDisplayName)
+            ?: profileNameResolver.resolve(listOf(resolvedSellerId))[resolvedSellerId.lowercase()]
             ?: throw IllegalStateException("A Supabase profile name is required to publish a marketplace listing")
         val now = System.currentTimeMillis()
         val combinedUrls = imageUrls
@@ -80,7 +82,8 @@ class CampusHubRepository(
             "CP-${(100000..999999).random()}"
         }
 
-        val entity = MarketItemEntity(
+        val syncId = java.util.UUID.randomUUID().toString()
+        val pendingEntity = MarketItemEntity(
             id = itemId,
             title = title,
             price = price,
@@ -102,8 +105,11 @@ class CampusHubRepository(
             pickupTiming = pickupTiming,
             payoutMethod = payoutMethod,
             requiresQrReleaseCode = requiresQrReleaseCode,
-            qrReleaseCode = generatedReleaseCode
+            qrReleaseCode = generatedReleaseCode,
+            syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
+            syncId = syncId
         )
+        itemDao.insertItems(listOf(pendingEntity))
 
         val remotePayload = JSONObject().apply {
             put("id", itemId)
@@ -130,13 +136,15 @@ class CampusHubRepository(
             put("qr_release_code", generatedReleaseCode)
         }.toString()
 
-        val remoteResult = supabaseClient.upsertRecord("campus_market_items", remotePayload, onConflict = "id", returnMinimal = true)
-        if (remoteResult.isFailure) {
-            throw remoteResult.exceptionOrNull() ?: Exception("Failed to publish market item to cloud")
-        }
+        val remoteResult = supabaseClient.upsertRecord(
+            "campus_market_items",
+            remotePayload,
+            onConflict = "id"
+        ).requireSavedRow()
 
-        itemDao.insertItems(listOf(entity))
-        return@withContext entity.toDomain()
+        val finalEntity = pendingEntity.copy(syncStatus = syncStatusFor(remoteResult).name)
+        itemDao.insertItems(listOf(finalEntity))
+        return@withContext finalEntity.toDomain()
     }
 
     suspend fun postMicroGig(
@@ -147,15 +155,18 @@ class CampusHubRepository(
         posterUserId: String,
         tag: String,
         urgency: GigUrgency,
+        posterDisplayName: String? = null,
         gigId: String = "gig_${java.util.UUID.randomUUID()}"
     ): MicroGig = withContext(ioDispatcher) {
         val resolvedPosterId = posterUserId.trim()
         require(resolvedPosterId.isNotBlank()) {
             "posterUserId is required to publish a campus gig"
         }
-        val resolvedPosterName = profileNameResolver.resolve(listOf(resolvedPosterId))[resolvedPosterId.lowercase()]
+        val resolvedPosterName = posterDisplayName?.takeIf(String::isRealProfileDisplayName)
+            ?: profileNameResolver.resolve(listOf(resolvedPosterId))[resolvedPosterId.lowercase()]
             ?: throw IllegalStateException("A Supabase profile name is required to publish a campus gig")
         val now = System.currentTimeMillis()
+        val syncId = java.util.UUID.randomUUID().toString()
         val entity = MicroGigEntity(
             id = gigId,
             title = title,
@@ -164,12 +175,16 @@ class CampusHubRepository(
             currency = "KES",
             estimatedDuration = estimatedDuration,
             posterName = resolvedPosterName,
+            posterUserId = resolvedPosterId,
             posterTrustScore = 95,
             tag = tag,
             urgencyName = urgency.name,
             spotsAvailable = 1,
-            timestampMs = now
+            timestampMs = now,
+            syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
+            syncId = syncId
         )
+        gigDao.insertGigs(listOf(entity))
 
         val remotePayload = JSONObject().apply {
             put("id", gigId)
@@ -188,19 +203,26 @@ class CampusHubRepository(
         }.toString()
 
         val remoteResult = supabaseClient.upsertRecord("campus_micro_gigs", remotePayload, onConflict = "id")
-        if (remoteResult.isFailure) {
-            throw remoteResult.exceptionOrNull() ?: Exception("Failed to publish micro gig to cloud")
-        }
+            .requireSavedRow()
+        val saved = entity.copy(syncStatus = syncStatusFor(remoteResult).name)
+        gigDao.insertGigs(listOf(saved))
+        return@withContext saved.toDomain()
+    }
 
-        gigDao.insertGigs(listOf(entity))
-        return@withContext entity.toDomain()
+    suspend fun markFailedWritesPending() = withContext(ioDispatcher) {
+        itemDao.getFailedItems().forEach {
+            itemDao.updateSyncStatus(it.id, it.syncId, com.campus.network.core.model.SyncStatus.PENDING.name)
+        }
+        gigDao.getFailedGigs().forEach {
+            gigDao.updateSyncStatus(it.id, it.syncId, com.campus.network.core.model.SyncStatus.PENDING.name)
+        }
     }
 
     /**
      * Syncs marketplace listings. Release codes are only retained for listings owned by
      * [currentUserId]; all other rows store an empty [MarketItemEntity.qrReleaseCode].
      */
-    suspend fun syncRemoteMarketItems(currentUserId: String? = null): Result<Unit> = withContext(ioDispatcher) {
+    suspend fun syncRemoteMarketItems(currentUserId: String? = null, sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
         // Explicit column list omits qr_release_code from the browse payload by default;
         // owner secrets are merged via a second owner-scoped select when currentUserId is set.
         val browseSelect = listOf(
@@ -210,13 +232,15 @@ class CampusHubRepository(
             "pickup_spot_name", "pickup_security_level", "pickup_latitude", "pickup_longitude",
             "pickup_timing", "payout_method", "requires_qr_release_code"
         ).joinToString(",")
+        val deltaFilter = if (sinceMs > 0L) "&timestamp_ms=gt.$sinceMs" else ""
         val queryResult = supabaseClient.queryTable(
-            "campus_market_items?order=timestamp_ms.desc&limit=50",
+            "campus_market_items?order=timestamp_ms.asc&limit=100$deltaFilter",
             selectQuery = browseSelect
         )
         if (queryResult.isFailure) {
             return@withContext Result.failure(queryResult.exceptionOrNull() ?: Exception("Failed to fetch market items"))
         }
+        var newWatermark = sinceMs
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
         val sellerNames = try {
@@ -243,6 +267,8 @@ class CampusHubRepository(
         val entities = mutableListOf<MarketItemEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+            val ts = obj.optLong("timestamp_ms", 0L)
+            if (ts > newWatermark) newWatermark = ts
             val itemId = obj.getString("id")
             val sellerId = obj.optString("seller_id", "")
             val isOwner = viewerId.isNotBlank() &&
@@ -278,14 +304,16 @@ class CampusHubRepository(
         if (entities.isNotEmpty()) {
             itemDao.insertItems(entities)
         }
-        Result.success(Unit)
+        Result.success(newWatermark)
     }
 
-    suspend fun syncRemoteMicroGigs(): Result<Unit> = withContext(ioDispatcher) {
-        val queryResult = supabaseClient.queryTable("campus_micro_gigs?order=timestamp_ms.desc&limit=50")
+    suspend fun syncRemoteMicroGigs(sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        val deltaFilter = if (sinceMs > 0L) "&timestamp_ms=gt.$sinceMs" else ""
+        val queryResult = supabaseClient.queryTable("campus_micro_gigs?order=timestamp_ms.asc&limit=100$deltaFilter")
         if (queryResult.isFailure) {
             return@withContext Result.failure(queryResult.exceptionOrNull() ?: Exception("Failed to fetch micro gigs"))
         }
+        var newWatermark = sinceMs
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
         val posterNames = try {
@@ -296,6 +324,8 @@ class CampusHubRepository(
         val entities = mutableListOf<MicroGigEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+            val ts = obj.optLong("timestamp_ms", 0L)
+            if (ts > newWatermark) newWatermark = ts
             entities.add(
                 MicroGigEntity(
                     id = obj.getString("id"),
@@ -305,6 +335,7 @@ class CampusHubRepository(
                     currency = obj.optString("currency", "KES"),
                     estimatedDuration = obj.optString("estimated_duration", "1 hour"),
                     posterName = posterNames[obj.optString("poster_id").lowercase()].orEmpty(),
+                    posterUserId = obj.optString("poster_id"),
                     posterTrustScore = obj.optInt("poster_trust_score", 95),
                     tag = obj.optString("tag", "General"),
                     urgencyName = obj.optString("urgency_name", "NORMAL"),
@@ -317,7 +348,7 @@ class CampusHubRepository(
         if (entities.isNotEmpty()) {
             gigDao.insertGigs(entities)
         }
-        Result.success(Unit)
+        Result.success(newWatermark)
     }
 
     /**
@@ -369,7 +400,9 @@ class CampusHubRepository(
             pickupTiming = pickupTiming,
             payoutMethod = payoutMethod,
             requiresQrReleaseCode = requiresQrReleaseCode,
-            qrReleaseCode = qrReleaseCode
+            qrReleaseCode = qrReleaseCode,
+            syncStatus = syncStatus,
+            syncId = syncId
         )
     }
 
@@ -381,11 +414,14 @@ class CampusHubRepository(
         currency = currency,
         estimatedDuration = estimatedDuration,
         posterName = posterName.takeIf(String::isRealProfileDisplayName).orEmpty(),
+        posterUserId = posterUserId,
         posterTrustScore = posterTrustScore,
         tag = tag,
         urgencyLevel = runCatching { GigUrgency.valueOf(urgencyName) }.getOrDefault(GigUrgency.NORMAL),
         spotsAvailable = spotsAvailable,
         timestampMs = timestampMs,
-        bannerUrl = bannerUrl
+        bannerUrl = bannerUrl,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 }

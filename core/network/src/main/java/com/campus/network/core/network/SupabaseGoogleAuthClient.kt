@@ -333,18 +333,15 @@ class SupabaseGoogleAuthClient(
 
     fun isSurveyCompleted(email: String? = null): Boolean {
         val targetEmail = email?.trim()?.lowercase() ?: getSavedSession()?.email?.trim()?.lowercase()
-        if (targetEmail.isNullOrBlank()) return prefs.getBoolean(KEY_SURVEY_COMPLETED_GLOBAL, false)
-        return prefs.getBoolean("survey_completed_$targetEmail", false) ||
-            prefs.getBoolean(KEY_SURVEY_COMPLETED_GLOBAL, false)
+        if (targetEmail.isNullOrBlank()) return false
+        return prefs.getBoolean(surveyCompletedKey(targetEmail), false)
     }
 
     fun setSurveyCompleted(email: String? = null, completed: Boolean = true) {
         val targetEmail = email?.trim()?.lowercase() ?: getSavedSession()?.email?.trim()?.lowercase()
+        if (targetEmail.isNullOrBlank()) return
         prefs.edit().apply {
-            putBoolean(KEY_SURVEY_COMPLETED_GLOBAL, completed)
-            if (!targetEmail.isNullOrBlank()) {
-                putBoolean("survey_completed_$targetEmail", completed)
-            }
+            putBoolean(surveyCompletedKey(targetEmail), completed)
             apply()
         }
     }
@@ -429,8 +426,9 @@ class SupabaseGoogleAuthClient(
         private const val KEY_AVATAR_URL = "avatar_url"
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
-        private const val KEY_SURVEY_COMPLETED_GLOBAL = "has_completed_survey"
         private const val KEY_HAS_SEEN_INTRO = "has_seen_intro_onboarding"
+
+        private fun surveyCompletedKey(email: String) = "survey_completed_$email"
 
         /**
          * Direct port of SocialPulse's `utils/errorMessages.ts` `getFriendlyErrorMessage`.

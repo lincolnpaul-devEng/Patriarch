@@ -128,6 +128,7 @@ import com.campus.network.core.ui.theme.BrandBluePrimary
 import com.campus.network.core.ui.theme.SurfaceWhite
 import com.campus.network.core.ui.theme.TextPrimary
 import com.campus.network.core.ui.theme.TextSecondary
+import com.campus.network.core.ui.components.CampusStudentAvatar
 import com.campus.network.feature.messages.audio.OnDeviceTranscriber
 import com.campus.network.feature.messages.audio.TranscriptionState
 import kotlinx.coroutines.delay
@@ -174,8 +175,6 @@ fun DirectChatScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val resolvedTypingLabel = typingLabel ?: thread.typingLabel
     val displayPeerName = humanizePeerDisplayName(thread.peerName)
-    val displayPeerInitial = displayPeerName.firstOrNull()?.uppercaseChar()?.toString()
-        ?: thread.avatarInitials.take(1).ifBlank { "P" }
 
     // Publish typing presence while composer has text
     LaunchedEffect(inputText) {
@@ -340,24 +339,14 @@ fun DirectChatScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.clickable { isProfileSheetOpen = true }
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFF818CF8), Color(0xFF4F46E5))
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = displayPeerInitial,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
-                        )
-                    }
+                    CampusStudentAvatar(
+                        avatarUrl = thread.avatarUrl,
+                        fullName = thread.peerName,
+                        modifier = Modifier.size(42.dp),
+                        initialsColor = Color.White,
+                        backgroundColor = Color(0xFF4F46E5),
+                        fontSize = 17.sp
+                    )
 
                     Spacer(modifier = Modifier.height(2.dp))
 
@@ -1608,24 +1597,14 @@ private fun PeerProfileBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Large circular avatar
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF818CF8), Color(0xFF4F46E5))
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (thread.avatarInitials.isNotEmpty()) thread.avatarInitials.take(1) else "J",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 32.sp
-                )
-            }
+            CampusStudentAvatar(
+                avatarUrl = thread.avatarUrl,
+                fullName = thread.peerName,
+                modifier = Modifier.size(76.dp),
+                initialsColor = Color.White,
+                backgroundColor = Color(0xFF4F46E5),
+                fontSize = 32.sp
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
 

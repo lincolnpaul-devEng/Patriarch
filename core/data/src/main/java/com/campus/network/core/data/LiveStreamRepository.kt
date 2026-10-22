@@ -64,31 +64,43 @@ class LiveStreamRepository(
         description: String,
         category: String,
         audience: String,
+        broadcasterDisplayName: String? = null,
         streamPlaybackUrl: String? = null
     ): LiveStream = withContext(ioDispatcher) {
-        val resolvedBroadcasterName = profileNameResolver.resolve(listOf(broadcasterId))[broadcasterId.trim().lowercase()]
+        val resolvedBroadcasterName = broadcasterDisplayName?.takeIf(String::isRealProfileDisplayName)
+            ?: profileNameResolver.resolve(listOf(broadcasterId))[broadcasterId.trim().lowercase()]
             ?: throw IllegalStateException("A Supabase profile name is required to start a live stream")
         val now = System.currentTimeMillis()
-        val entity = LiveStreamEntity(
-            id = id,
+        val streamId = id
+
+        val syncId = java.util.UUID.randomUUID().toString()
+        val pendingEntity = LiveStreamEntity(
+            id = streamId,
             broadcasterId = broadcasterId,
             broadcasterName = resolvedBroadcasterName,
             broadcasterHandle = broadcasterHandle,
             broadcasterAvatarRes = broadcasterAvatarRes,
+            broadcasterAvatarUrl = null,
             title = title,
             description = description,
             category = category,
             audience = audience,
             isLive = true,
-            streamPlaybackUrl = streamPlaybackUrl,
+            streamPlaybackUrl = null,
+            backdropImageRes = 0,
+            backdropImageUrl = null,
             viewerCount = 1,
             peakViewers = 1,
             likeCount = 0,
-            startedAtEpochMs = now
+            startedAtEpochMs = now,
+            serverId = null,
+            syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
+            syncId = syncId
         )
+        streamDao.insertStream(pendingEntity)
 
         val remotePayload = JSONObject().apply {
-            put("id", id)
+            put("id", streamId)
             put("broadcaster_id", broadcasterId)
             put("broadcaster_name", resolvedBroadcasterName)
             put("broadcaster_handle", broadcasterHandle)
@@ -106,12 +118,15 @@ class LiveStreamRepository(
         }.toString()
 
         val remoteResult = supabaseClient.upsertRecord("campus_live_streams", remotePayload, onConflict = "id")
-        if (remoteResult.isFailure) {
-            throw remoteResult.exceptionOrNull() ?: Exception("Failed to create live stream on cloud")
-        }
+            .requireSavedRow()
 
-        streamDao.insertStream(entity)
-        return@withContext entity.toDomain()
+        val finalEntity = pendingEntity.copy(
+            syncStatus = syncStatusFor(remoteResult).name,
+            streamPlaybackUrl = if (remoteResult.isSuccess) streamPlaybackUrl else null
+        )
+        streamDao.insertStream(finalEntity)
+
+        return@withContext finalEntity.toDomain()
     }
 
     suspend fun endStream(
@@ -145,20 +160,26 @@ class LiveStreamRepository(
         senderId: String,
         senderAvatarRes: Int,
         commentText: String,
-        senderAvatarUrl: String? = null
-    ) = withContext(ioDispatcher) {
-        val resolvedSenderName = profileNameResolver.resolve(listOf(senderId))[senderId.trim().lowercase()]
+        senderAvatarUrl: String? = null,
+        senderDisplayName: String? = null
+    ): StreamComment = withContext(ioDispatcher) {
+        val resolvedSenderName = senderDisplayName?.takeIf(String::isRealProfileDisplayName)
+            ?: profileNameResolver.resolve(listOf(senderId))[senderId.trim().lowercase()]
             ?: throw IllegalStateException("A Supabase profile name is required to post a stream comment")
+        val syncId = java.util.UUID.randomUUID().toString()
         val comment = StreamCommentEntity(
-            id = "c-${System.currentTimeMillis()}",
+            id = "comment-$syncId",
             streamId = streamId,
             senderId = senderId,
             senderName = resolvedSenderName,
             senderAvatarUrl = senderAvatarUrl,
             senderAvatarRes = senderAvatarRes,
             commentText = commentText,
-            timestampEpochMs = System.currentTimeMillis()
+            timestampEpochMs = System.currentTimeMillis(),
+            syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
+            syncId = syncId
         )
+        commentDao.insertComment(comment)
 
         val commentPayload = JSONObject().apply {
             put("id", comment.id)
@@ -171,20 +192,24 @@ class LiveStreamRepository(
             put("timestamp_epoch_ms", comment.timestampEpochMs)
         }.toString()
 
-        supabaseClient.upsertRecord("campus_stream_comments", commentPayload, onConflict = "id").getOrThrow()
-
-        commentDao.insertComment(comment)
+        val remoteResult = supabaseClient.upsertRecord("campus_stream_comments", commentPayload, onConflict = "id")
+            .requireSavedRow()
+        val saved = comment.copy(syncStatus = syncStatusFor(remoteResult).name)
+        commentDao.insertComment(saved)
+        return@withContext saved.toDomain()
     }
 
     suspend fun incrementLikes(streamId: String) = withContext(ioDispatcher) {
         streamDao.incrementLikes(streamId)
     }
 
-    suspend fun syncRemoteLiveStreams(): Result<Unit> = withContext(ioDispatcher) {
-        val queryResult = supabaseClient.queryTable("campus_live_streams?order=started_at_epoch_ms.desc&limit=30")
+    suspend fun syncRemoteLiveStreams(sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        val deltaFilter = if (sinceMs > 0L) "&started_at_epoch_ms=gt.$sinceMs" else ""
+        val queryResult = supabaseClient.queryTable("campus_live_streams?order=started_at_epoch_ms.asc&limit=100$deltaFilter")
         if (queryResult.isFailure) {
             return@withContext Result.failure(queryResult.exceptionOrNull() ?: Exception("Failed to fetch live streams"))
         }
+        var newWatermark = sinceMs
         val raw = queryResult.getOrNull() ?: "[]"
         val array = JSONArray(raw)
         val broadcasterNames = try {
@@ -195,6 +220,8 @@ class LiveStreamRepository(
         val entities = mutableListOf<LiveStreamEntity>()
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+            val sat = obj.optLong("started_at_epoch_ms", System.currentTimeMillis())
+            if (sat > newWatermark) newWatermark = sat
             entities.add(
                 LiveStreamEntity(
                     id = obj.getString("id"),
@@ -214,7 +241,7 @@ class LiveStreamRepository(
                     viewerCount = obj.optInt("viewer_count", 0),
                     peakViewers = obj.optInt("peak_viewers", 0),
                     likeCount = obj.optInt("like_count", 0),
-                    startedAtEpochMs = obj.optLong("started_at_epoch_ms", System.currentTimeMillis()),
+                    startedAtEpochMs = sat,
                     endedAtEpochMs = if (obj.has("ended_at_epoch_ms") && !obj.isNull("ended_at_epoch_ms")) obj.getLong("ended_at_epoch_ms") else null,
                     durationSeconds = obj.optInt("duration_seconds", 0),
                     serverId = obj.optString("server_id", "").ifBlank { null }
@@ -224,7 +251,7 @@ class LiveStreamRepository(
         if (entities.isNotEmpty()) {
             streamDao.insertStreams(entities)
         }
-        Result.success(Unit)
+        Result.success(newWatermark)
     }
 
     private fun LiveStreamEntity.toDomain() = LiveStream(
@@ -248,7 +275,9 @@ class LiveStreamRepository(
         startedAtEpochMs = startedAtEpochMs,
         endedAtEpochMs = endedAtEpochMs,
         durationSeconds = durationSeconds,
-        serverId = serverId
+        serverId = serverId,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     private fun StreamCommentEntity.toDomain() = StreamComment(
@@ -259,6 +288,8 @@ class LiveStreamRepository(
         senderAvatarUrl = senderAvatarUrl,
         senderAvatarRes = senderAvatarRes,
         commentText = commentText,
-        timestampEpochMs = timestampEpochMs
+        timestampEpochMs = timestampEpochMs,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 }

@@ -201,7 +201,7 @@ fun GoLiveScreen(
     var cameraUnavailable by remember { mutableStateOf(false) }
     var summary by remember { mutableStateOf<StreamSummary?>(null) }
     val activeProfile by (studentProfileRepository?.studentProfile?.collectAsState(initial = null) ?: remember { mutableStateOf<com.campus.network.core.model.StudentProfile?>(null) })
-    val streamId = rememberSaveable { "stream_${System.currentTimeMillis()}" }
+    val streamId = rememberSaveable { "stream_${java.util.UUID.randomUUID()}" }
 
     LaunchedEffect(phase) {
         if (phase == Phase.LIVE && liveStreamRepository != null) {
@@ -219,7 +219,8 @@ fun GoLiveScreen(
                 title = draft.title.ifBlank { "Campus Live Stream" },
                 description = draft.description,
                 category = draft.category,
-                audience = draft.audience.name
+                audience = draft.audience.name,
+                broadcasterDisplayName = profile?.fullName
             )
         }
     }

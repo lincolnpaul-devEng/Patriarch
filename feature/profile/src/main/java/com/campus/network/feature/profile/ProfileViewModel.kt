@@ -108,24 +108,11 @@ class ProfileViewModel(
                         interests = event.interests,
                         avatarUrl = event.avatarUrl
                     )
-                    result.fold(
-                        onSuccess = { _userMessage.emit("Profile details and image saved successfully") },
-                        onFailure = { error ->
-                            _userMessage.emit(
-                                "Profile update failed: " +
-                                    (error.localizedMessage ?: "Database transfer failed. Please try again.")
-                            )
-                        }
-                    )
+                    _userMessage.emit(saveFeedback(result, "Profile details and image saved successfully"))
                 }
                 is ProfileEvent.UpdateAvatar -> {
                     val res = repository.updateAvatar(event.avatarUrl)
-                    res.fold(
-                        onSuccess = { _userMessage.emit("Profile avatar updated successfully") },
-                        onFailure = { error ->
-                            _userMessage.emit("Failed to save avatar: ${error.localizedMessage ?: "Database transfer failed."}")
-                        }
-                    )
+                    _userMessage.emit(saveFeedback(res, "Profile avatar updated successfully", "Failed to save avatar"))
                 }
                 is ProfileEvent.AddProfile -> {
                     repository.addProfile(event.profile)
@@ -141,12 +128,7 @@ class ProfileViewModel(
                         escrowAlertsEnabled = event.escrowAlertsEnabled,
                         questRemindersEnabled = event.questRemindersEnabled
                     )
-                    result.fold(
-                        onSuccess = { _userMessage.emit("Notification preferences updated") },
-                        onFailure = { error ->
-                            _userMessage.emit("Failed to update notification settings: ${error.localizedMessage ?: "Network error"}")
-                        }
-                    )
+                    _userMessage.emit(saveFeedback(result, "Notification preferences updated", "Failed to update notification settings"))
                 }
                 is ProfileEvent.UpdatePrivacy -> {
                     val result = repository.updatePrivacySettings(
@@ -154,12 +136,7 @@ class ProfileViewModel(
                         isOnlineStatusVisible = event.isOnlineStatusVisible,
                         activityLedgerVisibility = event.activityLedgerVisibility
                     )
-                    result.fold(
-                        onSuccess = { _userMessage.emit("Privacy settings updated") },
-                        onFailure = { error ->
-                            _userMessage.emit("Failed to update privacy settings: ${error.localizedMessage ?: "Network error"}")
-                        }
-                    )
+                    _userMessage.emit(saveFeedback(result, "Privacy settings updated", "Failed to update privacy settings"))
                 }
                 is ProfileEvent.ClearCache -> {
                     val freed = repository.clearCache()
@@ -172,7 +149,8 @@ class ProfileViewModel(
                 }
                 is ProfileEvent.DeleteAccount -> {
                     repository.deleteAccount(event.reason)
-                    _userMessage.emit("Account has been permanently scheduled for deletion.")
+                    repository.signOut()
+                    _userMessage.emit("Account deleted")
                 }
                 is ProfileEvent.DepositWallet -> {
                     val success = repository.depositToWallet(event.amount)
@@ -206,6 +184,24 @@ class ProfileViewModel(
         }
     }
 
+    private suspend fun saveFeedback(
+        result: Result<Unit>,
+        successMessage: String,
+        failureMessage: String = "Save failed"
+    ): String {
+        val profile = repository.getProfileSync()
+        return when (profile?.syncStatus) {
+            "PENDING" -> "Saved on this device; upload pending."
+            "FAILED" -> "Saved on this device but sync failed. Tap to Retry."
+            else -> result.fold(
+                onSuccess = { successMessage },
+                onFailure = { error ->
+                    "$failureMessage: ${error.localizedMessage ?: "Please try again."}"
+                }
+            )
+        }
+    }
+
     suspend fun saveProfile(
         fullName: String,
         universityName: String,
@@ -228,15 +224,7 @@ class ProfileViewModel(
             interests = interests,
             avatarUrl = avatarUrl
         )
-        result.fold(
-            onSuccess = { _userMessage.emit("Profile details and image saved successfully") },
-            onFailure = { error ->
-                _userMessage.emit(
-                    "Profile update failed: " +
-                        (error.localizedMessage ?: "Database transfer failed. Please try again.")
-                )
-            }
-        )
+        _userMessage.emit(saveFeedback(result, "Profile details and image saved successfully", "Profile update failed"))
         return result
     }
 }

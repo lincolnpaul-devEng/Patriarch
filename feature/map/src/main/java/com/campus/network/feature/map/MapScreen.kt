@@ -166,6 +166,7 @@ fun MapScreen(
     onNavigateToProfile: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onToggleBottomBar: (Boolean) -> Unit = {},
+    onRetrySync: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -225,7 +226,8 @@ fun MapScreen(
                         onNavigateToProfile = onNavigateToProfile,
                         onNavigateToNotifications = onNavigateToNotifications,
                         onToggleBottomBar = onToggleBottomBar,
-                        snackbarHostState = snackbarHostState
+                        snackbarHostState = snackbarHostState,
+                        onRetrySync = onRetrySync
                     )
                 }
             }
@@ -254,7 +256,8 @@ private fun MapExplorationContent(
     onNavigateToProfile: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onToggleBottomBar: (Boolean) -> Unit = {},
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    onRetrySync: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -430,7 +433,14 @@ private fun MapExplorationContent(
     // React to feedback messages
     LaunchedEffect(uiState.feedbackMessage) {
         uiState.feedbackMessage?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
+            val result = snackbarHostState.showSnackbar(
+                message = msg,
+                actionLabel = if (msg.contains("Tap to Retry")) "Tap to Retry" else null,
+                withDismissAction = msg.contains("Tap to Retry")
+            )
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                onRetrySync()
+            }
             viewModel.onEvent(MapEvent.ClearFeedback(null))
         }
     }

@@ -11,6 +11,7 @@ import com.campus.network.core.model.ServerInvite
 import com.campus.network.core.model.ServerMember
 import com.campus.network.core.model.ServerMemberRole
 import com.campus.network.core.model.ServerRule
+import com.campus.network.core.model.SyncStatus
 
 @Entity(tableName = "servers")
 data class ServerEntity(
@@ -24,7 +25,9 @@ data class ServerEntity(
     val isVerified: Boolean,
     val memberCount: Int,
     val inviteCode: String,
-    val createdAtEpochMs: Long
+    val createdAtEpochMs: Long,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): Server = Server(
         id = id,
@@ -37,7 +40,9 @@ data class ServerEntity(
         isVerified = isVerified,
         memberCount = memberCount,
         inviteCode = inviteCode,
-        createdAtEpochMs = createdAtEpochMs
+        createdAtEpochMs = createdAtEpochMs,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     companion object {
@@ -52,7 +57,9 @@ data class ServerEntity(
             isVerified = server.isVerified,
             memberCount = server.memberCount,
             inviteCode = server.inviteCode,
-            createdAtEpochMs = server.createdAtEpochMs
+            createdAtEpochMs = server.createdAtEpochMs,
+            syncStatus = server.syncStatus,
+            syncId = server.syncId
         )
     }
 }
@@ -67,7 +74,9 @@ data class ServerChannelEntity(
     val topic: String,
     val unreadCount: Int,
     val isPinned: Boolean,
-    val orderIndex: Int
+    val orderIndex: Int,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): ServerChannel = ServerChannel(
         id = id,
@@ -78,7 +87,9 @@ data class ServerChannelEntity(
         topic = topic,
         unreadCount = unreadCount,
         isPinned = isPinned,
-        orderIndex = orderIndex
+        orderIndex = orderIndex,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     companion object {
@@ -91,7 +102,9 @@ data class ServerChannelEntity(
             topic = channel.topic,
             unreadCount = channel.unreadCount,
             isPinned = channel.isPinned,
-            orderIndex = channel.orderIndex
+            orderIndex = channel.orderIndex,
+            syncStatus = channel.syncStatus,
+            syncId = channel.syncId
         )
     }
 }
@@ -102,14 +115,18 @@ data class ServerRuleEntity(
     val serverId: String,
     val ruleIndex: Int,
     val title: String,
-    val description: String
+    val description: String,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): ServerRule = ServerRule(
         id = id,
         serverId = serverId,
         ruleIndex = ruleIndex,
         title = title,
-        description = description
+        description = description,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     companion object {
@@ -118,7 +135,9 @@ data class ServerRuleEntity(
             serverId = rule.serverId,
             ruleIndex = rule.ruleIndex,
             title = rule.title,
-            description = rule.description
+            description = rule.description,
+            syncStatus = rule.syncStatus,
+            syncId = rule.syncId
         )
     }
 }
@@ -138,7 +157,9 @@ data class ServerMemberEntity(
     val isOnline: Boolean,
     val customStatus: String?,
     val joinedAtEpochMs: Long,
-    val badge: String?
+    val badge: String?,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): ServerMember = ServerMember(
         userId = userId,
@@ -153,7 +174,9 @@ data class ServerMemberEntity(
         isOnline = isOnline,
         customStatus = customStatus,
         joinedAtEpochMs = joinedAtEpochMs,
-        badge = badge
+        badge = badge,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     companion object {
@@ -171,7 +194,9 @@ data class ServerMemberEntity(
             isOnline = member.isOnline,
             customStatus = member.customStatus,
             joinedAtEpochMs = member.joinedAtEpochMs,
-            badge = member.badge
+            badge = member.badge,
+            syncStatus = member.syncStatus,
+            syncId = member.syncId
         )
     }
 }
@@ -186,7 +211,9 @@ data class FriendEntity(
     val friendAvatarResName: String,
     val status: String,
     val lastInteractionEpochMs: Long,
-    val dmChannelId: String?
+    val dmChannelId: String?,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): FriendRelationship = FriendRelationship(
         id = id,
@@ -197,7 +224,9 @@ data class FriendEntity(
         friendAvatarResName = friendAvatarResName,
         status = runCatching { FriendStatus.valueOf(status) }.getOrDefault(FriendStatus.NONE),
         lastInteractionEpochMs = lastInteractionEpochMs,
-        dmChannelId = dmChannelId
+        dmChannelId = dmChannelId,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     companion object {
@@ -210,7 +239,9 @@ data class FriendEntity(
             friendAvatarResName = rel.friendAvatarResName ?: "",
             status = rel.status.name,
             lastInteractionEpochMs = rel.lastInteractionEpochMs,
-            dmChannelId = rel.dmChannelId
+            dmChannelId = rel.dmChannelId,
+            syncStatus = rel.syncStatus,
+            syncId = rel.syncId
         )
     }
 }
@@ -225,7 +256,9 @@ data class ServerInviteEntity(
     val expiresAtEpochMs: Long,
     val maxUses: Int,
     val usesCount: Int,
-    val isRevoked: Boolean
+    val isRevoked: Boolean,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     fun toDomain(): ServerInvite = ServerInvite(
         code = code,
@@ -236,7 +269,9 @@ data class ServerInviteEntity(
         expiresAtEpochMs = expiresAtEpochMs,
         maxUses = maxUses,
         usesCount = usesCount,
-        isRevoked = isRevoked
+        isRevoked = isRevoked,
+        syncStatus = syncStatus,
+        syncId = syncId
     )
 
     companion object {
@@ -249,7 +284,9 @@ data class ServerInviteEntity(
             expiresAtEpochMs = invite.expiresAtEpochMs,
             maxUses = invite.maxUses,
             usesCount = invite.usesCount,
-            isRevoked = invite.isRevoked
+            isRevoked = invite.isRevoked,
+            syncStatus = invite.syncStatus,
+            syncId = invite.syncId
         )
     }
 }
@@ -275,5 +312,7 @@ data class ServerChannelMessageEntity(
     val timestampEpochMs: Long,
     val isOptimistic: Boolean = false,
     val isDelivered: Boolean = false,
-    val isMine: Boolean = false
+    val isMine: Boolean = false,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )

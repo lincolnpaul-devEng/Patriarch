@@ -114,6 +114,11 @@ class HubViewModel(
 
     fun isPaymentProviderReady(): Boolean = escrowService.isPaymentReady()
 
+    suspend fun retryFailedUploads() {
+        repository.markFailedWritesPending()
+        _feedbackMessage.value = "Retry queued. Uploads will resume when connected."
+    }
+
     fun paymentProviderName(): String = escrowService.providerDisplayName()
 
     fun paymentMethods(): List<PaymentMethodOption> = escrowService.availablePaymentMethods()
@@ -172,8 +177,14 @@ class HubViewModel(
             }
 
             val prefs = profile.onboardingPreferences
-            val favCats = prefs.favoriteCategories.map { it.lowercase() }
-            val priorities = prefs.priorities
+            val personalizationEnabled = prefs.personalizedNewsConsent
+            val favCats = if (personalizationEnabled) {
+                prefs.favoriteCategories.map { it.lowercase() }
+            } else {
+                emptyList()
+            }
+            val priorities = if (personalizationEnabled) prefs.priorities else emptyList()
+            val intents = if (personalizationEnabled) prefs.intents else emptyList()
             val preferredCurrency = prefs.currencyCode.ifBlank { "KES" }
 
             val personalizedItems = searchFilteredItems
@@ -211,8 +222,8 @@ class HubViewModel(
 
             val autoViewMode = if (
                 base.mode == HubViewMode.MARKETPLACE_GRID &&
-                "micro_gigs" in prefs.intents &&
-                "buy_sell_marketplace" !in prefs.intents
+                "micro_gigs" in intents &&
+                "buy_sell_marketplace" !in intents
             ) {
                 HubViewMode.MICRO_GIG_BOARD
             } else {
@@ -338,12 +349,13 @@ class HubViewModel(
                         return@launch
                     }
                     try {
-                        repository.postMarketItem(
+                        val item = repository.postMarketItem(
                             title = event.title,
                             price = event.price,
                             category = event.category,
                             condition = event.condition,
                             sellerUserId = sellerUserId,
+                            sellerDisplayName = profile?.fullName,
                             location = event.location,
                             description = event.description,
                             pickupSpotName = event.pickupSpotName,
@@ -359,7 +371,11 @@ class HubViewModel(
                             itemId = event.itemId
                         )
                         _isPostDialogOpen.value = false
-                        _feedbackMessage.value = "Listing published."
+                        _feedbackMessage.value = when (item.syncStatus) {
+                            "PENDING" -> "Listing saved on this device; upload pending."
+                            "FAILED" -> "Listing saved on this device but sync failed. Tap to Retry."
+                            else -> "Listing published."
+                        }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
@@ -376,17 +392,22 @@ class HubViewModel(
                         return@launch
                     }
                     try {
-                        repository.postMicroGig(
+                        val gig = repository.postMicroGig(
                             title = event.title,
                             description = event.description,
                             payoutAmount = event.payout,
                             estimatedDuration = event.duration,
                             posterUserId = posterUserId,
+                            posterDisplayName = profile?.fullName,
                             tag = event.tag,
                             urgency = event.urgency
                         )
                         _isPostDialogOpen.value = false
-                        _feedbackMessage.value = "Gig published."
+                        _feedbackMessage.value = when (gig.syncStatus) {
+                            "PENDING" -> "Gig saved on this device; upload pending."
+                            "FAILED" -> "Gig saved on this device but sync failed. Tap to Retry."
+                            else -> "Gig published."
+                        }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {

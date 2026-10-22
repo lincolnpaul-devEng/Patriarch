@@ -248,7 +248,8 @@ fun FindFriendsScreen(
                                 onEvent(
                                     MessagesEvent.MessageCampusFriend(
                                         peerUserId = peer.userId,
-                                        peerName = peer.fullName
+                                        peerName = peer.fullName,
+                                        avatarUrl = peer.avatarUrl
                                     )
                                 )
                             }

@@ -21,6 +21,15 @@ interface StudentProfileDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateProfile(profile: StudentProfileEntity)
 
+    @Query("UPDATE campusprofile SET syncStatus = :status, syncId = :syncId WHERE id = :id")
+    suspend fun updateProfileSyncStatus(id: String, status: String, syncId: String?)
+
+    @Query("SELECT * FROM campusprofile WHERE syncStatus = 'FAILED' LIMIT 1")
+    suspend fun getFailedProfile(): StudentProfileEntity?
+
+    @Query("SELECT * FROM campusprofile WHERE syncStatus = 'PENDING' LIMIT 1")
+    suspend fun getPendingProfile(): StudentProfileEntity?
+
     @Query("DELETE FROM campusprofile")
     suspend fun clearProfile()
 }

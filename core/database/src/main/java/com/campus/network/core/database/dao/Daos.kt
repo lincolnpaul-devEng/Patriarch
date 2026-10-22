@@ -25,6 +25,15 @@ interface FlashMeetDao {
 
     @Query("DELETE FROM flash_meets WHERE expiresAtEpochMs <= :currentTime")
     suspend fun purgeExpired(currentTime: Long)
+
+    @Query("UPDATE flash_meets SET syncStatus = :status WHERE id = :meetId AND syncId = :syncId")
+    suspend fun updateSyncStatus(meetId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM flash_meets WHERE syncStatus = 'PENDING' ORDER BY createdAtEpochMs ASC")
+    suspend fun getPendingMeets(): List<FlashMeetEntity>
+
+    @Query("SELECT * FROM flash_meets WHERE syncStatus = 'FAILED' ORDER BY createdAtEpochMs ASC")
+    suspend fun getFailedMeets(): List<FlashMeetEntity>
 }
 
 @Dao
@@ -89,6 +98,13 @@ interface ChatMessageDao {
 
     @Query("DELETE FROM chat_messages WHERE channelId = :channelId")
     suspend fun clearChannelMessages(channelId: String)
+
+    @Query("UPDATE chat_messages SET syncStatus = :status, syncId = :syncId WHERE id = :messageId")
+    suspend fun updateChatMessageSyncStatus(messageId: String, status: String, syncId: String?)
+
+    @Query("SELECT * FROM chat_messages WHERE syncStatus = 'FAILED' ORDER BY timestampEpochMs ASC")
+    suspend fun getFailedChatMessages(): List<ChatMessageEntity>
+
 }
 
 @Dao
@@ -98,6 +114,15 @@ interface MarketItemDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItems(items: List<MarketItemEntity>)
+
+    @Query("UPDATE market_items SET syncStatus = :status WHERE id = :itemId AND syncId = :syncId")
+    suspend fun updateSyncStatus(itemId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM market_items WHERE syncStatus = 'PENDING' ORDER BY timestampMs ASC")
+    suspend fun getPendingItems(): List<MarketItemEntity>
+
+    @Query("SELECT * FROM market_items WHERE syncStatus = 'FAILED' ORDER BY timestampMs ASC")
+    suspend fun getFailedItems(): List<MarketItemEntity>
 }
 
 @Dao
@@ -107,6 +132,15 @@ interface MicroGigDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGigs(gigs: List<MicroGigEntity>)
+
+    @Query("UPDATE micro_gigs SET syncStatus = :status WHERE id = :gigId AND syncId = :syncId")
+    suspend fun updateSyncStatus(gigId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM micro_gigs WHERE syncStatus = 'PENDING' ORDER BY timestampMs ASC")
+    suspend fun getPendingGigs(): List<MicroGigEntity>
+
+    @Query("SELECT * FROM micro_gigs WHERE syncStatus = 'FAILED' ORDER BY timestampMs ASC")
+    suspend fun getFailedGigs(): List<MicroGigEntity>
 }
 @Dao
 interface LiveStreamDao {
@@ -124,6 +158,15 @@ interface LiveStreamDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStreams(streams: List<LiveStreamEntity>)
+
+    @Query("UPDATE live_streams SET syncStatus = :status WHERE id = :streamId AND syncId = :syncId")
+    suspend fun updateSyncStatus(streamId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM live_streams WHERE syncStatus = 'PENDING' ORDER BY startedAtEpochMs ASC")
+    suspend fun getPendingStreams(): List<LiveStreamEntity>
+
+    @Query("SELECT * FROM live_streams WHERE syncStatus = 'FAILED' ORDER BY startedAtEpochMs ASC")
+    suspend fun getFailedStreams(): List<LiveStreamEntity>
 
     @Query("UPDATE live_streams SET isLive = 0, endedAtEpochMs = :endedAt, durationSeconds = :duration, peakViewers = :peak, likeCount = :likes WHERE id = :streamId")
     suspend fun endStream(streamId: String, endedAt: Long, duration: Int, peak: Int, likes: Int)
@@ -154,5 +197,13 @@ interface StreamCommentDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertComments(comments: List<StreamCommentEntity>)
-}
 
+    @Query("UPDATE stream_comments SET syncStatus = :status WHERE id = :commentId AND syncId = :syncId")
+    suspend fun updateSyncStatus(commentId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM stream_comments WHERE syncStatus = 'PENDING' ORDER BY timestampEpochMs ASC")
+    suspend fun getPendingComments(): List<StreamCommentEntity>
+
+    @Query("SELECT * FROM stream_comments WHERE syncStatus = 'FAILED' ORDER BY timestampEpochMs ASC")
+    suspend fun getFailedComments(): List<StreamCommentEntity>
+}

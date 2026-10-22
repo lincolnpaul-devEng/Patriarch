@@ -610,15 +610,29 @@ class ServerRepository(
         Result.success(serverEntity.toDomain())
     }
 
-    suspend fun syncRemoteServers() = withContext(ioDispatcher) {
-        val result = supabaseClient.queryTable("servers?select=*")
-        result.onSuccess { jsonStr ->
-            runCatching {
-                val array = org.json.JSONArray(jsonStr)
-                val servers = mutableListOf<ServerEntity>()
-                for (i in 0 until array.length()) {
-                    val obj = array.getJSONObject(i)
-                    val srv = ServerEntity(
+    suspend fun syncRemoteServers(sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        runCatching {
+            val cursor = if (sinceMs > 0L) {
+                val timestamp = java.time.Instant.ofEpochMilli(sinceMs).toString()
+                "&updated_at=gt.${java.net.URLEncoder.encode(timestamp, "UTF-8")}"
+            } else {
+                ""
+            }
+            val json = supabaseClient.queryTable(
+                "servers?order=updated_at.asc&limit=100$cursor"
+            ).getOrThrow()
+            val array = org.json.JSONArray(json)
+            var newestTimestamp = sinceMs
+            val servers = mutableListOf<ServerEntity>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val updatedAt = runCatching {
+                    java.time.OffsetDateTime.parse(obj.optString("updated_at"))
+                        .toInstant().toEpochMilli()
+                }.getOrDefault(0L)
+                newestTimestamp = maxOf(newestTimestamp, updatedAt)
+                servers.add(
+                    ServerEntity(
                         id = obj.getString("id"),
                         name = obj.getString("name"),
                         description = obj.optString("description", ""),
@@ -631,24 +645,26 @@ class ServerRepository(
                         inviteCode = obj.optString("invite_code", ""),
                         createdAtEpochMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis())
                     )
-                    servers.add(srv)
-                }
-                if (servers.isNotEmpty()) {
-                    serverDao.insertServers(servers)
-                }
+                )
             }
+            if (servers.isNotEmpty()) serverDao.insertServers(servers)
+            newestTimestamp
         }
     }
 
-    suspend fun syncRemoteChannels(serverId: String) = withContext(ioDispatcher) {
-        if (serverId.isBlank()) return@withContext
-        val result = supabaseClient.queryTable("server_channels?server_id=eq.$serverId&order=order_index.asc")
+    suspend fun syncRemoteChannels(serverId: String, sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        if (serverId.isBlank()) return@withContext Result.success(sinceMs)
+        val url = "server_channels?server_id=eq.$serverId&order=order_index.asc" + (if (sinceMs > 0L) "&updated_at=gt.$sinceMs" else "")
+        val result = supabaseClient.queryTable(url)
+        var newWatermark = sinceMs
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
                 val channels = mutableListOf<ServerChannelEntity>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val updatedAt = obj.optLong("updated_at", 0L)
+                    if (updatedAt > newWatermark) newWatermark = updatedAt
                     val cType = when (obj.optString("channel_type", "text").lowercase()) {
                         "rules" -> ServerChannelType.RULES
                         "announcements" -> ServerChannelType.ANNOUNCEMENT
@@ -673,17 +689,22 @@ class ServerRepository(
                 }
             }
         }
+        Result.success(if (newWatermark > sinceMs) newWatermark else System.currentTimeMillis())
     }
 
-    suspend fun syncRemoteRules(serverId: String) = withContext(ioDispatcher) {
-        if (serverId.isBlank()) return@withContext
-        val result = supabaseClient.queryTable("server_rules?server_id=eq.$serverId&order=rule_index.asc")
+    suspend fun syncRemoteRules(serverId: String, sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        if (serverId.isBlank()) return@withContext Result.success(sinceMs)
+        val url = "server_rules?server_id=eq.$serverId&order=rule_index.asc" + (if (sinceMs > 0L) "&updated_at=gt.$sinceMs" else "")
+        val result = supabaseClient.queryTable(url)
+        var newWatermark = sinceMs
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
                 val rules = mutableListOf<ServerRuleEntity>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val updatedAt = obj.optLong("updated_at", 0L)
+                    if (updatedAt > newWatermark) newWatermark = updatedAt
                     val r = ServerRuleEntity(
                         id = obj.getString("id"),
                         serverId = obj.getString("server_id"),
@@ -698,6 +719,7 @@ class ServerRepository(
                 }
             }
         }
+        Result.success(if (newWatermark > sinceMs) newWatermark else System.currentTimeMillis())
     }
 
     suspend fun removeMember(serverId: String, userId: String) = withContext(ioDispatcher) {
@@ -734,11 +756,13 @@ class ServerRepository(
         }
     }
 
-    suspend fun syncRemoteMembers(serverId: String) = withContext(ioDispatcher) {
-        val client = supabaseClient ?: return@withContext
+    suspend fun syncRemoteMembers(serverId: String, sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        val client = supabaseClient ?: return@withContext Result.success(sinceMs)
         val cleanServerId = serverId.trim()
-        if (cleanServerId.isBlank()) return@withContext
-        val result = client.queryTable("server_members?server_id=eq.$cleanServerId")
+        if (cleanServerId.isBlank()) return@withContext Result.success(sinceMs)
+        val url = "server_members?server_id=eq.$cleanServerId" + (if (sinceMs > 0L) "&updated_at=gt.$sinceMs" else "")
+        val result = client.queryTable(url)
+        var newWatermark = sinceMs
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
@@ -748,6 +772,8 @@ class ServerRepository(
                 val members = mutableListOf<ServerMemberEntity>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val updatedAt = obj.optLong("updated_at", 0L)
+                    if (updatedAt > newWatermark) newWatermark = updatedAt
                     val srvId = obj.optString("server_id")
                     val uId = obj.optString("user_id")
                     if (srvId.isNotBlank() && uId.isNotBlank()) {
@@ -775,19 +801,22 @@ class ServerRepository(
                 }
             }
         }
+        Result.success(if (newWatermark > sinceMs) newWatermark else System.currentTimeMillis())
     }
 
-    suspend fun syncRemoteMemberships(userId: String, email: String = "") = withContext(ioDispatcher) {
-        val client = supabaseClient ?: return@withContext
+    suspend fun syncRemoteMemberships(userId: String, email: String = "", sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
+        val client = supabaseClient ?: return@withContext Result.success(sinceMs)
         val cleanUserId = userId.trim()
         val cleanEmail = email.trim()
         val filter = when {
             cleanUserId.isNotBlank() && cleanEmail.isNotBlank() -> "or=(user_id.eq.$cleanUserId,user_id.eq.$cleanEmail)"
             cleanUserId.isNotBlank() -> "user_id=eq.$cleanUserId"
             cleanEmail.isNotBlank() -> "user_id=eq.$cleanEmail"
-            else -> return@withContext
+            else -> return@withContext Result.success(sinceMs)
         }
-        val result = client.queryTable("server_members?$filter")
+        val url = "server_members?$filter" + (if (sinceMs > 0L) "&updated_at=gt.$sinceMs" else "")
+        val result = client.queryTable(url)
+        var newWatermark = sinceMs
         result.onSuccess { jsonStr ->
             runCatching {
                 val array = org.json.JSONArray(jsonStr)
@@ -796,6 +825,8 @@ class ServerRepository(
                 })
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val updatedAt = obj.optLong("updated_at", 0L)
+                    if (updatedAt > newWatermark) newWatermark = updatedAt
                     val srvId = obj.optString("server_id")
                     val uId = obj.optString("user_id")
                     if (srvId.isNotBlank() && uId.isNotBlank()) {
@@ -819,6 +850,7 @@ class ServerRepository(
                 }
             }
         }
+        Result.success(if (newWatermark > sinceMs) newWatermark else System.currentTimeMillis())
     }
 
     // ==========================================
@@ -861,7 +893,7 @@ class ServerRepository(
             .flowOn(ioDispatcher)
     }
 
-    suspend fun syncRemoteFriends(userId: String, email: String = ""): List<FriendRelationship> = withContext(ioDispatcher) {
+    suspend fun syncRemoteFriends(userId: String, email: String = "", sinceMs: Long = 0L): List<FriendRelationship> = withContext(ioDispatcher) {
         val client = supabaseClient ?: return@withContext emptyList()
         val cleanUserId = userId.trim()
         val cleanEmail = email.trim()
@@ -875,7 +907,8 @@ class ServerRepository(
             else ->
                 "user_id=eq.$cleanEmail"
         }
-        val result = client.queryTable("campus_friends?$filter&order=last_interaction_epoch_ms.desc")
+        val deltaFilter = if (sinceMs > 0L) "&last_interaction_epoch_ms=gt.$sinceMs" else ""
+        val result = client.queryTable("campus_friends?$filter&order=last_interaction_epoch_ms.desc$deltaFilter")
         val mappedFriends = mutableListOf<FriendRelationship>()
 
         result.onSuccess { jsonStr ->

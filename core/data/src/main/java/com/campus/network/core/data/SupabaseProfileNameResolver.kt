@@ -5,10 +5,18 @@ import com.campus.network.core.network.SupabaseClientProvider
 import org.json.JSONArray
 import java.net.URLEncoder
 
+data class ResolvedCampusProfile(
+    val name: String,
+    val avatarUrl: String?
+)
+
 class SupabaseProfileNameResolver(
     private val supabaseClient: SupabaseClientProvider
 ) {
-    suspend fun resolve(userIds: Collection<String>): Map<String, String> {
+    suspend fun resolve(userIds: Collection<String>): Map<String, String> =
+        resolveWithAvatars(userIds).mapValues { it.value.name }
+
+    suspend fun resolveWithAvatars(userIds: Collection<String>): Map<String, ResolvedCampusProfile> {
         val requestedIds = userIds.map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase() }
@@ -27,22 +35,25 @@ class SupabaseProfileNameResolver(
         val query = "campusprofile?or=(${filters.joinToString(",")})&limit=200"
         val raw = supabaseClient.queryTable(
             query,
-            selectQuery = "user_id,student_id,university_email,full_name"
+            selectQuery = "user_id,student_id,university_email,full_name,avatar_url"
         ).getOrThrow()
         val profiles = JSONArray(raw)
-        val namesById = mutableMapOf<String, String>()
+        val profilesById = mutableMapOf<String, ResolvedCampusProfile>()
         for (index in 0 until profiles.length()) {
             val profile = profiles.getJSONObject(index)
             val name = profile.optString("full_name").takeIf(String::isRealProfileDisplayName) ?: continue
+            val avatarUrl = profile.optString("avatar_url")
+                .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.startsWith("avatar_") }
+            val resolved = ResolvedCampusProfile(name.trim(), avatarUrl)
             listOf("user_id", "student_id", "university_email").forEach { field ->
                 profile.optString(field)
                     .trim()
                     .takeIf { it.isNotEmpty() }
-                    ?.let { namesById[it.lowercase()] = name.trim() }
+                    ?.let { profilesById[it.lowercase()] = resolved }
             }
         }
         return requestedIds.mapNotNull { id ->
-            namesById[id.lowercase()]?.let { id.lowercase() to it }
+            profilesById[id.lowercase()]?.let { id.lowercase() to it }
         }.toMap()
     }
 }

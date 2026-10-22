@@ -82,6 +82,7 @@ These back the Edge Functions:
 - `supabase/functions/send-verification-otp` — Resend OTP email (needs `RESEND_API_KEY`)
 - `supabase/functions/cloudinary-signature` — short-lived signed Cloudinary upload params (needs Cloudinary creds)
 - `supabase/functions/ai-completions` — bounded OpenRouter proxy (needs `OPENROUTER_API_KEY`)
+- `supabase/functions/delete-account` — hard-deletes the Supabase Auth account, all owned rows across tables, and Cloudinary assets (needs `SUPABASE_SERVICE_ROLE_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`)
 
 ## Database migrations
 
@@ -112,3 +113,4 @@ It depends on the Android release that sends Supabase user JWTs (this change).
 - Google sign-in requires a Supabase-accepted ID token; the previous Google-account-profile fallback
   that fabricated a local session was removed.
 - OTP verification requires a real Supabase Auth session; fabricated access/refresh tokens were removed.
+- Account deletion is a hard server-side delete via the `delete-account` Edge Function: it removes the Supabase Auth user, all owned rows across application tables, Cloudinary uploads, then signs the client out and clears local Room/SharedPreferences.

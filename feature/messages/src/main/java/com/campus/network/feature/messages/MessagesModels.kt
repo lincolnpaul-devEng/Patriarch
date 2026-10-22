@@ -48,6 +48,7 @@ data class ConversationThread(
     val peerName: String,
     val peerHandle: String,
     val avatarInitials: String,
+    val avatarUrl: String? = null,
     val lastMessage: String,
     val lastTimestamp: String,
     val unreadCount: Int = 0,
@@ -164,6 +165,7 @@ sealed interface MessagesEvent {
         val peerName: String,
         val peerHandle: String? = null,
         val avatarInitials: String? = null,
+        val avatarUrl: String? = null,
         val serverName: String? = null,
         val serverTag: String? = null
     ) : MessagesEvent
@@ -209,7 +211,11 @@ sealed interface MessagesEvent {
     data class FindFriendsQueryChanged(val query: String) : MessagesEvent
     data class SendCampusFriendRequest(val peerUserId: String, val peerName: String) : MessagesEvent
     data class AcceptCampusFriendRequest(val peerUserId: String, val peerName: String) : MessagesEvent
-    data class MessageCampusFriend(val peerUserId: String, val peerName: String) : MessagesEvent
+    data class MessageCampusFriend(
+        val peerUserId: String,
+        val peerName: String,
+        val avatarUrl: String? = null
+    ) : MessagesEvent
     object OpenAddNote : MessagesEvent
     object OpenBroadcast : MessagesEvent
     object OpenVoiceChatSelection : MessagesEvent

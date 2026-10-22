@@ -57,6 +57,7 @@ class MessagesViewModel(
     private val appContext: Context? = context?.applicationContext
     private val profileNameResolver = supabaseClient?.let(::SupabaseProfileNameResolver)
     private val remoteProfileNames = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val remoteProfileAvatars = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     private val ringtoneManager: CallRingtoneManager? = context?.let {
         CallRingtoneManager(it.applicationContext, viewModelScope)
@@ -107,10 +108,23 @@ class MessagesViewModel(
             ?.trim()
     }
 
+    private fun profileAvatarFor(userId: String): String? {
+        if (userId.isBlank()) return null
+        return remoteProfileAvatars[userId.trim().lowercase()]
+            ?: studentProfileRepository.knownProfiles.value.entries
+            .firstOrNull { it.key.equals(userId.trim(), ignoreCase = true) }
+            ?.value
+            ?.avatarUrl
+            ?.takeIf(String::isNotBlank)
+    }
+
     private suspend fun resolveProfileNames(userIds: Collection<String>): Map<String, String> {
-        val names = profileNameResolver?.resolve(userIds).orEmpty()
-        remoteProfileNames.putAll(names)
-        return names
+        val profiles = profileNameResolver?.resolveWithAvatars(userIds).orEmpty()
+        remoteProfileNames.putAll(profiles.mapValues { it.value.name })
+        profiles.forEach { (userId, profile) ->
+            profile.avatarUrl?.let { remoteProfileAvatars[userId] = it }
+        }
+        return profiles.mapValues { it.value.name }
     }
 
     private fun mapEntityToMessage(e: ChatMessageEntity, currentUserId: String): DirectMessageItem {
@@ -324,6 +338,7 @@ class MessagesViewModel(
                 peerUserId = peerUserId,
                 peerHandle = peerHandle,
                 avatarInitials = initials,
+                avatarUrl = profileAvatarFor(peerUserId) ?: prior?.avatarUrl,
                 lastMessage = last.text.ifBlank {
                     when {
                         !last.gifUrl.isNullOrBlank() -> "[GIF]"
@@ -350,7 +365,10 @@ class MessagesViewModel(
                 null
             } else {
                 profileNameFor(thread.peerUserId)?.let { name ->
-                    thread.copy(peerName = name)
+                    thread.copy(
+                        peerName = name,
+                        avatarUrl = profileAvatarFor(thread.peerUserId) ?: thread.avatarUrl
+                    )
                 }
             }
         }
@@ -535,7 +553,13 @@ class MessagesViewModel(
                 it.peerUserId.equals(peerUserId, ignoreCase = true)
         }
         if (existing != null) {
-            val canonicalThread = existing.copy(peerName = peerName, peerUserId = peerUserId)
+            val canonicalThread = existing.copy(
+                peerName = peerName,
+                peerUserId = peerUserId,
+                avatarUrl = event.avatarUrl?.takeIf(String::isNotBlank)
+                    ?: profileAvatarFor(peerUserId)
+                    ?: existing.avatarUrl
+            )
             CampusSystemNotificationCenter.activeVisibleThreadId = existing.id
             val messages = threadMessagesMap[existing.id] ?: emptyList()
             _uiState.update {
@@ -569,6 +593,8 @@ class MessagesViewModel(
             peerUserId = peerUserId,
             peerHandle = event.peerHandle.orEmpty(),
             avatarInitials = initials,
+            avatarUrl = event.avatarUrl?.takeIf(String::isNotBlank)
+                ?: profileAvatarFor(peerUserId),
             lastMessage = "No messages yet",
             lastTimestamp = "Just now",
             unreadCount = 0,
@@ -1145,7 +1171,8 @@ class MessagesViewModel(
                 onEvent(
                     MessagesEvent.OpenOrCreateDirectChat(
                         peerId = event.peerUserId,
-                        peerName = event.peerName
+                        peerName = event.peerName,
+                        avatarUrl = event.avatarUrl
                     )
                 )
             }

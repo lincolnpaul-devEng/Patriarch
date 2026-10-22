@@ -12,11 +12,14 @@ data class FlashMeet(
     val longitude: Double,
     val locationName: String,
     val creatorName: String,
+    val creatorUserId: String = "",
     val creatorAvatar: String? = null,
     val createdAtEpochMs: Long,
     val expiresAtEpochMs: Long,
     val attendeeCount: Int = 1,
-    val maxAttendees: Int = 8
+    val maxAttendees: Int = 8,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 ) {
     val isExpired: Boolean
         get() = System.currentTimeMillis() >= expiresAtEpochMs
@@ -110,7 +113,9 @@ data class MarketItem(
     val payoutMethod: String = "Campus SafePay Escrow",
     val requiresQrReleaseCode: Boolean = true,
     /** Seller-only secret. Empty for non-owners after sync/redaction. */
-    val qrReleaseCode: String = ""
+    val qrReleaseCode: String = "",
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 /**
@@ -140,12 +145,15 @@ data class MicroGig(
     val currency: String = "KES",
     val estimatedDuration: String,
     val posterName: String,
+    val posterUserId: String = "",
     val posterTrustScore: Int,
     val tag: String,
     val urgencyLevel: GigUrgency,
     val spotsAvailable: Int = 1,
     val timestampMs: Long,
-    val bannerUrl: String? = null
+    val bannerUrl: String? = null,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 enum class GigUrgency {
@@ -193,7 +201,9 @@ data class StudentProfile(
     val walletBalance: Double = 0.0,
     val vaultProtectedBalance: Double = 0.0,
     val alternateProfiles: List<StudentProfile> = emptyList(),
-    val onboardingPreferences: OnboardingPreferences = OnboardingPreferences()
+    val onboardingPreferences: OnboardingPreferences = OnboardingPreferences(),
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 data class SafePayHold(
@@ -232,7 +242,7 @@ data class OnboardingPreferences(
     val favoriteCategories: List<String> = emptyList(),
     val priorities: List<String> = emptyList(),
     val pushNotificationsOptIn: Boolean = false,
-    val personalizedNewsConsent: Boolean = true,
+    val personalizedNewsConsent: Boolean = false,
     val hasCompletedSurvey: Boolean = false
 )
 
@@ -325,7 +335,9 @@ data class LiveStream(
     val startedAtEpochMs: Long = System.currentTimeMillis(),
     val endedAtEpochMs: Long? = null,
     val durationSeconds: Int = 0,
-    val serverId: String? = null
+    val serverId: String? = null,
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
 
 data class StreamComment(
@@ -336,7 +348,7 @@ data class StreamComment(
     val senderAvatarUrl: String? = null,
     val senderAvatarRes: Int = 0,
     val commentText: String,
-    val timestampEpochMs: Long = System.currentTimeMillis()
+    val timestampEpochMs: Long = System.currentTimeMillis(),
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
 )
-
-

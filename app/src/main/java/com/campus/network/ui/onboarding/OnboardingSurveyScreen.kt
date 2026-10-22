@@ -143,6 +143,8 @@ fun OnboardingSurveyScreen(
     val initialPrefs = profile?.onboardingPreferences ?: OnboardingPreferences()
 
     var currentStep by remember { mutableStateOf(OnboardingStep.LANGUAGE) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     // Survey state
     var languageCode by remember { mutableStateOf(initialPrefs.languageCode.ifBlank { "en" }) }
@@ -225,23 +227,37 @@ fun OnboardingSurveyScreen(
             isVerifiedStudentEmail = isVerifiedStudentEmail,
             faculty = selectedFaculty,
             yearOfStudy = selectedYear,
-            intents = selectedIntents.toList(),
-            favoriteCategories = selectedCategories.toList(),
-            priorities = selectedPriorities.toList(),
+            intents = if (completedConsent) selectedIntents.toList() else emptyList(),
+            favoriteCategories = if (completedConsent) selectedCategories.toList() else emptyList(),
+            priorities = if (completedConsent) selectedPriorities.toList() else emptyList(),
             pushNotificationsOptIn = pushNotificationsOptIn,
             personalizedNewsConsent = completedConsent,
             hasCompletedSurvey = true
         )
+        if (isSaving) return
+        isSaving = true
+        saveError = null
         coroutineScope.launch {
             val completedPrefs = finalPrefs.copy(hasCompletedSurvey = true)
-            studentProfileRepository.saveOnboardingPreferences(completedPrefs)
-            val authClient = com.campus.network.core.network.SupabaseGoogleAuthClient(context)
-            val currentEmail = studentProfileRepository.getProfileSync()?.universityEmail ?: authClient.getSavedSession()?.email
-            if (!currentEmail.isNullOrBlank()) {
-                authClient.setSurveyCompleted(currentEmail, true)
-            }
-            authClient.setSurveyCompleted(null, true)
-            onSurveyCompleted()
+            val result = studentProfileRepository.saveOnboardingPreferences(completedPrefs)
+            result.fold(
+                onSuccess = {
+                    if (studentProfileRepository.getProfileSync()?.syncStatus == "PENDING") {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Survey saved on this device. Upload is pending.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    com.campus.network.notifications.SyncRetryWorker.runNow(context)
+                    onSurveyCompleted()
+                },
+                onFailure = { error ->
+                    saveError = error.localizedMessage
+                        ?: "Your survey could not be synchronized. Select Continue to retry."
+                    isSaving = false
+                }
+            )
         }
     }
 
@@ -353,7 +369,7 @@ fun OnboardingSurveyScreen(
                     strings = strings,
                     universityName = selectedUniversityName,
                     onContinue = { currentStep = OnboardingStep.SURVEY_1_ACADEMIC },
-                    onSkip = { persistAndFinish(completedConsent = false) }
+                    onSkip = { currentStep = OnboardingStep.SURVEY_1_ACADEMIC }
                 )
 
                 OnboardingStep.SURVEY_1_ACADEMIC -> SurveyAcademicStep(
@@ -431,7 +447,11 @@ fun OnboardingSurveyScreen(
 
                 OnboardingStep.PERSONALIZED_NEWS -> PersonalizedNewsConsentStep(
                     strings = strings,
-                    onContinue = { persistAndFinish(completedConsent = true) }
+                    isSaving = isSaving,
+                    saveError = saveError,
+                    onBack = { stepBack() },
+                    onContinue = { persistAndFinish(completedConsent = true) },
+                    onDecline = { persistAndFinish(completedConsent = false) }
                 )
             }
         }
@@ -632,7 +652,8 @@ private fun DualActionFooter(
     continueLabel: String,
     skipLabel: String,
     onContinue: () -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    enabled: Boolean = true
 ) {
     Column(
         modifier = Modifier
@@ -648,6 +669,7 @@ private fun DualActionFooter(
         ) {
             Button(
                 onClick = onContinue,
+                enabled = enabled,
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = BrandPrimary,
@@ -666,6 +688,7 @@ private fun DualActionFooter(
 
             OutlinedButton(
                 onClick = onSkip,
+                enabled = enabled,
                 shape = CircleShape,
                 border = BorderStroke(1.25.dp, BrandPrimary),
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -1701,13 +1724,17 @@ private fun PushOptInStep(
 @Composable
 private fun PersonalizedNewsConsentStep(
     strings: OnboardingSurveyStrings,
-    onContinue: () -> Unit
+    isSaving: Boolean,
+    saveError: String?,
+    onBack: () -> Unit,
+    onContinue: () -> Unit,
+    onDecline: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        SurveyTopBar(showBack = true, onBack = onContinue)
+        SurveyTopBar(showBack = true, onBack = onBack)
 
         Spacer(modifier = Modifier.weight(0.7f))
 
@@ -1740,12 +1767,24 @@ private fun PersonalizedNewsConsentStep(
                 .padding(horizontal = 28.dp)
         )
 
+        if (!saveError.isNullOrBlank()) {
+            Text(
+                text = "Could not save your survey: $saveError. Select Continue to retry.",
+                color = Color(0xFFB3261E),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.weight(1.2f))
 
-        StickyContinueFooter(
-            label = strings.continueBtn,
-            enabled = true,
-            onClick = onContinue
+        DualActionFooter(
+            continueLabel = strings.continueBtn,
+            skipLabel = strings.declinePersonalizedBtn,
+            onContinue = onContinue,
+            onSkip = onDecline,
+            enabled = !isSaving
         )
     }
 }
