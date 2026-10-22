@@ -213,6 +213,7 @@ class ProfileViewModel(
     }
 
     suspend fun saveProfile(
+        fullName: String,
         universityName: String,
         degreeProgram: String,
         academicYear: String,
