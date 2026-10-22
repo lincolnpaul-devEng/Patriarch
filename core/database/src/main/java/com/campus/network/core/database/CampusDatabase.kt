@@ -99,99 +99,86 @@ abstract class CampusDatabase : RoomDatabase() {
         }
         private val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                rebuildFlashMeets(db)
-                rebuildMicroGigs(db)
+                listOf(
+                    "flash_meets",
+                    "chat_messages",
+                    "market_items",
+                    "micro_gigs",
+                    "live_streams",
+                    "stream_comments",
+                    "servers",
+                    "server_channels",
+                    "server_channel_messages",
+                    "server_rules",
+                    "server_members",
+                    "friends",
+                    "server_invites",
+                    "campusprofile"
+                ).forEach { repairOfflineSyncColumns(db, it) }
             }
         }
 
-        private fun rebuildFlashMeets(db: SupportSQLiteDatabase) {
-            rebuildTable(
-                db = db,
-                tableName = "flash_meets",
-                temporaryTableName = "_flash_meets_v16",
-                createTableSql = """CREATE TABLE `_flash_meets_v16` (
-                    `id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL,
-                    `categoryName` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL,
-                    `locationName` TEXT NOT NULL, `creatorName` TEXT NOT NULL,
-                    `creatorUserId` TEXT NOT NULL, `creatorAvatar` TEXT,
-                    `createdAtEpochMs` INTEGER NOT NULL, `expiresAtEpochMs` INTEGER NOT NULL,
-                    `attendeeCount` INTEGER NOT NULL, `maxAttendees` INTEGER NOT NULL,
-                    `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))""",
-                columns = listOf(
-                    "id", "title", "description", "categoryName", "latitude", "longitude",
-                    "locationName", "creatorName", "creatorUserId", "creatorAvatar",
-                    "createdAtEpochMs", "expiresAtEpochMs", "attendeeCount", "maxAttendees",
-                    "syncStatus", "syncId"
-                ),
-                fallbackExpressions = mapOf(
-                    "creatorUserId" to "''",
-                    "creatorAvatar" to "NULL",
-                    "syncStatus" to "'SYNCED'",
-                    "syncId" to "NULL"
-                )
-            )
-        }
+        private fun repairOfflineSyncColumns(db: SupportSQLiteDatabase, tableName: String) {
+            val columns = mutableListOf<Pair<String, String?>>()
+            db.query("PRAGMA table_info(`$tableName`)").use { cursor ->
+                val nameColumnIndex = cursor.getColumnIndexOrThrow("name")
+                val defaultColumnIndex = cursor.getColumnIndexOrThrow("dflt_value")
+                while (cursor.moveToNext()) {
+                    columns += cursor.getString(nameColumnIndex) to
+                        cursor.getString(defaultColumnIndex)
+                }
+            }
 
-        private fun rebuildMicroGigs(db: SupportSQLiteDatabase) {
-            rebuildTable(
-                db = db,
-                tableName = "micro_gigs",
-                temporaryTableName = "_micro_gigs_v16",
-                createTableSql = """CREATE TABLE `_micro_gigs_v16` (
-                    `id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL,
-                    `payoutAmount` REAL NOT NULL, `currency` TEXT NOT NULL,
-                    `estimatedDuration` TEXT NOT NULL, `posterName` TEXT NOT NULL,
-                    `posterUserId` TEXT NOT NULL, `posterTrustScore` INTEGER NOT NULL,
-                    `tag` TEXT NOT NULL, `urgencyName` TEXT NOT NULL,
-                    `spotsAvailable` INTEGER NOT NULL, `timestampMs` INTEGER NOT NULL,
-                    `bannerUrl` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT,
-                    PRIMARY KEY(`id`))""",
-                columns = listOf(
-                    "id", "title", "description", "payoutAmount", "currency",
-                    "estimatedDuration", "posterName", "posterUserId", "posterTrustScore",
-                    "tag", "urgencyName", "spotsAvailable", "timestampMs", "bannerUrl",
-                    "syncStatus", "syncId"
-                ),
-                fallbackExpressions = mapOf(
-                    "posterUserId" to "''",
-                    "bannerUrl" to "NULL",
-                    "syncStatus" to "'SYNCED'",
-                    "syncId" to "NULL"
+            check(columns.isNotEmpty()) { "Cannot migrate missing table $tableName" }
+            val existingColumnNames = columns.mapTo(mutableSetOf()) { it.first }
+            if ("syncStatus" !in existingColumnNames) {
+                db.execSQL(
+                    "ALTER TABLE `$tableName` " +
+                        "ADD COLUMN `syncStatus` TEXT NOT NULL DEFAULT 'SYNCED'"
                 )
-            )
-        }
+            }
+            if ("syncId" !in existingColumnNames) {
+                db.execSQL("ALTER TABLE `$tableName` ADD COLUMN `syncId` TEXT")
+            }
 
-        private fun rebuildTable(
-            db: SupportSQLiteDatabase,
-            tableName: String,
-            temporaryTableName: String,
-            createTableSql: String,
-            columns: List<String>,
-            fallbackExpressions: Map<String, String>
-        ) {
-            val existingColumns = mutableSetOf<String>()
+            val createSql = db.query(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '$tableName'"
+            ).use { cursor ->
+                check(cursor.moveToFirst()) { "Cannot migrate missing table $tableName" }
+                checkNotNull(cursor.getString(0)) { "Cannot read schema for $tableName" }
+            }
+            val schemaWithoutMigrationDefaults = Regex(
+                """([`"]?(?:syncStatus|creatorUserId|posterUserId)[`"]?\s+TEXT\s+NOT NULL)\s+DEFAULT\s+(?:'[^']*'|"[^"]*"|[^,\s)]+)""",
+                RegexOption.IGNORE_CASE
+            ).replace(createSql) { match -> match.groupValues[1] }
+
+            if (schemaWithoutMigrationDefaults == createSql) return
+
+            val temporaryTableName = "_v16_$tableName"
+            val createTablePrefix = Regex(
+                """(?i)^(CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+)([`"\[]?[\w]+[`"\]]?)"""
+            )
+            val createPrefixMatch = checkNotNull(createTablePrefix.find(schemaWithoutMigrationDefaults)) {
+                "Cannot rebuild table $tableName"
+            }
+            val temporaryCreateSql = schemaWithoutMigrationDefaults.replaceRange(
+                createPrefixMatch.range,
+                "${createPrefixMatch.groupValues[1]}`$temporaryTableName`"
+            )
+            db.execSQL("DROP TABLE IF EXISTS `$temporaryTableName`")
+            db.execSQL(temporaryCreateSql)
+
+            val currentColumns = mutableListOf<String>()
             db.query("PRAGMA table_info(`$tableName`)").use { cursor ->
                 val nameColumnIndex = cursor.getColumnIndexOrThrow("name")
                 while (cursor.moveToNext()) {
-                    existingColumns += cursor.getString(nameColumnIndex)
+                    currentColumns += cursor.getString(nameColumnIndex)
                 }
             }
-
-            db.execSQL("DROP TABLE IF EXISTS `$temporaryTableName`")
-            db.execSQL(createTableSql)
-            val sourceExpressions = columns.map { column ->
-                if (column in existingColumns) {
-                    "`$column`"
-                } else {
-                    checkNotNull(fallbackExpressions[column]) {
-                        "Cannot migrate $tableName: required column $column is missing"
-                    }
-                }
-            }
-            val columnList = columns.joinToString(", ") { "`$it`" }
+            val columnList = currentColumns.joinToString(", ") { "`$it`" }
             db.execSQL(
                 "INSERT INTO `$temporaryTableName` ($columnList) " +
-                    "SELECT ${sourceExpressions.joinToString(", ")} FROM `$tableName`"
+                    "SELECT $columnList FROM `$tableName`"
             )
             db.execSQL("DROP TABLE `$tableName`")
             db.execSQL("ALTER TABLE `$temporaryTableName` RENAME TO `$tableName`")
