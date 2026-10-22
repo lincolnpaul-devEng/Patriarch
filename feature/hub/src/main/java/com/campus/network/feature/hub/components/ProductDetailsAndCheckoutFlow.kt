@@ -359,25 +359,27 @@ fun MarketProductDetailsFullScreen(
                     }
                 }
 
-                // Bottom-Right Photo Counter Pill ("1 / 5") matching Reference Image 1
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xCC1E293B),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 32.dp)
-                ) {
-                    Text(
-                        text = "${pagerState.currentPage + 1} / ${galleryUrls.size}",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
+                // Bottom-Right Photo Counter Pill (only shown when multi-image gallery exists)
+                if (galleryUrls.size > 1) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xCC1E293B),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 32.dp)
+                    ) {
+                        Text(
+                            text = "${pagerState.currentPage + 1} / ${galleryUrls.size}",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
                 }
             }
 
-            // 2. Overlapping Rounded White Sheet Body (matches Reference Image 1 card sheet)
+            // 2. Overlapping Rounded White Sheet Body
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -388,7 +390,7 @@ fun MarketProductDetailsFullScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 22.dp, vertical = 24.dp)
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
                 ) {
                     // Interactive Multi-Photo Thumbnail Strip (Jump to any uploaded photo)
                     if (galleryUrls.size > 1) {
@@ -475,138 +477,191 @@ fun MarketProductDetailsFullScreen(
                         Spacer(modifier = Modifier.height(20.dp))
                     }
 
-                    // Product Title
-                    Text(
-                        text = item.title,
-                        fontSize = 25.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDarkPrimary,
-                        lineHeight = 31.sp
-                    )
+                    // Category & Condition Pill Badges (Clear classification hierarchy)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = BrandBlueSoft
+                        ) {
+                            Text(
+                                text = item.category.uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandBluePrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFF1F5F9)
+                        ) {
+                            Text(
+                                text = item.condition.uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSlateSecondary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                        if (item.isCampusVerifiedSeller) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSoft
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Verified,
+                                        contentDescription = null,
+                                        tint = EmeraldSafe,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Verified Student",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldSafe
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Location Subtitle: exact hall/dorm only after escrow lock (or for the owner)
+                    // Product Title (Prominent H1 Anchor)
                     Text(
-                        text = "Available at ${item.pickupSpotName}, " + if (accessControl.canViewExactPickupCoordinates) {
-                            item.campusHallLocation
-                        } else {
-                            "exact bay revealed after escrow"
-                        },
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextDarkPrimary
+                        text = item.title,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextDarkPrimary,
+                        lineHeight = 30.sp
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Specs / Attributes Line ("Condition • Category • Pickup Timing • SafeTrade")
-                    Text(
-                        text = "${item.condition} • ${item.category} • ${item.pickupTiming} • SafeTrade Escrow",
-                        fontSize = 13.5.sp,
-                        color = TextMuted
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // 3. Three-Column Outlined "Campus favorite" Badge Card (exact match to Reference Image 1)
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
-                        border = BorderStroke(1.dp, DividerLight)
+                    // Trust Signals: Ratings, Reviews, and Response Rate placed directly near the title (Rule 5)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 14.dp, horizontal = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            // Left Column: Rating + 5 mini stars
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = String.format("%.2f", item.sellerRating),
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = TextDarkPrimary
-                                )
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
-                                    repeat(5) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = TextDarkPrimary,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(36.dp)
-                                    .background(DividerLight)
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Rating",
+                                tint = Color(0xFFEAB308),
+                                modifier = Modifier.size(16.dp)
                             )
+                            Text(
+                                text = String.format("%.2f", item.sellerRating),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDarkPrimary
+                            )
+                        }
+                        Text("•", color = TextMuted, fontSize = 12.sp)
+                        Text(
+                            text = "$reviewCount verified trades",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextSlateSecondary,
+                            textDecoration = TextDecoration.Underline
+                        )
+                        Text("•", color = TextMuted, fontSize = 12.sp)
+                        Text(
+                            text = "99% response",
+                            fontSize = 13.sp,
+                            color = TextMuted
+                        )
+                    }
 
-                            // Center Column: Laurel Wreath + "Campus favorite"
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Visual Hierarchy: Price Headline directly visible on product details (Rule 2)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = "${item.currency} ${"%,.0f".format(item.price)}",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = TextDarkPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "total price",
+                                fontSize = 13.sp,
+                                color = TextMuted
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = EmeraldSoft,
+                            border = BorderStroke(1.dp, EmeraldSafe.copy(alpha = 0.35f))
+                        ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.weight(1.35f)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                LaurelWreathBranch(isLeft = true, modifier = Modifier.size(width = 16.dp, height = 32.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = EmeraldSafe,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = "Campus\nfavorite",
-                                    fontSize = 12.5.sp,
+                                    text = "SafePay Escrow",
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextDarkPrimary,
-                                    lineHeight = 15.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                LaurelWreathBranch(isLeft = false, modifier = Modifier.size(width = 16.dp, height = 32.dp))
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(36.dp)
-                                    .background(DividerLight)
-                            )
-
-                            // Right Column: Review count + underlined "Reviews"
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = "$reviewCount",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = TextDarkPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Verified Trades",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextDarkPrimary,
-                                    textDecoration = TextDecoration.Underline
+                                    color = EmeraldSafe
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(22.dp))
-                    HorizontalDivider(color = DividerLight, thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Location & Delivery Subtitle
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Place,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Available at ${item.pickupSpotName}, " + if (accessControl.canViewExactPickupCoordinates) {
+                                item.campusHallLocation
+                            } else {
+                                "exact bay revealed after escrow"
+                            },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDarkPrimary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // 4. Rare Find Callout Row (Diamond/Gem Icon + Text, matching Reference Image 1)
                     Row(
@@ -636,9 +691,9 @@ fun MarketProductDetailsFullScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-                    HorizontalDivider(color = DividerLight, thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // 5. Seller / Host Profile Row with Direct "Message" Action
                     Row(
@@ -742,9 +797,9 @@ fun MarketProductDetailsFullScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-                    HorizontalDivider(color = DividerLight, thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // 6. Highlight Callouts (SafeTrade Escrow & Campus Pickup Spot)
                     Row(
@@ -859,9 +914,9 @@ fun MarketProductDetailsFullScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-                    HorizontalDivider(color = DividerLight, thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // 7. About this item description
                     Text(
@@ -883,16 +938,16 @@ fun MarketProductDetailsFullScreen(
             }
         }
 
-        // 8. Sticky Bottom Reservation / Checkout Bar (Exact match to Reference Image 1 bottom bar)
+        // 8. Sticky Bottom Reservation / Checkout Bar
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth(),
             color = Color.White,
-            shadowElevation = 16.dp
+            shadowElevation = 12.dp
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                HorizontalDivider(color = DividerLight, thickness = 0.8.dp)
+                HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -901,16 +956,15 @@ fun MarketProductDetailsFullScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left side: Price underlined + SafeTrade Escrow pill
+                    // Left side: Clear Price + Escrow status
                     Column {
                         Row(verticalAlignment = Alignment.Bottom) {
                             val displayAmount = basketConfig?.totalAmount ?: item.price
                             Text(
                                 text = "${item.currency} ${"%,.0f".format(displayAmount)}",
-                                fontSize = 18.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = TextDarkPrimary,
-                                textDecoration = TextDecoration.Underline
+                                color = TextDarkPrimary
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -1516,94 +1570,85 @@ fun ProductOptionsBasketDrawerSheet(
                     }
                 }
 
-                // 3. "Most popular" Horizontal Scrollable Cards Section (Reference Image 2)
-                Column(modifier = Modifier.fillMaxWidth()) {
+                // 3. Handover Options: Scalable, responsive vertical card group (Rule 7: Scalability)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                ) {
                     Text(
-                        text = "Most popular",
-                        fontSize = 18.sp,
+                        text = "Pickup & Handover Method",
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDarkPrimary,
-                        modifier = Modifier.padding(horizontal = 20.dp)
+                        color = TextDarkPrimary
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        itemsIndexed(handoverOptions) { idx, option ->
-                            val isSelected = selectedHandoverIndex == idx
-                            Surface(
-                                onClick = { selectedHandoverIndex = idx },
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color.White,
-                                border = BorderStroke(
-                                    width = if (isSelected) 1.8.dp else 1.dp,
-                                    color = if (isSelected) BrandBluePrimary else DividerLight
-                                ),
-                                modifier = Modifier.width(292.dp)
+                    handoverOptions.forEachIndexed { idx, option ->
+                        val isSelected = selectedHandoverIndex == idx
+                        Surface(
+                            onClick = { selectedHandoverIndex = idx },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Color(0xFFF8FAFC) else Color.White,
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) BrandBluePrimary else DividerLight
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = option.rankBadge,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandBlueAction
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = option.title,
-                                            fontSize = 14.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = TextDarkPrimary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = option.subtitle,
-                                            fontSize = 12.5.sp,
-                                            color = TextMuted,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    RadioButton(
-                                        selected = isSelected,
-                                        onClick = { selectedHandoverIndex = idx },
-                                        colors = RadioButtonDefaults.colors(
-                                            selectedColor = BrandBluePrimary,
-                                            unselectedColor = Color(0xFFCBD5E1)
-                                        )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = option.rankBadge,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandBlueAction
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = option.title,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextDarkPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = option.subtitle,
+                                        fontSize = 12.sp,
+                                        color = TextMuted,
+                                        lineHeight = 16.sp
                                     )
                                 }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { selectedHandoverIndex = idx },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = BrandBluePrimary,
+                                        unselectedColor = Color(0xFFCBD5E1)
+                                    )
+                                )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
+                HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Thick gray section divider matching Uber Eats sheet style
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .background(SectionSeparatorBg)
-                )
-
-                // 4. "Select Package / Inspection" Section with "Required" Pill Badge (Reference Image 2)
+                // 4. "Select Package / Inspection" Section (Rule 4: Subtle Dividers)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                        .padding(horizontal = 20.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1613,7 +1658,7 @@ fun ProductOptionsBasketDrawerSheet(
                         Column {
                             Text(
                                 text = "Select Option",
-                                fontSize = 18.sp,
+                                fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDarkPrimary
                             )
@@ -1626,15 +1671,15 @@ fun ProductOptionsBasketDrawerSheet(
                         }
 
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = SectionSeparatorBg
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF1F5F9)
                         ) {
                             Text(
                                 text = "Required",
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextSlateSecondary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
                     }
@@ -1647,20 +1692,20 @@ fun ProductOptionsBasketDrawerSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { selectedPackageId = option.id }
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = 11.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = option.title,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = TextDarkPrimary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = option.subtitle,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.5.sp,
                                     color = TextMuted
                                 )
                             }
@@ -1674,23 +1719,20 @@ fun ProductOptionsBasketDrawerSheet(
                             )
                         }
                         if (index < packageOptions.lastIndex) {
-                            HorizontalDivider(color = DividerLight, thickness = 0.7.dp)
+                            HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 0.8.dp)
                         }
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .background(SectionSeparatorBg)
-                )
+                Spacer(modifier = Modifier.height(18.dp))
+                HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // 5. Meetup Note & Quantity Selector
+                // 5. Meetup Note
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                        .padding(horizontal = 20.dp)
                 ) {
                     Text(
                         text = "Pickup note for ${item.sellerName.substringBefore(" ")} (Optional)",
@@ -1718,106 +1760,97 @@ fun ProductOptionsBasketDrawerSheet(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Quantity Stepper Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Quantity",
-                            fontSize = 15.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDarkPrimary
-                        )
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Surface(
-                                onClick = { if (quantity > 1) quantity-- },
-                                shape = CircleShape,
-                                color = SectionSeparatorBg,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Remove,
-                                        contentDescription = "Decrease quantity",
-                                        tint = if (quantity > 1) TextDarkPrimary else TextMuted,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = "$quantity",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDarkPrimary
-                            )
-
-                            Surface(
-                                onClick = { if (quantity < 5) quantity++ },
-                                shape = CircleShape,
-                                color = SectionSeparatorBg,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Increase quantity",
-                                        tint = TextDarkPrimary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
-            // 6. Sticky Bottom Full-Width CTA: "Add 1 to basket • KES X,XXX.XX" (Exact match to Reference Image 2)
+            // 6. Sticky Bottom Action Bar with Co-located Quantity Stepper & Add to Basket (Rule 6: Streamline Interactions)
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
                 color = Color.White,
-                shadowElevation = 16.dp
+                shadowElevation = 14.dp
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(color = DividerLight, thickness = 0.8.dp)
-                    Button(
-                        onClick = {
-                            onAddToBasket(
-                                ProductBasketConfig(
-                                    item = item,
-                                    handoverOptionTitle = selectedHandover.title,
-                                    handoverFee = selectedHandover.extraFee,
-                                    packageOptionTitle = selectedPackage.title,
-                                    packageExtraPrice = selectedPackage.extraPrice,
-                                    quantity = quantity,
-                                    buyerNote = buyerNote.trim()
-                                )
-                            )
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TextDarkPrimary),
+                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp)
-                            .height(54.dp)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "Add $quantity to basket • ${item.currency} ${"%,.2f".format(basketTotal)}",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        // Streamlined Quantity Stepper right next to Add to Basket CTA
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, DividerLight),
+                            modifier = Modifier.height(50.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { if (quantity > 1) quantity-- },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Decrease quantity",
+                                        tint = if (quantity > 1) TextDarkPrimary else TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "$quantity",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDarkPrimary,
+                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                )
+                                IconButton(
+                                    onClick = { if (quantity < 5) quantity++ },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Increase quantity",
+                                        tint = TextDarkPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Add to Basket CTA
+                        Button(
+                            onClick = {
+                                onAddToBasket(
+                                    ProductBasketConfig(
+                                        item = item,
+                                        handoverOptionTitle = selectedHandover.title,
+                                        handoverFee = selectedHandover.extraFee,
+                                        packageOptionTitle = selectedPackage.title,
+                                        packageExtraPrice = selectedPackage.extraPrice,
+                                        quantity = quantity,
+                                        buyerNote = buyerNote.trim()
+                                    )
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = TextDarkPrimary),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
+                        ) {
+                            Text(
+                                text = "Add to basket • ${item.currency} ${"%,.0f".format(basketTotal)}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }

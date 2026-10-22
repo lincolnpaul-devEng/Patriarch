@@ -5,24 +5,47 @@ import com.campus.network.core.model.CallSession
 import com.campus.network.core.model.CallSessionStatus
 import com.campus.network.core.model.OutgoingCallInvite
 import com.campus.network.core.model.isRealProfileDisplayName
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.net.URLEncoder
+import kotlinx.serialization.Serializable
 import java.util.UUID
+
+@Serializable
+data class CallSessionRow(
+    val id: String = "",
+    val channel_id: String = "",
+    val caller_id: String = "",
+    val caller_name: String = "",
+    val callee_id: String = "",
+    val callee_name: String = "",
+    val media_kind: String = "AUDIO",
+    val status: String = "RINGING",
+    val created_at_epoch_ms: Long = 0L,
+    val updated_at_epoch_ms: Long = 0L
+)
+
+@Serializable
+data class PushTokenRow(
+    val user_id: String,
+    val fcm_token: String,
+    val updated_at_epoch_ms: Long
+)
 
 /**
  * Supabase-backed call invite signaling.
- * Works across two devices when both can reach PostgREST (poll or future realtime).
+ * Works across two devices when both can reach PostgREST.
  */
 class CallSignalingRepository(
-    private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
+    private val profileNameResolver = SupabaseProfileNameResolver(supabase)
 
     suspend fun createOutgoingInvite(invite: OutgoingCallInvite): Result<CallSession> =
         withContext(ioDispatcher) {
@@ -53,55 +76,77 @@ class CallSignalingRepository(
                 createdAtEpochMs = now,
                 updatedAtEpochMs = now
             )
-            val payload = sessionToJson(session).toString()
-            val result = supabaseClient.upsertRecord(
-                "campus_call_sessions",
-                payload,
-                onConflict = "id"
-            )
-            if (result.isSuccess) Result.success(session)
-            else Result.failure(result.exceptionOrNull() ?: Exception("Failed to create call session"))
+            runCatching {
+                supabase.from("campus_call_sessions").upsert(
+                    CallSessionRow(
+                        id = session.id,
+                        channel_id = session.channelId,
+                        caller_id = session.callerId,
+                        caller_name = session.callerName,
+                        callee_id = session.calleeId,
+                        callee_name = session.calleeName,
+                        media_kind = session.mediaKind.name,
+                        status = session.status.name,
+                        created_at_epoch_ms = session.createdAtEpochMs,
+                        updated_at_epoch_ms = session.updatedAtEpochMs
+                    )
+                )
+                session
+            }
         }
 
     suspend fun updateStatus(sessionId: String, status: CallSessionStatus): Result<Unit> =
         withContext(ioDispatcher) {
-            val now = System.currentTimeMillis()
-            val payload = JSONObject().apply {
-                put("status", status.name)
-                put("updated_at_epoch_ms", now)
-            }.toString()
-            val encoded = URLEncoder.encode(sessionId, Charsets.UTF_8.name())
-            val result = supabaseClient.updateRecord(
-                "campus_call_sessions?id=eq.$encoded",
-                payload
-            )
-            if (result.isSuccess) Result.success(Unit)
-            else Result.failure(result.exceptionOrNull() ?: Exception("Failed to update call status"))
+            runCatching {
+                val now = System.currentTimeMillis()
+                supabase.from("campus_call_sessions").update(
+                    mapOf(
+                        "status" to status.name,
+                        "updated_at_epoch_ms" to now
+                    )
+                ) {
+                    filter {
+                        eq("id", sessionId)
+                    }
+                }
+                Unit
+            }
         }
 
     suspend fun getSession(sessionId: String): CallSession? = withContext(ioDispatcher) {
-        val encoded = URLEncoder.encode(sessionId, Charsets.UTF_8.name())
-        val raw = supabaseClient.queryTable("campus_call_sessions?id=eq.$encoded&limit=1")
-            .getOrNull() ?: return@withContext null
-        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return@withContext null
-        if (array.length() == 0) return@withContext null
-        resolveSessionNames(listOfNotNull(parseSession(array.getJSONObject(0)))).firstOrNull()
+        val rows: List<CallSessionRow> = runCatching {
+            supabase.from("campus_call_sessions")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("id", sessionId)
+                    }
+                    limit(1)
+                }
+                .decodeList<CallSessionRow>()
+        }.getOrNull() ?: return@withContext null
+
+        val row = rows.firstOrNull() ?: return@withContext null
+        resolveSessionNames(listOf(row.toDomain())).firstOrNull()
     }
 
     /** Incoming RINGING invites for this user (newest first). */
     suspend fun fetchIncomingRinging(calleeUserId: String): List<CallSession> =
         withContext(ioDispatcher) {
             if (calleeUserId.isBlank()) return@withContext emptyList()
-            val encoded = URLEncoder.encode(calleeUserId, Charsets.UTF_8.name())
-            val raw = supabaseClient.queryTable(
-                "campus_call_sessions?callee_id=eq.$encoded&status=eq.RINGING&order=created_at_epoch_ms.desc&limit=5"
-            ).getOrNull() ?: return@withContext emptyList()
-            val array = runCatching { JSONArray(raw) }.getOrNull() ?: return@withContext emptyList()
-            val sessions = buildList {
-                for (i in 0 until array.length()) {
-                    parseSession(array.getJSONObject(i))?.let { add(it) }
-                }
-            }
+            val rows: List<CallSessionRow> = runCatching {
+                supabase.from("campus_call_sessions")
+                    .select(columns = Columns.ALL) {
+                        filter {
+                            eq("callee_id", calleeUserId)
+                            eq("status", "RINGING")
+                        }
+                        order("created_at_epoch_ms", order = Order.DESCENDING)
+                        limit(5)
+                    }
+                    .decodeList<CallSessionRow>()
+            }.getOrDefault(emptyList())
+
+            val sessions = rows.map { it.toDomain() }
             resolveSessionNames(sessions)
         }
 
@@ -110,54 +155,17 @@ class CallSignalingRepository(
             if (userId.isBlank() || fcmToken.isBlank()) {
                 return@withContext Result.failure(IllegalArgumentException("userId/token required"))
             }
-            val payload = JSONObject().apply {
-                put("user_id", userId)
-                put("fcm_token", fcmToken)
-                put("updated_at_epoch_ms", System.currentTimeMillis())
-            }.toString()
-            val result = supabaseClient.upsertRecord(
-                "campus_device_push_tokens",
-                payload,
-                onConflict = "user_id"
-            )
-            if (result.isSuccess) Result.success(Unit)
-            else Result.failure(result.exceptionOrNull() ?: Exception("Failed to register push token"))
+            runCatching {
+                supabase.from("campus_device_push_tokens").upsert(
+                    PushTokenRow(
+                        user_id = userId,
+                        fcm_token = fcmToken,
+                        updated_at_epoch_ms = System.currentTimeMillis()
+                    )
+                )
+                Unit
+            }
         }
-
-    private fun sessionToJson(session: CallSession): JSONObject = JSONObject().apply {
-        put("id", session.id)
-        put("channel_id", session.channelId)
-        put("caller_id", session.callerId)
-        put("caller_name", session.callerName)
-        put("callee_id", session.calleeId)
-        put("callee_name", session.calleeName)
-        put("media_kind", session.mediaKind.name)
-        put("status", session.status.name)
-        put("created_at_epoch_ms", session.createdAtEpochMs)
-        put("updated_at_epoch_ms", session.updatedAtEpochMs)
-    }
-
-    private fun parseSession(obj: JSONObject): CallSession? {
-        val id = obj.optString("id").ifBlank { return null }
-        val media = runCatching {
-            CallMediaKind.valueOf(obj.optString("media_kind", "AUDIO").uppercase())
-        }.getOrDefault(CallMediaKind.AUDIO)
-        val status = runCatching {
-            CallSessionStatus.valueOf(obj.optString("status", "RINGING").uppercase())
-        }.getOrDefault(CallSessionStatus.RINGING)
-        return CallSession(
-            id = id,
-            channelId = obj.optString("channel_id"),
-            callerId = obj.optString("caller_id"),
-            callerName = "",
-            calleeId = obj.optString("callee_id"),
-            calleeName = "",
-            mediaKind = media,
-            status = status,
-            createdAtEpochMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis()),
-            updatedAtEpochMs = obj.optLong("updated_at_epoch_ms", System.currentTimeMillis())
-        )
-    }
 
     private suspend fun resolveSessionNames(sessions: List<CallSession>): List<CallSession> {
         if (sessions.isEmpty()) return emptyList()
@@ -172,3 +180,16 @@ class CallSignalingRepository(
         }
     }
 }
+
+private fun CallSessionRow.toDomain(): CallSession = CallSession(
+    id = id,
+    channelId = channel_id,
+    callerId = caller_id,
+    callerName = caller_name,
+    calleeId = callee_id,
+    calleeName = callee_name,
+    mediaKind = runCatching { CallMediaKind.valueOf(media_kind.uppercase()) }.getOrDefault(CallMediaKind.AUDIO),
+    status = runCatching { CallSessionStatus.valueOf(status.uppercase()) }.getOrDefault(CallSessionStatus.RINGING),
+    createdAtEpochMs = created_at_epoch_ms,
+    updatedAtEpochMs = updated_at_epoch_ms
+)

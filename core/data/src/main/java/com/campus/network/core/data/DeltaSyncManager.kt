@@ -4,13 +4,13 @@ import android.content.Context
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.*
 import com.campus.network.core.model.SyncStatus
-import com.campus.network.core.network.SupabaseClientProvider
-import com.campus.network.core.network.SupabaseHttpException
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.IOException
 
 /** Coordinates remote delta reads and local-first pending writes. */
@@ -21,7 +21,7 @@ class DeltaSyncManager private constructor(
     private val liveStreamRepository: LiveStreamRepository,
     private val profileRepository: StudentProfileRepository,
     private val database: CampusDatabase,
-    private val supabaseClient: SupabaseClientProvider,
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val watermarkStore: SyncWatermarkStore,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
@@ -32,7 +32,7 @@ class DeltaSyncManager private constructor(
             instance ?: run {
                 val appContext = context.applicationContext
                 val database = CampusDatabase.getInstance(appContext)
-                val supabase = SupabaseClientProvider()
+                val supabase = SupabaseSdkClientProvider.defaultClient
                 DeltaSyncManager(
                     serverRepository = ServerRepository(database, supabase),
                     hubRepository = CampusHubRepository(context, database, supabase),
@@ -40,7 +40,7 @@ class DeltaSyncManager private constructor(
                     liveStreamRepository = LiveStreamRepository(database, supabase),
                     profileRepository = StudentProfileRepository(database, supabase),
                     database = database,
-                    supabaseClient = supabase,
+                    supabase = supabase,
                     watermarkStore = SyncWatermarkStore.apply { initialize(appContext) }
                 ).also { instance = it }
             }
@@ -157,7 +157,7 @@ class DeltaSyncManager private constructor(
     }
 
     private suspend fun updateStatus(
-        result: Result<String>,
+        result: Result<Unit>,
         update: suspend (String) -> Unit
     ): Boolean {
         if (result.isSuccess) {
@@ -173,7 +173,6 @@ class DeltaSyncManager private constructor(
     private fun isTransient(error: Throwable): Boolean {
         var cause: Throwable? = error
         while (cause != null) {
-            if (cause is SupabaseHttpException) return cause.isRetryable
             if (cause is IOException) return true
             cause = cause.cause
         }
@@ -181,38 +180,38 @@ class DeltaSyncManager private constructor(
     }
 
     private suspend fun uploadProfile(row: StudentProfileEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("full_name", row.fullName)
-            put("university_name", row.universityName)
-            put("degree_program", row.degreeProgram)
-            put("academic_year", row.academicYear)
-            put("bio", row.bio)
-            row.avatarUrl?.let { put("avatar_url", it) }
-            put("campus_residence", row.campusResidence)
-            put("phone_number", row.phoneNumber)
-            put("preferred_rendezvous_point", row.preferredRendezvousPoint)
-            put("notifications_enabled", row.notificationsEnabled)
-            put("escrow_alerts_enabled", row.escrowAlertsEnabled)
-            put("quest_reminders_enabled", row.questRemindersEnabled)
-            put("is_trust_score_public", row.isTrustScorePublic)
-            put("is_online_status_visible", row.isOnlineStatusVisible)
-            put("activity_ledger_visibility", row.activityLedgerVisibility)
-            put("location_privacy_scope", row.locationPrivacyScope)
-            put("interests", JSONArray(row.interestsCsv.split(";;").filter(String::isNotEmpty)))
-            put(
-                "onboarding_preferences",
-                JSONObject(StudentProfileEntity.serializeOnboardingPreferences(row.toDomain().onboardingPreferences))
-            )
-        }.toString()
         val userId = com.campus.network.core.network.SupabaseSessionStore.session()
             ?.optString("user_id")?.takeIf(String::isNotBlank)
         val result = if (userId == null) {
             Result.failure(SecurityException("Sign in before syncing profile changes"))
         } else {
-            supabaseClient.updateRecord(
-                "campusprofile?user_id=eq.${java.net.URLEncoder.encode(userId, "UTF-8")}",
-                payload
-            ).requireSavedRow()
+            runCatching {
+                supabase.from("campusprofile").update(
+                    CampusProfileRow(
+                        id = row.id,
+                        user_id = userId,
+                        full_name = row.fullName,
+                        university_name = row.universityName,
+                        degree_program = row.degreeProgram,
+                        academic_year = row.academicYear,
+                        bio = row.bio,
+                        avatar_url = row.avatarUrl,
+                        campus_residence = row.campusResidence,
+                        phone_number = row.phoneNumber,
+                        preferred_rendezvous_point = row.preferredRendezvousPoint,
+                        notifications_enabled = row.notificationsEnabled,
+                        escrow_alerts_enabled = row.escrowAlertsEnabled,
+                        quest_reminders_enabled = row.questRemindersEnabled,
+                        is_trust_score_public = row.isTrustScorePublic,
+                        is_online_status_visible = row.isOnlineStatusVisible,
+                        activity_ledger_visibility = row.activityLedgerVisibility,
+                        location_privacy_scope = row.locationPrivacyScope
+                    )
+                ) {
+                    filter { eq("user_id", userId) }
+                }
+                Unit
+            }
         }
         return updateStatus(result) {
             database.studentProfileDao().updateProfileSyncStatus(row.id, it, row.syncId)
@@ -220,138 +219,249 @@ class DeltaSyncManager private constructor(
     }
 
     private suspend fun uploadServer(row: ServerEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("name", row.name); put("description", row.description)
-            put("category", row.category); put("owner_id", row.ownerId)
-            put("avatar_res_name", row.avatarResName); row.bannerResName?.let { put("banner_res_name", it) }
-            put("is_verified", row.isVerified); put("member_count", row.memberCount)
-            put("invite_code", row.inviteCode)
-        }.toString()
-        val result = supabaseClient.upsertRecord("servers", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("servers").upsert(
+                ServerRow(
+                    id = row.id,
+                    name = row.name,
+                    description = row.description,
+                    category = row.category,
+                    owner_id = row.ownerId,
+                    avatar_res_name = row.avatarResName,
+                    banner_res_name = row.bannerResName,
+                    is_verified = row.isVerified,
+                    member_count = row.memberCount,
+                    invite_code = row.inviteCode,
+                    created_at_epoch_ms = row.createdAtEpochMs
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.serverDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadChannel(row: ServerChannelEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("server_id", row.serverId); put("name", row.name)
-            put("category_name", row.categoryName); put("channel_type", row.channelType.lowercase())
-            put("topic", row.topic); put("is_unread", row.unreadCount > 0)
-            put("order_index", row.orderIndex)
-        }.toString()
-        val result = supabaseClient.upsertRecord("server_channels", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("server_channels").upsert(
+                ServerChannelRow(
+                    id = row.id,
+                    server_id = row.serverId,
+                    name = row.name,
+                    category_name = row.categoryName,
+                    channel_type = row.channelType.lowercase(),
+                    topic = row.topic,
+                    is_unread = row.unreadCount > 0,
+                    order_index = row.orderIndex
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.serverChannelDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadRule(row: ServerRuleEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("server_id", row.serverId); put("rule_index", row.ruleIndex)
-            put("title", row.title); put("description", row.description)
-        }.toString()
-        val result = supabaseClient.upsertRecord("server_rules", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("server_rules").upsert(
+                ServerRuleRow(
+                    id = row.id,
+                    server_id = row.serverId,
+                    rule_index = row.ruleIndex,
+                    title = row.title,
+                    description = row.description
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.serverRuleDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadMember(row: ServerMemberEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("server_id", row.serverId); put("user_id", row.userId)
-            put("display_name", row.displayName); put("handle", row.handle); put("role", row.role)
-            put("role_title", row.roleTitle); put("role_color_hex", row.roleColorHex)
-            row.avatarUrl?.let { put("avatar_url", it) }
-            put("avatar_res_name", row.avatarResName); put("is_online", row.isOnline)
-            put("joined_at_epoch_ms", row.joinedAtEpochMs)
-        }.toString()
-        val result = supabaseClient.upsertRecord("server_members", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("server_members").upsert(
+                ServerMemberRow(
+                    id = row.id,
+                    server_id = row.serverId,
+                    user_id = row.userId,
+                    display_name = row.displayName,
+                    handle = row.handle,
+                    role = row.role,
+                    role_title = row.roleTitle,
+                    role_color_hex = row.roleColorHex,
+                    avatar_url = row.avatarUrl,
+                    avatar_res_name = row.avatarResName,
+                    is_online = row.isOnline,
+                    joined_at_epoch_ms = row.joinedAtEpochMs
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.serverMemberDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadFriend(row: FriendEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("user_id", row.userId); put("friend_user_id", row.friendUserId)
-            put("friend_display_name", row.friendDisplayName); put("friend_handle", row.friendHandle)
-            put("friend_avatar_res_name", row.friendAvatarResName); put("status", row.status)
-            put("last_interaction_epoch_ms", row.lastInteractionEpochMs)
-            row.dmChannelId?.let { put("dm_channel_id", it) }
-        }.toString()
-        val result = supabaseClient.upsertRecord("campus_friends", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("campus_friends").upsert(
+                FriendRow(
+                    id = row.id,
+                    user_id = row.userId,
+                    friend_user_id = row.friendUserId,
+                    friend_display_name = row.friendDisplayName,
+                    friend_handle = row.friendHandle,
+                    friend_avatar_res_name = row.friendAvatarResName,
+                    status = row.status,
+                    last_interaction_epoch_ms = row.lastInteractionEpochMs,
+                    dm_channel_id = row.dmChannelId
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.friendDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadMarketItem(row: MarketItemEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("title", row.title); put("price", row.price)
-            put("currency", row.currency); put("category", row.category); put("condition", row.condition)
-            put("seller_name", row.sellerName); put("seller_id", row.sellerUserId)
-            put("seller_rating", row.sellerRating); put("is_campus_verified_seller", row.isCampusVerifiedSeller)
-            put("campus_hall_location", row.campusHallLocation); put("image_url", row.imageUrl)
-            put("timestamp_ms", row.timestampMs); put("description", row.description)
-            put("pickup_spot_name", row.pickupSpotName); put("pickup_security_level", row.pickupSecurityLevel)
-            put("pickup_latitude", row.pickupLatitude); put("pickup_longitude", row.pickupLongitude)
-            put("pickup_timing", row.pickupTiming); put("payout_method", row.payoutMethod)
-            put("requires_qr_release_code", row.requiresQrReleaseCode); put("qr_release_code", row.qrReleaseCode)
-        }.toString()
-        val result = supabaseClient.upsertRecord("campus_market_items", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("campus_market_items").upsert(
+                MarketItemRow(
+                    id = row.id,
+                    title = row.title,
+                    price = row.price,
+                    currency = row.currency,
+                    category = row.category,
+                    condition = row.condition,
+                    seller_name = row.sellerName,
+                    seller_id = row.sellerUserId,
+                    seller_rating = row.sellerRating.toDouble(),
+                    is_campus_verified_seller = row.isCampusVerifiedSeller,
+                    campus_hall_location = row.campusHallLocation,
+                    image_url = row.imageUrl,
+                    timestamp_ms = row.timestampMs,
+                    description = row.description,
+                    pickup_spot_name = row.pickupSpotName,
+                    pickup_security_level = row.pickupSecurityLevel,
+                    pickup_latitude = row.pickupLatitude,
+                    pickup_longitude = row.pickupLongitude,
+                    pickup_timing = row.pickupTiming,
+                    payout_method = row.payoutMethod,
+                    requires_qr_release_code = row.requiresQrReleaseCode,
+                    qr_release_code = row.qrReleaseCode
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.marketItemDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadMicroGig(row: MicroGigEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("title", row.title); put("description", row.description)
-            put("payout_amount", row.payoutAmount); put("currency", row.currency)
-            put("estimated_duration", row.estimatedDuration); put("poster_name", row.posterName)
-            put("poster_id", row.posterUserId); put("poster_trust_score", row.posterTrustScore)
-            put("tag", row.tag); put("urgency_name", row.urgencyName)
-            put("spots_available", row.spotsAvailable); put("timestamp_ms", row.timestampMs)
-        }.toString()
-        val result = supabaseClient.upsertRecord("campus_micro_gigs", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("campus_micro_gigs").upsert(
+                MicroGigRow(
+                    id = row.id,
+                    title = row.title,
+                    description = row.description,
+                    payout_amount = row.payoutAmount,
+                    currency = row.currency,
+                    estimated_duration = row.estimatedDuration,
+                    poster_name = row.posterName,
+                    poster_id = row.posterUserId,
+                    poster_trust_score = row.posterTrustScore,
+                    tag = row.tag,
+                    urgency_name = row.urgencyName,
+                    spots_available = row.spotsAvailable,
+                    timestamp_ms = row.timestampMs,
+                    banner_url = row.bannerUrl
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.microGigDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadLiveStream(row: LiveStreamEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("broadcaster_id", row.broadcasterId)
-            put("broadcaster_name", row.broadcasterName); put("broadcaster_handle", row.broadcasterHandle)
-            put("broadcaster_avatar_res", row.broadcasterAvatarRes); put("title", row.title)
-            put("description", row.description); put("category", row.category); put("audience", row.audience)
-            put("is_live", row.isLive); put("stream_playback_url", row.streamPlaybackUrl)
-            put("viewer_count", row.viewerCount); put("peak_viewers", row.peakViewers)
-            put("like_count", row.likeCount); put("started_at_epoch_ms", row.startedAtEpochMs)
-        }.toString()
-        val result = supabaseClient.upsertRecord("campus_live_streams", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("campus_live_streams").upsert(
+                LiveStreamRow(
+                    id = row.id,
+                    broadcaster_id = row.broadcasterId,
+                    broadcaster_name = row.broadcasterName,
+                    broadcaster_handle = row.broadcasterHandle,
+                    broadcaster_avatar_res = row.broadcasterAvatarRes,
+                    title = row.title,
+                    description = row.description,
+                    category = row.category,
+                    audience = row.audience,
+                    is_live = row.isLive,
+                    stream_playback_url = row.streamPlaybackUrl,
+                    viewer_count = row.viewerCount,
+                    peak_viewers = row.peakViewers,
+                    like_count = row.likeCount,
+                    started_at_epoch_ms = row.startedAtEpochMs
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.liveStreamDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadComment(row: StreamCommentEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("stream_id", row.streamId); put("sender_id", row.senderId)
-            put("sender_name", row.senderName); put("sender_avatar_url", row.senderAvatarUrl)
-            put("sender_avatar_res", row.senderAvatarRes); put("comment_text", row.commentText)
-            put("timestamp_epoch_ms", row.timestampEpochMs)
-        }.toString()
-        val result = supabaseClient.upsertRecord("campus_stream_comments", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("campus_stream_comments").upsert(
+                StreamCommentRow(
+                    id = row.id,
+                    stream_id = row.streamId,
+                    sender_id = row.senderId,
+                    sender_name = row.senderName,
+                    sender_avatar_url = row.senderAvatarUrl,
+                    sender_avatar_res = row.senderAvatarRes,
+                    comment_text = row.commentText,
+                    timestamp_epoch_ms = row.timestampEpochMs
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.streamCommentDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadFlashMeet(row: FlashMeetEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("title", row.title); put("description", row.description)
-            put("category_name", row.categoryName); put("latitude", row.latitude); put("longitude", row.longitude)
-            put("location_name", row.locationName); put("creator_name", row.creatorName)
-            put("creator_id", row.creatorUserId); put("created_at_epoch_ms", row.createdAtEpochMs)
-            put("expires_at_epoch_ms", row.expiresAtEpochMs); put("attendee_count", row.attendeeCount)
-            put("max_attendees", row.maxAttendees)
-        }.toString()
-        val result = supabaseClient.upsertRecord("campus_flash_meets", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("campus_flash_meets").upsert(
+                FlashMeetRow(
+                    id = row.id,
+                    title = row.title,
+                    description = row.description,
+                    category_name = row.categoryName,
+                    latitude = row.latitude,
+                    longitude = row.longitude,
+                    location_name = row.locationName,
+                    creator_name = row.creatorName,
+                    creator_id = row.creatorUserId,
+                    created_at_epoch_ms = row.createdAtEpochMs,
+                    expires_at_epoch_ms = row.expiresAtEpochMs,
+                    attendee_count = row.attendeeCount,
+                    max_attendees = row.maxAttendees
+                )
+            )
+            Unit
+        }
         return updateStatus(result) { database.flashMeetDao().updateSyncStatus(row.id, row.syncId, it) }
     }
 
     private suspend fun uploadChannelMessage(row: ServerChannelMessageEntity): Boolean {
-        val payload = JSONObject().apply {
-            put("id", row.id); put("server_id", row.serverId); put("channel_id", row.channelId)
-            put("sender_id", row.senderId); put("sender_name", row.senderName); put("text", row.text)
-            put("image_urls", JSONArray(row.imageUrlsJson)); put("reaction_count", row.reactionCount)
-            put("timestamp_epoch_ms", row.timestampEpochMs)
-        }.toString()
-        val result = supabaseClient.upsertRecord("server_channel_messages", payload, onConflict = "id").requireSavedRow()
+        val result = runCatching {
+            supabase.from("server_channel_messages").upsert(
+                ServerChannelMessageRow(
+                    id = row.id,
+                    server_id = row.serverId,
+                    channel_id = row.channelId,
+                    sender_id = row.senderId,
+                    sender_name = row.senderName,
+                    text = row.text,
+                    image_urls = row.imageUrlsJson.takeIf { it.isNotBlank() },
+                    reaction_count = row.reactionCount,
+                    timestamp_epoch_ms = row.timestampEpochMs
+                )
+            )
+            Unit
+        }
         return updateStatus(result) {
             database.serverChannelMessageDao().updateSyncStatus(row.id, row.syncId, it)
         }

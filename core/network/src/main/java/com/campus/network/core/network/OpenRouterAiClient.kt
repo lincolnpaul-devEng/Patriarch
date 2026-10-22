@@ -4,21 +4,24 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
+import io.github.jan.supabase.postgrest.from
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.OutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.nio.charset.StandardCharsets
 
-/**
- * OpenRouter AI Client for real-time search suggestions and semantic campus queries.
- * Credentials and configuration extracted securely from the UniHub project.
- */
 class OpenRouterAiClient(
-    private val supabase: SupabaseClientProvider = SupabaseClientProvider(),
+    private val supabase: SupabaseSdkClientProvider = SupabaseSdkClientProvider(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    companion object {
+    private companion object {
+        private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
         private const val MODEL_NAME = "google/gemini-2.0-flash-exp:free"
 
-        val DEFAULT_TRENDING_SUGGESTIONS = listOf(
+        private val DEFAULT_TRENDING_SUGGESTIONS = listOf(
             "Central Quad study pods open late",
             "Quiet library pods open after midnight",
             "Affordable engineering laptops and monitors",
@@ -26,32 +29,6 @@ class OpenRouterAiClient(
             "Used textbooks and class notes",
             "Finals study group meetups"
         )
-    }
-
-
-    /**
-     * Fetches dynamic AI search suggestions for the given query.
-     * Resilient: Falls back to instant curated suggestions on timeout or network error.
-     */
-    suspend fun getSearchSuggestions(query: String): List<String> = withContext(ioDispatcher) {
-        val trimmed = query.trim()
-        if (trimmed.isEmpty()) {
-            return@withContext DEFAULT_TRENDING_SUGGESTIONS
-        }
-
-        // Try AI generation with a fast timeout (3.5s) to preserve search responsiveness
-        val aiResults = withTimeoutOrNull(3500L) {
-            runCatching {
-                queryAiForSuggestions(trimmed)
-            }.getOrNull()
-        }
-
-        if (!aiResults.isNullOrEmpty()) {
-            aiResults
-        } else {
-            // Intelligent local fallback matching the query
-            generateFallbackSuggestions(trimmed)
-        }
     }
 
     private suspend fun queryAiForSuggestions(query: String): List<String> {
@@ -64,7 +41,7 @@ class OpenRouterAiClient(
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
-                    put("content", "You are an AI search engine autocomplete assistant. Output only a JSON array of strings.")
+                    put("content", "You are a campus network AI search engine autocomplete assistant. Output only a JSON array of strings.")
                 })
                 put(JSONObject().apply {
                     put("role", "user")
@@ -75,11 +52,40 @@ class OpenRouterAiClient(
             put("temperature", 0.3)
         }
 
-        val responseBody = supabase.invokeFunction("ai-completions", requestJson.toString()).getOrThrow()
+        val responseBody = invokeOpenRouterAI(requestJson.toString())
         return parseSuggestionsFromResponse(responseBody)
     }
 
-    private fun parseSuggestionsFromResponse(jsonStr: String): List<String> {
+    private suspend fun invokeOpenRouterAI(jsonBody: String): String = withContext(ioDispatcher) {
+        runCatching {
+            val url = URL("https://openrouter.ai/api/v1/chat/completions")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Authorization", "Bearer ${BuildConfig.OPENROUTER_API_KEY}")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Accept", "application/json")
+            val output = connection.outputStream
+            output.write(jsonBody.toByteArray(StandardCharsets.UTF_8))
+            output.flush()
+            output.close()
+            val responseCode = connection.responseCode
+            val input = if (responseCode >= 200 && responseCode < 300) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+            val responseBody = input?.use { it.readBytes() }?.let { String(it, StandardCharsets.UTF_8) }
+                ?: throw IllegalStateException("No response data from OpenRouter")
+            if (responseCode >= 200 && responseCode < 300) {
+                responseBody
+            } else {
+                throw IllegalStateException("OpenRouter API error $responseCode: $responseBody")
+            }
+        }.getOrThrow()
+    }
+
+    private suspend fun parseSuggestionsFromResponse(jsonStr: String): List<String> {
         return runCatching {
             val root = JSONObject(jsonStr)
             val choices = root.getJSONArray("choices")
@@ -88,7 +94,6 @@ class OpenRouterAiClient(
             val messageObj = choices.getJSONObject(0).getJSONObject("message")
             var content = messageObj.getString("content").trim()
 
-            // Remove any markdown code block wrapper if present
             if (content.startsWith("```json")) {
                 content = content.removePrefix("```json").trim()
             }
@@ -102,8 +107,8 @@ class OpenRouterAiClient(
             val array = JSONArray(content)
             val result = mutableListOf<String>()
             for (i in 0 until array.length()) {
-                val item = array.optString(i)?.trim()
-                if (!item.isNullOrEmpty()) {
+                val item = array.optString(i, "").trim()
+                if (item.isNotEmpty()) {
                     result.add(item)
                 }
             }
@@ -111,20 +116,40 @@ class OpenRouterAiClient(
         }.getOrDefault(emptyList())
     }
 
-    /** AI-written stream details so hosts can go live in one tap. */
+    suspend fun getSearchSuggestions(query: String): List<String> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            return DEFAULT_TRENDING_SUGGESTIONS
+        }
+
+        val aiResults = withTimeoutOrNull(3500L) {
+            runCatching {
+                queryAiForSuggestions(trimmed)
+            }.getOrNull()
+        }
+
+        return if (!aiResults.isNullOrEmpty()) {
+            aiResults
+        } else {
+            generateFallbackSuggestions(trimmed)
+        }
+    }
+
     data class AiStreamDraft(val title: String, val description: String, val hashtags: List<String>)
 
-    /**
-     * Drafts a catchy title, short description and hashtags for a campus live stream.
-     * [idea] is whatever the host typed (may be blank). Falls back to a local draft
-     * on timeout or network/parse errors so the Go Live flow never blocks.
-     */
     suspend fun generateStreamDraft(idea: String, category: String): AiStreamDraft = withContext(ioDispatcher) {
         val trimmed = idea.trim()
         val ai = withTimeoutOrNull(5000L) {
             runCatching { queryAiForStreamDraft(trimmed, category) }.getOrNull()
         }
         ai ?: fallbackStreamDraft(trimmed, category)
+    }
+
+    private fun fallbackStreamDraft(idea: String, category: String): AiStreamDraft {
+        val title = if (idea.isNotBlank()) idea.take(60) else "Live $category Session"
+        val desc = "Join my live session discussing $category! Feel free to ask questions and chat."
+        val cleanCategory = category.filter { it.isLetterOrDigit() }.lowercase()
+        return AiStreamDraft(title, desc, listOf("campus", "live", cleanCategory.ifBlank { "stream" }))
     }
 
     private suspend fun queryAiForStreamDraft(idea: String, category: String): AiStreamDraft? {
@@ -147,33 +172,23 @@ class OpenRouterAiClient(
                 })
             })
             put("max_tokens", 220)
-            put("temperature", 0.8)
+            put("temperature", 0.3)
         }
 
-        val content = JSONObject(supabase.invokeFunction("ai-completions", requestJson.toString()).getOrThrow())
-            .getJSONArray("choices").getJSONObject(0)
-            .getJSONObject("message").getString("content")
-            .trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val response = invokeOpenRouterAI(requestJson.toString())
+        val content = response ?: return null
         val obj = JSONObject(content)
         val title = obj.optString("title").trim()
         if (title.isEmpty()) return null
         val tags = obj.optJSONArray("hashtags")?.let { arr ->
-            (0 until arr.length()).map { arr.optString(it).trim().removePrefix("#") }.filter { it.isNotEmpty() }
+            (0 until arr.length()).map { arr.optString(it).trim() }
+                .filter { it.isNotEmpty() }
         }.orEmpty()
         return AiStreamDraft(title, obj.optString("description").trim(), tags.take(3))
     }
 
-    private fun fallbackStreamDraft(idea: String, category: String): AiStreamDraft {
-        val title = if (idea.isBlank()) "Live: $category on campus" else idea.replaceFirstChar { it.uppercase() }
-        return AiStreamDraft(
-            title = title.take(60),
-            description = "Join me live and drop your questions in the comments!",
-            hashtags = listOf(category.filter { it.isLetterOrDigit() }, "CampusLive", "StudentLife")
-        )
-    }
-
-    private fun generateFallbackSuggestions(query: String): List<String> {
-        val lower = query.lowercase()
+    private suspend fun generateFallbackSuggestions(query: String): List<String> {
+        val lower = query.trim().lowercase()
         val allCurated = listOf(
             "Central Quad study pods open late",
             "Used organic chemistry textbooks",

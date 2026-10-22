@@ -1,21 +1,38 @@
 package com.campus.network.core.data
 
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
 import java.util.UUID
+
+@Serializable
+data class CampusNotificationRow(
+    val id: String,
+    val recipient_user_id: String,
+    val actor_user_id: String,
+    val actor_name: String,
+    val type: String,
+    val title: String,
+    val body: String,
+    val thread_id: String? = null,
+    val server_id: String? = null,
+    val is_read: Boolean = false,
+    val created_at_epoch_ms: Long
+)
 
 /**
  * Enqueues inbox rows into `campus_notifications` so the recipient's poller / FCM
  * path can surface system notifications for DMs and friend requests.
  */
 class CampusInboxNotifier(
-    private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
+    private val profileNameResolver = SupabaseProfileNameResolver(supabase)
 
     suspend fun notifyDirectMessage(
         recipientUserId: String,
@@ -98,22 +115,24 @@ class CampusInboxNotifier(
         body: String,
         threadId: String?,
         serverId: String? = null
-    ): Result<Unit> {
+    ): Result<Unit> = runCatching {
         val now = System.currentTimeMillis()
-        val payload = JSONObject().apply {
-            put("id", "notif_${UUID.randomUUID()}")
-            put("recipient_user_id", recipientUserId)
-            put("actor_user_id", actorUserId)
-            put("actor_name", actorName)
-            put("type", type)
-            put("title", title)
-            put("body", body)
-            if (!threadId.isNullOrBlank()) put("thread_id", threadId)
-            if (!serverId.isNullOrBlank()) put("server_id", serverId)
-            put("is_read", false)
-            put("created_at_epoch_ms", now)
-        }.toString()
-        return supabaseClient.insertRecord("campus_notifications", payload).map { }
+        supabase.from("campus_notifications").insert(
+            CampusNotificationRow(
+                id = "notif_${UUID.randomUUID()}",
+                recipient_user_id = recipientUserId,
+                actor_user_id = actorUserId,
+                actor_name = actorName,
+                type = type,
+                title = title,
+                body = body,
+                thread_id = threadId,
+                server_id = serverId,
+                is_read = false,
+                created_at_epoch_ms = now
+            )
+        )
+        Unit
     }
 
     companion object {

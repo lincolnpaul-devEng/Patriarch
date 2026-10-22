@@ -25,11 +25,14 @@ import com.campus.network.core.model.initials
 import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.model.stableUserId
 import com.campus.network.core.network.StreamChatEngine
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.call.CallMediaProvider
 import com.campus.network.core.network.call.CallMediaProviderRegistry
 import com.campus.network.core.ui.notifications.CampusSystemNotificationCenter
 import com.campus.network.feature.messages.audio.CallRingtoneManager
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,24 +41,42 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import org.json.JSONArray
+
+@Serializable
+data class DirectChatMessageRow(
+    val id: String = "",
+    val channel_id: String = "",
+    val sender_id: String = "",
+    val sender_name: String = "",
+    val text: String = "",
+    val timestamp_epoch_ms: Long = 0L,
+    val is_optimistic: Boolean = false,
+    val image_url: String? = null,
+    val gif_url: String? = null,
+    val reply_to_text: String? = null,
+    val is_delivered: Boolean = true,
+    val is_read: Boolean = false,
+    val reaction: String? = null
+)
 
 class MessagesViewModel(
     private val streamChatEngine: StreamChatEngine? = null,
     private val telecomCallManager: CampusTelecomCallManager? = null,
-    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository(),
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
+    private val studentProfileRepository: StudentProfileRepository = StudentProfileRepository(sdkClient = supabase),
     private val chatMessageDao: ChatMessageDao? = null,
-    private val supabaseClient: SupabaseClientProvider? = null,
-    private val callSignalingRepository: CallSignalingRepository = CallSignalingRepository(),
+    private val callSignalingRepository: CallSignalingRepository = CallSignalingRepository(supabase = supabase),
     private val callMediaProvider: CallMediaProvider = CallMediaProviderRegistry.resolve(),
-    private val inboxNotifier: CampusInboxNotifier = CampusInboxNotifier(),
-    private val dmTypingRepository: DirectChatTypingRepository = DirectChatTypingRepository(),
+    private val inboxNotifier: CampusInboxNotifier = CampusInboxNotifier(supabase = supabase),
+    private val dmTypingRepository: DirectChatTypingRepository = DirectChatTypingRepository(supabase = supabase),
     private val serverRepository: ServerRepository? = null,
     context: Context? = null
 ) : ViewModel() {
 
     private val appContext: Context? = context?.applicationContext
-    private val profileNameResolver = supabaseClient?.let(::SupabaseProfileNameResolver)
+    private val profileNameResolver = SupabaseProfileNameResolver(supabase)
     private val remoteProfileNames = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val remoteProfileAvatars = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -119,7 +140,7 @@ class MessagesViewModel(
     }
 
     private suspend fun resolveProfileNames(userIds: Collection<String>): Map<String, String> {
-        val profiles = profileNameResolver?.resolveWithAvatars(userIds).orEmpty()
+        val profiles = profileNameResolver.resolveWithAvatars(userIds)
         remoteProfileNames.putAll(profiles.mapValues { it.value.name })
         profiles.forEach { (userId, profile) ->
             val avatarUrl = profile.avatarUrl
@@ -173,7 +194,7 @@ class MessagesViewModel(
 
     init {
         viewModelScope.launch {
-            studentProfileRepository.getProfile().collect { profile ->
+            studentProfileRepository.studentProfile.collect { profile ->
                 _currentProfile.value = profile
                 val currentUserId = profile.stableUserId()
                 // Recompute isMine for in-memory threads when identity becomes available / changes.
@@ -397,15 +418,18 @@ class MessagesViewModel(
     private fun markThreadRead(threadId: String) {
         viewModelScope.launch {
             chatMessageDao?.markChannelMessagesRead(threadId)
-            val client = supabaseClient
             val me = resolveCurrentUserId()
-            if (client != null && me.isNotBlank()) {
+            if (me.isNotBlank()) {
                 runCatching {
-                    val encoded = java.net.URLEncoder.encode(threadId, Charsets.UTF_8.name())
-                    client.updateRecord(
-                        "campus_chat_messages?channel_id=eq.$encoded&sender_id=neq.$me&is_read=eq.false",
-                        """{"is_read":true}"""
-                    )
+                    supabase.from("campus_chat_messages").update(
+                        mapOf("is_read" to true)
+                    ) {
+                        filter {
+                            eq("channel_id", threadId)
+                            neq("sender_id", me)
+                            eq("is_read", false)
+                        }
+                    }
                 }
             }
         }
@@ -432,28 +456,28 @@ class MessagesViewModel(
     }
 
     private suspend fun pollIncomingDirectMessages() {
-        val client = supabaseClient ?: return
         val me = resolveCurrentUserId()
         if (me.isBlank()) return
-        val encodedMe = java.net.URLEncoder.encode(me, Charsets.UTF_8.name())
-        // Pull recent messages not authored by me — channels are dm_* or known thread ids
-        val result = client.queryTable(
-            "campus_chat_messages?sender_id=neq.$encodedMe&order=timestamp_epoch_ms.desc&limit=40"
-        )
-        val raw = result.getOrNull() ?: return
-        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return
-        val senderIds = (0 until array.length()).map { index ->
-            array.getJSONObject(index).optString("sender_id")
-        }
+        val list = runCatching {
+            supabase.from("campus_chat_messages").select {
+                filter {
+                    neq("sender_id", me)
+                }
+                order("timestamp_epoch_ms", order = Order.DESCENDING)
+                limit(40)
+            }.decodeList<DirectChatMessageRow>()
+        }.getOrNull() ?: return
+        if (list.isEmpty()) return
+
+        val senderIds = list.map { it.sender_id }
         val profileNames = runCatching { resolveProfileNames(senderIds) }.getOrDefault(emptyMap())
         val dao = chatMessageDao
         val activeThreadId = _uiState.value.selectedThread?.id
         val viewingChat = _uiState.value.currentScreen == MessagesScreenMode.CHAT
 
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val id = obj.optString("id")
-            val channelId = obj.optString("channel_id")
+        for (obj in list) {
+            val id = obj.id
+            val channelId = obj.channel_id
             if (id.isBlank() || channelId.isBlank()) continue
             // Only accept DMs that include this user in the channel id, or already-known threads
             val isKnownThread = _uiState.value.threads.any { it.id == channelId } ||
@@ -462,11 +486,11 @@ class MessagesViewModel(
             if (!isKnownThread && !isMyDm) continue
             if (!seenRemoteMessageIds.add(id)) continue
 
-            val senderId = obj.optString("sender_id", "")
+            val senderId = obj.sender_id
             val senderName = profileNames[senderId.lowercase()].orEmpty()
-            val text = obj.optString("text", "")
-            val ts = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis())
-            val isReadRemote = obj.optBoolean("is_read", false)
+            val text = obj.text
+            val ts = if (obj.timestamp_epoch_ms > 0L) obj.timestamp_epoch_ms else System.currentTimeMillis()
+            val isReadRemote = obj.is_read
             val viewingThis = viewingChat && activeThreadId == channelId
             val entity = ChatMessageEntity(
                 id = id,
@@ -476,9 +500,9 @@ class MessagesViewModel(
                 text = text,
                 timestampEpochMs = ts,
                 isOptimistic = false,
-                imageUrl = obj.cleanJsonString("image_url"),
-                gifUrl = obj.cleanJsonString("gif_url"),
-                replyToText = obj.cleanJsonString("reply_to_text"),
+                imageUrl = obj.image_url?.takeIf { it.isNotBlank() },
+                gifUrl = obj.gif_url?.takeIf { it.isNotBlank() },
+                replyToText = obj.reply_to_text?.takeIf { it.isNotBlank() },
                 isMine = false,
                 isDelivered = true,
                 isRead = viewingThis || isReadRemote
@@ -863,8 +887,10 @@ class MessagesViewModel(
                 _uiState.update { it.copy(messages = updated) }
                 viewModelScope.launch {
                     chatMessageDao?.deleteMessage(event.messageId)
-                    supabaseClient?.runCatching {
-                        deleteRecord("campus_chat_messages?id=eq.${event.messageId}")
+                    runCatching {
+                        supabase.from("campus_chat_messages").delete {
+                            filter { eq("id", event.messageId) }
+                        }
                     }
                 }
             }
@@ -883,15 +909,12 @@ class MessagesViewModel(
                 threadMessagesMap[activeThread.id] = updated
                 _uiState.update { it.copy(messages = updated) }
                 viewModelScope.launch {
-                    supabaseClient?.runCatching {
-                        val payload = org.json.JSONObject().apply {
-                            if (chosenReaction == null) {
-                                put("reaction", org.json.JSONObject.NULL)
-                            } else {
-                                put("reaction", chosenReaction)
-                            }
-                        }.toString()
-                        updateRecord("campus_chat_messages?id=eq.${event.messageId}", payload)
+                    runCatching {
+                        supabase.from("campus_chat_messages").update(
+                            mapOf("reaction" to chosenReaction)
+                        ) {
+                            filter { eq("id", event.messageId) }
+                        }
                     }
                 }
             }
@@ -903,8 +926,10 @@ class MessagesViewModel(
                 }
                 viewModelScope.launch {
                     chatMessageDao?.clearChannelMessages(event.threadId)
-                    supabaseClient?.runCatching {
-                        deleteRecord("campus_chat_messages?channel_id=eq.${event.threadId}")
+                    runCatching {
+                        supabase.from("campus_chat_messages").delete {
+                            filter { eq("channel_id", event.threadId) }
+                        }
                     }
                 }
             }
@@ -1606,25 +1631,24 @@ class MessagesViewModel(
      * @return true when the message was accepted by Supabase (clears the pending clock).
      */
     private suspend fun dispatchMessageToRemote(entity: ChatMessageEntity): Boolean {
-        val client = supabaseClient ?: return false
         if (entity.senderId.isBlank() || !entity.senderName.isRealProfileDisplayName()) return false
-        val payload = org.json.JSONObject().apply {
-            put("id", entity.id)
-            put("channel_id", entity.channelId)
-            put("sender_id", entity.senderId)
-            put("sender_name", entity.senderName)
-            put("text", entity.text)
-            put("timestamp_epoch_ms", entity.timestampEpochMs)
-            put("is_optimistic", false)
-            val mediaLink = entity.imageUrl ?: entity.imageUri
-            if (!mediaLink.isNullOrBlank()) put("image_url", mediaLink)
-            if (!entity.gifUrl.isNullOrBlank()) put("gif_url", entity.gifUrl)
-            if (!entity.replyToText.isNullOrBlank()) put("reply_to_text", entity.replyToText)
-            put("is_delivered", true)
-            put("is_read", false)
-        }.toString()
-
-        val result = client.upsertRecord("campus_chat_messages", payload, onConflict = "id")
+        val row = DirectChatMessageRow(
+            id = entity.id,
+            channel_id = entity.channelId,
+            sender_id = entity.senderId,
+            sender_name = entity.senderName,
+            text = entity.text,
+            timestamp_epoch_ms = entity.timestampEpochMs,
+            is_optimistic = false,
+            image_url = (entity.imageUrl ?: entity.imageUri)?.takeIf { it.isNotBlank() },
+            gif_url = entity.gifUrl?.takeIf { it.isNotBlank() },
+            reply_to_text = entity.replyToText?.takeIf { it.isNotBlank() },
+            is_delivered = true,
+            is_read = false
+        )
+        val result = runCatching {
+            supabase.from("campus_chat_messages").upsert(row)
+        }
         if (result.isSuccess) {
             markLocalMessageSent(entity.channelId, entity.id)
             return true
@@ -1633,44 +1657,43 @@ class MessagesViewModel(
     }
 
     private suspend fun syncRemoteMessagesForChannel(channelId: String) {
-        val client = supabaseClient ?: return
         val dao = chatMessageDao ?: return
-        val encodedChannel = java.net.URLEncoder.encode(channelId, Charsets.UTF_8.name())
-        val result = client.queryTable(
-            "campus_chat_messages?channel_id=eq.$encodedChannel&order=timestamp_epoch_ms.asc&limit=200"
-        )
-        val raw = result.getOrNull() ?: return
-        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return
-        if (array.length() == 0) return
+        val list = runCatching {
+            supabase.from("campus_chat_messages").select {
+                filter {
+                    eq("channel_id", channelId)
+                }
+                order("timestamp_epoch_ms", order = Order.ASCENDING)
+                limit(200)
+            }.decodeList<DirectChatMessageRow>()
+        }.getOrNull() ?: return
+        if (list.isEmpty()) return
 
         val currentUserId = resolveCurrentUserId()
-        val senderIds = (0 until array.length()).map { index ->
-            array.getJSONObject(index).optString("sender_id")
-        }
+        val senderIds = list.map { it.sender_id }
         val profileNames = runCatching { resolveProfileNames(senderIds) }
             .getOrDefault(emptyMap())
         val entities = mutableListOf<ChatMessageEntity>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val senderId = obj.optString("sender_id", "")
+        for (obj in list) {
+            val senderId = obj.sender_id
             val isMine = currentUserId.isNotBlank() &&
                 senderId.isNotBlank() &&
                 senderId.equals(currentUserId, ignoreCase = true)
             entities.add(
                 ChatMessageEntity(
-                    id = obj.getString("id"),
-                    channelId = obj.optString("channel_id", channelId),
+                    id = obj.id,
+                    channelId = obj.channel_id.ifBlank { channelId },
                     senderId = senderId,
                     senderName = if (isMine) "You" else profileNames[senderId.lowercase()].orEmpty(),
-                    text = obj.optString("text", ""),
-                    timestampEpochMs = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis()),
+                    text = obj.text,
+                    timestampEpochMs = if (obj.timestamp_epoch_ms > 0L) obj.timestamp_epoch_ms else System.currentTimeMillis(),
                     isOptimistic = false,
-                    imageUrl = obj.cleanJsonString("image_url"),
-                    gifUrl = obj.cleanJsonString("gif_url"),
-                    replyToText = obj.cleanJsonString("reply_to_text"),
+                    imageUrl = obj.image_url?.takeIf { it.isNotBlank() },
+                    gifUrl = obj.gif_url?.takeIf { it.isNotBlank() },
+                    replyToText = obj.reply_to_text?.takeIf { it.isNotBlank() },
                     isMine = isMine,
-                    isDelivered = obj.optBoolean("is_delivered", true),
-                    isRead = obj.optBoolean("is_read", false)
+                    isDelivered = obj.is_delivered,
+                    isRead = obj.is_read
                 )
             )
         }
@@ -1681,10 +1704,6 @@ class MessagesViewModel(
         val dao = chatMessageDao
         if (dao == null) {
             Log.e(TAG, "flushPendingMessages skipped — chatMessageDao not wired")
-            return
-        }
-        if (supabaseClient == null) {
-            Log.e(TAG, "flushPendingMessages skipped — supabaseClient not wired")
             return
         }
         viewModelScope.launch {

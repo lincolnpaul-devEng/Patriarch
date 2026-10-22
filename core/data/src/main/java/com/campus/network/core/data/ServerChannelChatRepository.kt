@@ -3,14 +3,41 @@ package com.campus.network.core.data
 import com.campus.network.core.database.dao.ServerChannelMessageDao
 import com.campus.network.core.database.entity.ServerChannelMessageEntity
 import com.campus.network.core.model.isRealProfileDisplayName
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import org.json.JSONArray
-import org.json.JSONObject
-import java.net.URLEncoder
-import java.util.UUID
+
+@Serializable
+data class ServerChannelMessageRow(
+    val id: String = "",
+    val server_id: String = "",
+    val channel_id: String = "",
+    val sender_id: String = "",
+    val sender_name: String = "",
+    val sender_avatar_url: String? = null,
+    val text: String = "",
+    val gif_url: String? = null,
+    val image_urls: String? = null,
+    val reaction_count: Int = 0,
+    val timestamp_epoch_ms: Long = 0L
+)
+
+@Serializable
+data class ServerChannelTypingRow(
+    val channel_id: String = "",
+    val user_id: String = "",
+    val server_id: String = "",
+    val display_name: String = "",
+    val avatar_url: String? = null,
+    val updated_at_epoch_ms: Long = 0L
+)
 
 data class RemoteChannelChatMessage(
     val id: String,
@@ -24,8 +51,7 @@ data class RemoteChannelChatMessage(
     val imageUrls: List<String>,
     val reactionCount: Int,
     val timestampEpochMs: Long,
-    /** True while waiting for mandatory remote upsert to succeed. */
-    val isPending: Boolean = false
+    val isPending: Boolean
 )
 
 data class RemoteChannelTypingUser(
@@ -41,12 +67,11 @@ data class RemoteChannelTypingUser(
  * Server-channel chat: Room is offline cache only; Supabase upsert is required once online.
  */
 class ServerChannelChatRepository(
-    private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val messageDao: ServerChannelMessageDao? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
-
+    private val profileNameResolver = SupabaseProfileNameResolver(supabase)
 
     suspend fun upsertLocalPending(
         serverId: String,
@@ -98,41 +123,40 @@ class ServerChannelChatRepository(
     ) = withContext(ioDispatcher) {
         val dao = messageDao ?: return@withContext
         if (messages.isEmpty()) return@withContext
-        dao.insertMessages(
-            messages.map { msg ->
-                ServerChannelMessageEntity(
-                    id = msg.id,
-                    serverId = msg.serverId,
-                    channelId = msg.channelId,
-                    senderId = msg.senderId,
-                    senderName = msg.senderName,
-                    senderAvatarUrl = msg.senderAvatarUrl,
-                    text = msg.text,
-                    gifUrl = msg.gifUrl,
-                    imageUrlsJson = JSONArray(msg.imageUrls).toString(),
-                    reactionCount = msg.reactionCount,
-                    timestampEpochMs = msg.timestampEpochMs,
-                    isOptimistic = false,
-                    isDelivered = true,
-                    isMine = myUserId.isNotBlank() &&
-                        msg.senderId.equals(myUserId, ignoreCase = true)
-                )
-            }
-        )
+        val entities = messages.map { message ->
+            val isMine = myUserId.isNotBlank() &&
+                message.senderId.equals(myUserId, ignoreCase = true)
+            ServerChannelMessageEntity(
+                id = message.id,
+                serverId = message.serverId,
+                channelId = message.channelId,
+                senderId = message.senderId,
+                senderName = message.senderName,
+                senderAvatarUrl = message.senderAvatarUrl,
+                text = message.text,
+                gifUrl = message.gifUrl,
+                imageUrlsJson = JSONArray(message.imageUrls).toString(),
+                reactionCount = message.reactionCount,
+                timestampEpochMs = message.timestampEpochMs,
+                isOptimistic = false,
+                isDelivered = true,
+                isMine = isMine
+            )
+        }
+        dao.insertMessages(entities)
     }
 
-    suspend fun markDelivered(messageId: String) = withContext(ioDispatcher) {
+    suspend fun markMessageDelivered(messageId: String) = withContext(ioDispatcher) {
         messageDao?.markMessageDelivered(messageId)
     }
+
+    suspend fun markDelivered(messageId: String) = markMessageDelivered(messageId)
 
     suspend fun getPendingMessages(): List<RemoteChannelChatMessage> = withContext(ioDispatcher) {
         val dao = messageDao ?: return@withContext emptyList()
         dao.getPendingMessages().map { it.toRemote() }
     }
 
-    /**
-     * Mandatory remote upsert. Callers must keep the message pending until this succeeds.
-     */
     suspend fun sendMessage(
         serverId: String,
         channelId: String,
@@ -141,12 +165,31 @@ class ServerChannelChatRepository(
         text: String,
         gifUrl: String? = null,
         imageUrls: List<String> = emptyList(),
-        messageId: String = "cmsg_${UUID.randomUUID()}",
+        messageId: String = "cmsg_${java.util.UUID.randomUUID()}",
         timestampEpochMs: Long = System.currentTimeMillis()
+    ): Result<RemoteChannelChatMessage> = dispatchMessage(
+        serverId = serverId,
+        channelId = channelId,
+        senderId = senderId,
+        senderAvatarUrl = senderAvatarUrl,
+        text = text,
+        gifUrl = gifUrl,
+        imageUrls = imageUrls,
+        messageId = messageId,
+        timestampEpochMs = timestampEpochMs
+    )
+
+    suspend fun dispatchMessage(
+        serverId: String,
+        channelId: String,
+        senderId: String,
+        senderAvatarUrl: String?,
+        text: String,
+        gifUrl: String?,
+        imageUrls: List<String>,
+        messageId: String,
+        timestampEpochMs: Long
     ): Result<RemoteChannelChatMessage> = withContext(ioDispatcher) {
-        if (channelId.isBlank() || senderId.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("channelId and senderId required"))
-        }
         val resolvedSenderName = try {
             profileNameResolver.resolve(listOf(senderId))[senderId.trim().lowercase()]
         } catch (error: Exception) {
@@ -154,38 +197,38 @@ class ServerChannelChatRepository(
         } ?: return@withContext Result.failure(
             IllegalStateException("A Supabase profile name is required to send a channel message")
         )
-        val imagesJson = JSONArray(imageUrls)
-        val payload = JSONObject().apply {
-            put("id", messageId)
-            put("server_id", serverId)
-            put("channel_id", channelId)
-            put("sender_id", senderId)
-            put("sender_name", resolvedSenderName)
-            if (!senderAvatarUrl.isNullOrBlank()) put("sender_avatar_url", senderAvatarUrl)
-            put("text", text)
-            if (!gifUrl.isNullOrBlank()) put("gif_url", gifUrl)
-            put("image_urls", imagesJson)
-            put("reaction_count", 0)
-            put("timestamp_epoch_ms", timestampEpochMs)
-        }.toString()
 
-        supabaseClient.upsertRecord("campus_server_channel_messages", payload, onConflict = "id")
-            .map {
-                RemoteChannelChatMessage(
+        runCatching {
+            supabase.from("campus_server_channel_messages").upsert(
+                ServerChannelMessageRow(
                     id = messageId,
-                    serverId = serverId,
-                    channelId = channelId,
-                    senderId = senderId,
-                    senderName = resolvedSenderName,
-                    senderAvatarUrl = senderAvatarUrl,
+                    server_id = serverId,
+                    channel_id = channelId,
+                    sender_id = senderId,
+                    sender_name = resolvedSenderName,
+                    sender_avatar_url = senderAvatarUrl,
                     text = text,
-                    gifUrl = gifUrl,
-                    imageUrls = imageUrls,
-                    reactionCount = 0,
-                    timestampEpochMs = timestampEpochMs,
-                    isPending = false
+                    gif_url = gifUrl,
+                    image_urls = JSONArray(imageUrls).toString(),
+                    reaction_count = 0,
+                    timestamp_epoch_ms = timestampEpochMs
                 )
-            }
+            )
+            RemoteChannelChatMessage(
+                id = messageId,
+                serverId = serverId,
+                channelId = channelId,
+                senderId = senderId,
+                senderName = resolvedSenderName,
+                senderAvatarUrl = senderAvatarUrl,
+                text = text,
+                gifUrl = gifUrl,
+                imageUrls = imageUrls,
+                reactionCount = 0,
+                timestampEpochMs = timestampEpochMs,
+                isPending = false
+            )
+        }
     }
 
     suspend fun fetchMessages(
@@ -193,26 +236,52 @@ class ServerChannelChatRepository(
         afterEpochMs: Long = 0L,
         limit: Int = 120
     ): Result<List<RemoteChannelChatMessage>> = withContext(ioDispatcher) {
-        val encoded = URLEncoder.encode(channelId, Charsets.UTF_8.name())
-        val afterFilter = if (afterEpochMs > 0L) {
-            "&timestamp_epoch_ms=gt.$afterEpochMs"
-        } else {
-            ""
+        runCatching {
+            val rows: List<ServerChannelMessageRow> = supabase.from("campus_server_channel_messages")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("channel_id", channelId)
+                        if (afterEpochMs > 0L) {
+                            gt("timestamp_epoch_ms", afterEpochMs)
+                        }
+                    }
+                    order("timestamp_epoch_ms", order = Order.ASCENDING)
+                    limit(limit.toLong())
+                }
+                .decodeList<ServerChannelMessageRow>()
+
+            val names = try {
+                profileNameResolver.resolve(rows.map { it.sender_id })
+            } catch (error: Exception) {
+                return@runCatching emptyList<RemoteChannelChatMessage>()
+            }
+
+            rows.map { row ->
+                val images = mutableListOf<String>()
+                if (!row.image_urls.isNullOrBlank()) {
+                    runCatching {
+                        val arr = JSONArray(row.image_urls)
+                        for (i in 0 until arr.length()) {
+                            arr.optString(i).takeIf { it.isNotBlank() }?.let { images.add(it) }
+                        }
+                    }
+                }
+                RemoteChannelChatMessage(
+                    id = row.id,
+                    serverId = row.server_id,
+                    channelId = row.channel_id,
+                    senderId = row.sender_id,
+                    senderName = names[row.sender_id.lowercase()].orEmpty(),
+                    senderAvatarUrl = row.sender_avatar_url,
+                    text = row.text,
+                    gifUrl = row.gif_url,
+                    imageUrls = images,
+                    reactionCount = row.reaction_count,
+                    timestampEpochMs = row.timestamp_epoch_ms,
+                    isPending = false
+                )
+            }
         }
-        val result = supabaseClient.queryTable(
-            "campus_server_channel_messages?channel_id=eq.$encoded" +
-                "$afterFilter&order=timestamp_epoch_ms.asc&limit=$limit"
-        )
-        val parsed = result.mapCatching { raw -> parseMessages(raw) }
-        val messages = parsed.getOrElse { return@withContext Result.failure(it) }
-        val names = try {
-            profileNameResolver.resolve(messages.map { it.senderId })
-        } catch (error: Exception) {
-            return@withContext Result.failure(error)
-        }
-        Result.success(messages.map { message ->
-            message.copy(senderName = names[message.senderId.lowercase()].orEmpty())
-        })
     }
 
     suspend fun setTyping(
@@ -225,57 +294,93 @@ class ServerChannelChatRepository(
         if (channelId.isBlank() || userId.isBlank()) {
             return@withContext Result.success(Unit)
         }
-        val encodedChannel = URLEncoder.encode(channelId, Charsets.UTF_8.name())
-        val encodedUser = URLEncoder.encode(userId, Charsets.UTF_8.name())
-        if (!isTyping) {
-            return@withContext supabaseClient.deleteRecord(
-                "campus_channel_typing?channel_id=eq.$encodedChannel&user_id=eq.$encodedUser"
-            ).map { }
+        runCatching {
+            if (!isTyping) {
+                supabase.from("campus_channel_typing").delete {
+                    filter {
+                        eq("channel_id", channelId)
+                        eq("user_id", userId)
+                    }
+                }
+            } else {
+                val resolvedDisplayName = try {
+                    profileNameResolver.resolve(listOf(userId))[userId.trim().lowercase()]
+                } catch (error: Exception) {
+                    return@withContext Result.failure(error)
+                } ?: return@withContext Result.failure(
+                    IllegalStateException("A Supabase profile name is required to publish channel typing")
+                )
+                supabase.from("campus_channel_typing").upsert(
+                    ServerChannelTypingRow(
+                        channel_id = channelId,
+                        user_id = userId,
+                        server_id = serverId,
+                        display_name = resolvedDisplayName,
+                        avatar_url = avatarUrl,
+                        updated_at_epoch_ms = System.currentTimeMillis()
+                    )
+                )
+            }
+            Unit
         }
-        val resolvedDisplayName = try {
-            profileNameResolver.resolve(listOf(userId))[userId.trim().lowercase()]
-        } catch (error: Exception) {
-            return@withContext Result.failure(error)
-        } ?: return@withContext Result.failure(
-            IllegalStateException("A Supabase profile name is required to publish channel typing")
-        )
-        val payload = JSONObject().apply {
-            put("channel_id", channelId)
-            put("user_id", userId)
-            put("server_id", serverId)
-            put("display_name", resolvedDisplayName)
-            if (!avatarUrl.isNullOrBlank()) put("avatar_url", avatarUrl)
-            put("updated_at_epoch_ms", System.currentTimeMillis())
-        }.toString()
-        supabaseClient.upsertRecord(
-            "campus_channel_typing",
-            payload,
-            onConflict = "channel_id,user_id"
-        ).map { }
     }
 
     suspend fun fetchTypingForChannel(
         channelId: String,
         fresherThanEpochMs: Long = System.currentTimeMillis() - 4_500L
     ): Result<List<RemoteChannelTypingUser>> = withContext(ioDispatcher) {
-        val encoded = URLEncoder.encode(channelId, Charsets.UTF_8.name())
-        val result = supabaseClient.queryTable(
-            "campus_channel_typing?channel_id=eq.$encoded" +
-                "&updated_at_epoch_ms=gt.$fresherThanEpochMs&order=updated_at_epoch_ms.desc&limit=20"
-        )
-        resolveTypingNames(result)
+        runCatching {
+            val rows: List<ServerChannelTypingRow> = supabase.from("campus_channel_typing")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("channel_id", channelId)
+                        gt("updated_at_epoch_ms", fresherThanEpochMs)
+                    }
+                    order("updated_at_epoch_ms", order = Order.DESCENDING)
+                    limit(20)
+                }
+                .decodeList<ServerChannelTypingRow>()
+            val names = profileNameResolver.resolve(rows.map { it.user_id })
+            rows.map { row ->
+                RemoteChannelTypingUser(
+                    channelId = row.channel_id,
+                    serverId = row.server_id,
+                    userId = row.user_id,
+                    displayName = names[row.user_id.lowercase()].orEmpty(),
+                    avatarUrl = row.avatar_url,
+                    updatedAtEpochMs = row.updated_at_epoch_ms
+                )
+            }
+        }
     }
 
     suspend fun fetchTypingForServer(
         serverId: String,
         fresherThanEpochMs: Long = System.currentTimeMillis() - 4_500L
     ): Result<List<RemoteChannelTypingUser>> = withContext(ioDispatcher) {
-        val encoded = URLEncoder.encode(serverId, Charsets.UTF_8.name())
-        val result = supabaseClient.queryTable(
-            "campus_channel_typing?server_id=eq.$encoded" +
-                "&updated_at_epoch_ms=gt.$fresherThanEpochMs&order=updated_at_epoch_ms.desc&limit=40"
-        )
-        resolveTypingNames(result)
+        runCatching {
+            val rows: List<ServerChannelTypingRow> = supabase.from("campus_channel_typing")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("server_id", serverId)
+                        gt("updated_at_epoch_ms", fresherThanEpochMs)
+                    }
+                    order("updated_at_epoch_ms", order = Order.DESCENDING)
+                    limit(40)
+                }
+                .decodeList<ServerChannelTypingRow>()
+            val names = profileNameResolver.resolve(rows.map { it.user_id })
+            rows.map { row ->
+                RemoteChannelTypingUser(
+                    channelId = row.channel_id,
+                    serverId = row.server_id,
+                    userId = row.user_id,
+                    displayName = names[row.user_id.lowercase()].orEmpty(),
+                    avatarUrl = row.avatar_url,
+                    updatedAtEpochMs = row.updated_at_epoch_ms
+                )
+            }
+        }
     }
 
     private fun ServerChannelMessageEntity.toRemote(): RemoteChannelChatMessage {
@@ -300,71 +405,5 @@ class ServerChannelChatRepository(
             timestampEpochMs = timestampEpochMs,
             isPending = isOptimistic || !isDelivered
         )
-    }
-
-    private fun parseMessages(raw: String): List<RemoteChannelChatMessage> {
-        val array = JSONArray(raw)
-        val out = mutableListOf<RemoteChannelChatMessage>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val images = mutableListOf<String>()
-            val imageArr = obj.optJSONArray("image_urls")
-            if (imageArr != null) {
-                for (j in 0 until imageArr.length()) {
-                    imageArr.optString(j).takeIf { it.isNotBlank() }?.let { images.add(it) }
-                }
-            }
-            out.add(
-                RemoteChannelChatMessage(
-                    id = obj.getString("id"),
-                    serverId = obj.optString("server_id", ""),
-                    channelId = obj.optString("channel_id", ""),
-                    senderId = obj.optString("sender_id", ""),
-                    senderName = "",
-                    senderAvatarUrl = obj.optString("sender_avatar_url").ifBlank { null },
-                    text = obj.optString("text", ""),
-                    gifUrl = obj.optString("gif_url").ifBlank { null },
-                    imageUrls = images,
-                    reactionCount = obj.optInt("reaction_count", 0),
-                    timestampEpochMs = obj.optLong("timestamp_epoch_ms", System.currentTimeMillis()),
-                    isPending = false
-                )
-            )
-        }
-        return out
-    }
-
-    private fun parseTyping(raw: String): List<RemoteChannelTypingUser> {
-        val array = JSONArray(raw)
-        val out = mutableListOf<RemoteChannelTypingUser>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            out.add(
-                RemoteChannelTypingUser(
-                    channelId = obj.optString("channel_id", ""),
-                    serverId = obj.optString("server_id", ""),
-                    userId = obj.optString("user_id", ""),
-                    displayName = "",
-                    avatarUrl = obj.optString("avatar_url").ifBlank { null },
-                    updatedAtEpochMs = obj.optLong("updated_at_epoch_ms", 0L)
-                )
-            )
-        }
-        return out
-    }
-
-    private suspend fun resolveTypingNames(
-        result: Result<String>
-    ): Result<List<RemoteChannelTypingUser>> {
-        val parsed = result.mapCatching { raw -> parseTyping(raw) }
-        val users = parsed.getOrElse { return Result.failure(it) }
-        val names = try {
-            profileNameResolver.resolve(users.map { it.userId })
-        } catch (error: Exception) {
-            return Result.failure(error)
-        }
-        return Result.success(users.map { user ->
-            user.copy(displayName = names[user.userId.lowercase()].orEmpty())
-        })
     }
 }

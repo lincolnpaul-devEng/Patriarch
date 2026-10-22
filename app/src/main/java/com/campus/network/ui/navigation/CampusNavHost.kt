@@ -68,8 +68,7 @@ fun CampusNavHost(
     studentProfileRepository: StudentProfileRepository = remember(database) {
         StudentProfileRepository(
             database = database,
-            supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
-            sdkClient = com.campus.network.core.network.SupabaseSdkClientProvider()
+            sdkClient = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
         )
     },
     onToggleBottomBar: (Boolean) -> Unit = {}
@@ -87,7 +86,7 @@ fun CampusNavHost(
     val serverRepository = remember(database) {
         com.campus.network.core.data.ServerRepository(
             database = database,
-            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+            supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
         )
     }
     val liveStreamRepository = remember(database) { com.campus.network.core.data.LiveStreamRepository(database) }
@@ -101,7 +100,7 @@ fun CampusNavHost(
                     streamChatEngine = streamChatEngine,
                     studentProfileRepository = studentProfileRepository,
                     chatMessageDao = database.chatMessageDao(),
-                    supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+                    supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient,
                     serverRepository = serverRepository,
                     context = context.applicationContext
                 ) as T

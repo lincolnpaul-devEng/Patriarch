@@ -5,15 +5,50 @@ import com.campus.network.core.database.entity.FlashMeetEntity
 import com.campus.network.core.model.FlashMeet
 import com.campus.network.core.model.MeetCategory
 import com.campus.network.core.model.isRealProfileDisplayName
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class FlashMeetRow(
+    val id: String = "",
+    val title: String = "",
+    val description: String = "",
+    val category_name: String = "",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val location_name: String = "",
+    val creator_name: String = "",
+    val creator_id: String = "",
+    val creator_avatar: String? = null,
+    val created_at_epoch_ms: Long = 0L,
+    val expires_at_epoch_ms: Long = 0L,
+    val attendee_count: Int = 1,
+    val max_attendees: Int = 6
+)
+
+@Serializable
+data class EventRow(
+    val id: String = "",
+    val creator_id: String = "",
+    val title: String = "",
+    val description: String = "",
+    val location_name: String = "",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val start_time: String = "",
+    val category: String = "",
+    val attendee_count: Int = 0
+)
 
 /**
  * Repository for Tab 1: Map (Flash-Meet and Campus Events Interface).
@@ -21,11 +56,11 @@ import org.json.JSONObject
  */
 class FlashMeetRepository(
     private val database: CampusDatabase,
-    private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val dao = database.flashMeetDao()
-    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
+    private val profileNameResolver = SupabaseProfileNameResolver(supabase)
 
     /**
      * Emits live meets continuously on the IO thread.
@@ -81,26 +116,32 @@ class FlashMeetRepository(
         dao.insertMeets(listOf(pendingEntity))
         dao.purgeExpired(now)
 
-        val remotePayload = JSONObject().apply {
-            put("id", meetId)
-            put("title", title)
-            put("description", description)
-            put("category_name", category.name)
-            put("latitude", latitude)
-            put("longitude", longitude)
-            put("location_name", locationName)
-            put("creator_name", resolvedCreatorName)
-            put("creator_id", resolvedCreatorId)
-            put("created_at_epoch_ms", now)
-            put("expires_at_epoch_ms", expiry)
-            put("attendee_count", 1)
-            put("max_attendees", 6)
-        }.toString()
+        val remoteResult = runCatching {
+            supabase.from("campus_flash_meets").upsert(
+                FlashMeetRow(
+                    id = meetId,
+                    title = title,
+                    description = description,
+                    category_name = category.name,
+                    latitude = latitude,
+                    longitude = longitude,
+                    location_name = locationName,
+                    creator_name = resolvedCreatorName,
+                    creator_id = resolvedCreatorId,
+                    created_at_epoch_ms = now,
+                    expires_at_epoch_ms = expiry,
+                    attendee_count = 1,
+                    max_attendees = 6
+                )
+            )
+        }
 
-        val remoteResult = supabaseClient.upsertRecord("campus_flash_meets", remotePayload, onConflict = "id")
-            .requireSavedRow()
-
-        val finalEntity = pendingEntity.copy(syncStatus = syncStatusFor(remoteResult).name)
+        val syncStatus = if (remoteResult.isSuccess) {
+            com.campus.network.core.model.SyncStatus.SYNCED
+        } else {
+            com.campus.network.core.model.SyncStatus.FAILED
+        }
+        val finalEntity = pendingEntity.copy(syncStatus = syncStatus.name)
         dao.insertMeets(listOf(finalEntity))
         dao.purgeExpired(now)
 
@@ -124,70 +165,75 @@ class FlashMeetRepository(
         val creatorId = com.campus.network.core.network.SupabaseSessionStore.session()
             ?.optString("user_id")?.takeIf(String::isNotBlank)
             ?: return@withContext Result.failure(SecurityException("Sign in to create a campus event"))
-        val payload = JSONObject().apply {
-            put("id", id)
-            put("creator_id", creatorId)
-            put("title", title)
-            put("description", description)
-            put("location_name", locationName)
-            put("latitude", latitude)
-            put("longitude", longitude)
-            put("start_time", startTimeIso)
-            put("category", category)
-            put("attendee_count", attendeeCount)
-        }.toString()
-        supabaseClient.upsertRecord("campus_events", payload, onConflict = "id")
-            .requireSavedRow()
-            .map { }
+        runCatching {
+            supabase.from("campus_events").upsert(
+                EventRow(
+                    id = id,
+                    creator_id = creatorId,
+                    title = title,
+                    description = description,
+                    location_name = locationName,
+                    latitude = latitude,
+                    longitude = longitude,
+                    start_time = startTimeIso,
+                    category = category,
+                    attendee_count = attendeeCount
+                )
+            )
+            Unit
+        }
     }
 
     /**
      * Synchronizes live flash meets from Supabase to local Room database.
      */
     suspend fun syncRemoteFlashMeets(sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
-        val now = System.currentTimeMillis()
-        val deltaFilter = if (sinceMs > 0L) "&created_at_epoch_ms=gt.$sinceMs" else ""
-        val queryResult = supabaseClient.queryTable(
-            "campus_flash_meets?expires_at_epoch_ms=gt.$now&order=created_at_epoch_ms.asc&limit=100$deltaFilter"
-        )
-        if (queryResult.isFailure) {
-            return@withContext Result.failure(queryResult.exceptionOrNull() ?: Exception("Failed to fetch flash meets"))
-        }
-        var newWatermark = sinceMs
-        val raw = queryResult.getOrNull() ?: "[]"
-        val array = JSONArray(raw)
-        val creatorNames = try {
-            profileNameResolver.resolve((0 until array.length()).map { array.getJSONObject(it).optString("creator_id") })
-        } catch (error: Exception) {
-            return@withContext Result.failure(error)
-        }
-        val entities = mutableListOf<FlashMeetEntity>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val cam = obj.optLong("created_at_epoch_ms", now)
-            if (cam > newWatermark) newWatermark = cam
-            entities.add(
+        runCatching {
+            val now = System.currentTimeMillis()
+            val rows: List<FlashMeetRow> = supabase.from("campus_flash_meets")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        gt("expires_at_epoch_ms", now)
+                        if (sinceMs > 0L) {
+                            gt("created_at_epoch_ms", sinceMs)
+                        }
+                    }
+                    order("created_at_epoch_ms", order = Order.ASCENDING)
+                    limit(100)
+                }
+                .decodeList<FlashMeetRow>()
+
+            var newWatermark = sinceMs
+            val creatorNames = try {
+                profileNameResolver.resolve(rows.map { it.creator_id })
+            } catch (error: Exception) {
+                emptyMap<String, String>()
+            }
+
+            val entities = rows.map { row ->
+                val cam = row.created_at_epoch_ms
+                if (cam > newWatermark) newWatermark = cam
                 FlashMeetEntity(
-                    id = obj.getString("id"),
-                    title = obj.getString("title"),
-                    description = obj.optString("description", ""),
-                    categoryName = obj.optString("category_name", MeetCategory.STUDY_JAM.name),
-                    latitude = obj.optDouble("latitude", 0.0),
-                    longitude = obj.optDouble("longitude", 0.0),
-                    locationName = obj.optString("location_name", ""),
-                    creatorUserId = obj.optString("creator_id", ""),
-                    creatorName = creatorNames[obj.optString("creator_id").lowercase()].orEmpty(),
-                    creatorAvatar = obj.optString("creator_avatar", "").ifBlank { null },
+                    id = row.id,
+                    title = row.title,
+                    description = row.description,
+                    categoryName = row.category_name.ifBlank { MeetCategory.STUDY_JAM.name },
+                    latitude = row.latitude,
+                    longitude = row.longitude,
+                    locationName = row.location_name,
+                    creatorUserId = row.creator_id,
+                    creatorName = creatorNames[row.creator_id.lowercase()].orEmpty().ifBlank { row.creator_name },
+                    creatorAvatar = row.creator_avatar,
                     createdAtEpochMs = cam,
-                    expiresAtEpochMs = obj.optLong("expires_at_epoch_ms", now + 3600000L),
-                    attendeeCount = obj.optInt("attendee_count", 1),
-                    maxAttendees = obj.optInt("max_attendees", 6)
+                    expiresAtEpochMs = row.expires_at_epoch_ms,
+                    attendeeCount = row.attendee_count,
+                    maxAttendees = row.max_attendees
                 )
-            )
+            }
+            if (entities.isNotEmpty()) {
+                dao.insertMeets(entities)
+            }
+            newWatermark
         }
-        if (entities.isNotEmpty()) {
-            dao.insertMeets(entities)
-        }
-        Result.success(newWatermark)
     }
 }

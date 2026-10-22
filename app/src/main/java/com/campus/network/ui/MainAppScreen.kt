@@ -55,7 +55,7 @@ fun MainAppScreen(
     val studentProfileRepository = remember(database) {
         com.campus.network.core.data.StudentProfileRepository(
             database = database,
-            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+            sdkClient = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
         )
     }
 
@@ -72,10 +72,10 @@ fun MainAppScreen(
                     telecomCallManager = telecomCallManager,
                     studentProfileRepository = studentProfileRepository,
                     chatMessageDao = database.chatMessageDao(),
-                    supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+                    supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient,
                     serverRepository = com.campus.network.core.data.ServerRepository(
                         database = database,
-                        supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+                        supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
                     ),
                     context = context.applicationContext
                 ) as T
@@ -89,7 +89,7 @@ fun MainAppScreen(
     val serverRepository = remember(database) {
         com.campus.network.core.data.ServerRepository(
             database = database,
-            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+            supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
         )
     }
     val channelsViewModel: ChannelsViewModel = viewModel(

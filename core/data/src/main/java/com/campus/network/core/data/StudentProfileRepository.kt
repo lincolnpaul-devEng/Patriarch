@@ -1,5 +1,7 @@
 package com.campus.network.core.data
 
+import com.campus.network.core.database.CampusDatabase
+import com.campus.network.core.database.entity.StudentProfileEntity
 import com.campus.network.core.model.BadgeLevel
 import com.campus.network.core.model.ConsistencyQuest
 import com.campus.network.core.model.OnboardingPreferences
@@ -9,24 +11,26 @@ import com.campus.network.core.model.UniversityDirectoryEntry
 import com.campus.network.core.model.VerifiedSkillBadge
 import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.model.stableUserId
-import com.campus.network.core.database.CampusDatabase
-import com.campus.network.core.database.entity.StudentProfileEntity
+import com.campus.network.core.network.BuildConfig
 import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.SupabaseSessionStore
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
-import io.github.jan.supabase.postgrest.from
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 /**
  * Serializable row shape returned by the Supabase `campusprofile` table.
@@ -34,24 +38,41 @@ import io.github.jan.supabase.postgrest.from
  */
 @Serializable
 data class CampusProfileRow(
-    val id: String,
-    val user_id: String,
-    val student_id: String,
-    val full_name: String,
-    val university_email: String,
-    val university_name: String,
-    val avatar_url: String?,
+    val id: String = "",
+    val user_id: String = "",
+    val student_id: String = "",
+    val full_name: String = "",
+    val university_email: String = "",
+    val university_name: String = "",
+    val avatar_url: String? = null,
+    val degree_program: String? = null,
+    val academic_year: String? = null,
+    val bio: String? = null,
+    val campus_residence: String? = null,
+    val phone_number: String? = null,
+    val preferred_rendezvous_point: String? = null,
+    val notifications_enabled: Boolean = true,
+    val escrow_alerts_enabled: Boolean = true,
+    val quest_reminders_enabled: Boolean = true,
+    val is_trust_score_public: Boolean = false,
+    val is_online_status_visible: Boolean = false,
+    val activity_ledger_visibility: String = "FRIENDS",
+    val location_privacy_scope: String = "CAMPUS_WIDE",
+    val behavioral_trust_score: Int = 50,
+    val campus_merit_points: Int = 0,
+    val created_at: String? = null,
+    val updated_at: String? = null
 )
 
 /**
  * Repository for Tab 5: Profile (Gamified Persona).
  * Tracks student metadata, verified skill tags, and private Quest Deck.
- * Backed by Room database cache and Supabase PostgreSQL persistence.
+ * Backed by Room database cache and Supabase PostgreSQL persistence via the
+ * official Supabase Kotlin SDK.
  */
 class StudentProfileRepository(
     private val database: CampusDatabase? = null,
-    private val supabaseClient: com.campus.network.core.network.SupabaseClientProvider? = null,
-    private val sdkClient: com.campus.network.core.network.SupabaseSdkClientProvider? = null,
+    private val sdkClient: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val profileDao = database?.studentProfileDao()
@@ -79,6 +100,13 @@ class StudentProfileRepository(
     )
 
     val studentProfile = _studentProfile.asStateFlow()
+    fun getProfile(): StateFlow<StudentProfile> = studentProfile
+
+    suspend fun getProfileSync(): StudentProfile? = withContext(ioDispatcher) {
+        val profile = profileDao?.getProfileSync()?.toDomain() ?: _studentProfile.value
+        profile.copy(fullName = profileNameFromKnown(profile, _knownProfiles.value).orEmpty())
+            .takeIf { it.universityEmail.isNotBlank() }
+    }
 
     private val _isAuthenticatedSession = MutableStateFlow(false)
     val isAuthenticatedSession = _isAuthenticatedSession.asStateFlow()
@@ -111,65 +139,15 @@ class StudentProfileRepository(
     }
 
     suspend fun refreshKnownProfiles(sinceMs: Long = 0L): Map<String, StudentProfile> = withContext(ioDispatcher) {
-        // Prefer the Supabase Kotlin SDK; fall back to the custom Ktor client if not yet migrated.
-        val sdk = sdkClient
-        if (sdk != null) {
-            return@withContext refreshKnownProfilesViaSdk(sinceMs)
-        }
-        runCatching {
-            val client = supabaseClient ?: return@runCatching _knownProfiles.value
-            val deltaFilter = if (sinceMs > 0L) "&updated_at=gt.$sinceMs" else ""
-            val result = client.queryTable("campusprofile?select=*$deltaFilter").getOrNull()
-            if (!result.isNullOrBlank()) {
-                val jsonArray = org.json.JSONArray(result)
-                val map = mutableMapOf<String, StudentProfile>()
-                for (i in 0 until jsonArray.length()) {
-                    val row = jsonArray.getJSONObject(i)
-                    val id = row.optString("id")
-                    val userId = row.optString("user_id")
-                    val studentId = row.optString("student_id")
-                    val email = row.optString("university_email")
-                    val name = row.optString("full_name")
-                    val avatar = row.optString("avatar_url").takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
-                    val uni = row.optString("university_name")
-                    if (name.isRealProfileDisplayName()) {
-                        val prof = StudentProfile(
-                            studentId = studentId.ifBlank { id },
-                            fullName = name,
-                            avatarUrl = avatar,
-                            universityEmail = email,
-                            universityName = uni
-                        )
-                        if (id.isNotBlank()) map[id] = prof
-                        if (userId.isNotBlank()) map[userId] = prof
-                        if (studentId.isNotBlank()) map[studentId] = prof
-                        if (email.isNotBlank()) {
-                            map[email] = prof
-                            map[email.lowercase()] = prof
-                        }
-                    }
-                }
-                _knownProfiles.value = map
-                val current = _studentProfile.value
-                val canonicalName = profileNameFromKnown(current, map)
-                _studentProfile.value = current.copy(fullName = canonicalName.orEmpty())
-                map
-            } else {
-                _knownProfiles.value
-            }
-        }.getOrDefault(_knownProfiles.value)
-    }
-
-    private suspend fun refreshKnownProfilesViaSdk(sinceMs: Long): Map<String, StudentProfile> = withContext(ioDispatcher) {
-        val client = sdkClient ?: return@withContext _knownProfiles.value
         try {
-            val rows: List<CampusProfileRow> = client.supabase
+            val rows: List<CampusProfileRow> = sdkClient
                 .from("campusprofile")
-                .select {
+                .select(columns = Columns.ALL) {
                     if (sinceMs > 0L) {
                         val cursor = java.time.Instant.ofEpochMilli(sinceMs).toString()
-                        filter { gt("updated_at", cursor) }
+                        filter { gt("created_at", cursor) }
                     }
+                    limit(200)
                 }
                 .decodeList()
             val map = mutableMapOf<String, StudentProfile>()
@@ -204,40 +182,47 @@ class StudentProfileRepository(
 
     suspend fun syncRemoteProfiles(sinceMs: Long): Result<Long> = withContext(ioDispatcher) {
         runCatching {
-            val client = supabaseClient ?: throw IllegalStateException("Supabase client is not configured")
-            val timestampFilter = if (sinceMs > 0L) {
-                val cursor = java.time.Instant.ofEpochMilli(sinceMs).toString()
-                "&updated_at=gt.${java.net.URLEncoder.encode(cursor, "UTF-8")}"
-            } else {
-                ""
-            }
-            val response = client.queryTable(
-                "campusprofile?order=updated_at.asc&limit=100$timestampFilter"
-            ).getOrThrow()
-            val rows = org.json.JSONArray(response)
+            val rows: List<CampusProfileRow> = sdkClient.from("campusprofile")
+                .select(columns = Columns.ALL) {
+                    if (sinceMs > 0L) {
+                        val cursor = java.time.Instant.ofEpochMilli(sinceMs).toString()
+                        filter { gt("created_at", cursor) }
+                    }
+                    order("created_at", order = Order.ASCENDING)
+                    limit(100)
+                }
+                .decodeList()
             val profiles = _knownProfiles.value.toMutableMap()
             var newestTimestamp = sinceMs
-            for (index in 0 until rows.length()) {
-                val row = rows.getJSONObject(index)
-                val updatedAt = row.optString("updated_at")
-                val rowTimestamp = runCatching {
-                    java.time.OffsetDateTime.parse(updatedAt).toInstant().toEpochMilli()
-                }.getOrDefault(0L)
-                newestTimestamp = maxOf(newestTimestamp, rowTimestamp)
+            for (row in rows) {
+                newestTimestamp = System.currentTimeMillis()
 
-                val id = row.optString("id")
-                val userId = row.optString("user_id")
-                val studentId = row.optString("student_id").ifBlank { id }
-                val email = row.optString("university_email")
-                val name = row.optString("full_name")
+                val id = row.id
+                val userId = row.user_id
+                val studentId = row.student_id.ifBlank { id }
+                val email = row.university_email
+                val name = row.full_name
                 if (!name.isRealProfileDisplayName()) continue
                 val profile = StudentProfile(
                     studentId = studentId,
                     fullName = name,
-                    avatarUrl = row.optString("avatar_url")
-                        .takeIf { it.isNotBlank() && !it.startsWith("avatar_") },
+                    avatarUrl = row.avatar_url?.takeIf { it.isNotBlank() && !it.startsWith("avatar_") },
                     universityEmail = email,
-                    universityName = row.optString("university_name")
+                    universityName = row.university_name,
+                    campusResidence = row.campus_residence.orEmpty(),
+                    degreeProgram = row.degree_program.orEmpty(),
+                    academicYear = row.academic_year.orEmpty(),
+                    bio = row.bio.orEmpty(),
+                    phoneNumber = row.phone_number.orEmpty(),
+                    preferredRendezvousPoint = row.preferred_rendezvous_point.orEmpty(),
+                    notificationsEnabled = row.notifications_enabled,
+                    escrowAlertsEnabled = row.escrow_alerts_enabled,
+                    questRemindersEnabled = row.quest_reminders_enabled,
+                    isTrustScorePublic = row.is_trust_score_public,
+                    isOnlineStatusVisible = row.is_online_status_visible,
+                    activityLedgerVisibility = row.activity_ledger_visibility,
+                    behavioralTrustScore = row.behavioral_trust_score,
+                    campusMeritPoints = row.campus_merit_points
                 )
                 listOf(id, userId, studentId, email, email.lowercase())
                     .filter(String::isNotBlank)
@@ -265,46 +250,44 @@ class StudentProfileRepository(
         }
         _studentProfile.value = pendingProfile
 
+        val sessionUserId = SupabaseSessionStore.session()?.optString("user_id")?.takeIf(String::isNotBlank)
+        if (sessionUserId == null) {
+            return Result.success(Unit)
+        }
+
         val remoteResult = runCatching {
-            val client = supabaseClient ?: throw IllegalStateException("Supabase client is not configured")
             if (profile.universityEmail.isBlank()) {
                 throw IllegalArgumentException("A verified profile email is required before saving changes.")
             }
             if (!profile.fullName.isRealProfileDisplayName()) {
                 throw IllegalArgumentException("A real profile name is required before saving profile changes.")
             }
-            val json = org.json.JSONObject().apply {
-                put("full_name", profile.fullName)
-                put("university_name", profile.universityName)
-                put("degree_program", profile.degreeProgram)
-                put("academic_year", profile.academicYear)
-                put("bio", profile.bio)
-                profile.avatarUrl?.let { put("avatar_url", it) }
-                put("campus_residence", profile.campusResidence)
-                put("phone_number", profile.phoneNumber)
-                put("preferred_rendezvous_point", profile.preferredRendezvousPoint)
-                put("notifications_enabled", profile.notificationsEnabled)
-                put("escrow_alerts_enabled", profile.escrowAlertsEnabled)
-                put("quest_reminders_enabled", profile.questRemindersEnabled)
-                put("is_trust_score_public", profile.isTrustScorePublic)
-                put("is_online_status_visible", profile.isOnlineStatusVisible)
-                put("activity_ledger_visibility", profile.activityLedgerVisibility)
-                put("location_privacy_scope", profile.locationPrivacyScope.name)
-                put("interests", org.json.JSONArray(profile.interests))
-                put(
-                    "onboarding_preferences",
-                    org.json.JSONObject(StudentProfileEntity.serializeOnboardingPreferences(profile.onboardingPreferences))
+            sdkClient.from("campusprofile").upsert(
+                CampusProfileRow(
+                    id = profile.stableUserId(),
+                    user_id = sessionUserId,
+                    student_id = profile.studentId,
+                    full_name = profile.fullName,
+                    university_email = profile.universityEmail,
+                    university_name = profile.universityName,
+                    avatar_url = profile.avatarUrl,
+                    degree_program = profile.degreeProgram,
+                    academic_year = profile.academicYear,
+                    bio = profile.bio,
+                    campus_residence = profile.campusResidence,
+                    phone_number = profile.phoneNumber,
+                    preferred_rendezvous_point = profile.preferredRendezvousPoint,
+                    notifications_enabled = profile.notificationsEnabled,
+                    escrow_alerts_enabled = profile.escrowAlertsEnabled,
+                    quest_reminders_enabled = profile.questRemindersEnabled,
+                    is_trust_score_public = profile.isTrustScorePublic,
+                    is_online_status_visible = profile.isOnlineStatusVisible,
+                    activity_ledger_visibility = profile.activityLedgerVisibility,
+                    location_privacy_scope = profile.locationPrivacyScope.name,
+                    behavioral_trust_score = profile.behavioralTrustScore,
+                    campus_merit_points = profile.campusMeritPoints
                 )
-            }
-            val userId = SupabaseSessionStore.session()?.optString("user_id")?.takeIf(String::isNotBlank)
-                ?: throw SecurityException("Sign in before updating your profile")
-            val rows = org.json.JSONArray(
-                client.updateRecord(
-                    "campusprofile?user_id=eq.${java.net.URLEncoder.encode(userId, "UTF-8")}",
-                    json.toString()
-                ).getOrThrow()
             )
-            check(rows.length() == 1) { "Your authenticated profile could not be updated" }
         }
 
         val status = syncStatusFor(remoteResult)
@@ -323,25 +306,17 @@ class StudentProfileRepository(
         return Result.failure(error)
     }
 
-    fun getProfile(): Flow<StudentProfile> = _studentProfile.asStateFlow()
-
-    suspend fun getProfileSync(): StudentProfile? = withContext(ioDispatcher) {
-        val profile = profileDao?.getProfileSync()?.toDomain() ?: _studentProfile.value
-        profile.copy(fullName = profileNameFromKnown(profile, _knownProfiles.value).orEmpty())
-            .takeIf { it.universityEmail.isNotBlank() }
-    }
-
-    private fun profileNameFromKnown(
-        profile: StudentProfile,
-        profiles: Map<String, StudentProfile>
-    ): String? {
-        val userId = profile.stableUserId()
-        if (userId.isBlank()) return null
-        return (profiles[userId]
-            ?: profiles[userId.lowercase()]
-            ?: profiles.values.firstOrNull { it.stableUserId().equals(userId, ignoreCase = true) })
-            ?.fullName
-            ?.takeIf(String::isRealProfileDisplayName)
+    private fun syncStatusFor(remoteResult: Result<Any?>): com.campus.network.core.model.SyncStatus {
+        if (remoteResult.isSuccess) {
+            return com.campus.network.core.model.SyncStatus.SYNCED
+        }
+        val error = remoteResult.exceptionOrNull() ?: return com.campus.network.core.model.SyncStatus.FAILED
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause is java.io.IOException) return com.campus.network.core.model.SyncStatus.PENDING
+            cause = cause.cause
+        }
+        return com.campus.network.core.model.SyncStatus.FAILED
     }
 
     private fun rememberProfile(profile: StudentProfile) {
@@ -359,74 +334,70 @@ class StudentProfileRepository(
         runCatching {
             val cleanEmail = email.trim()
             if (cleanEmail.isBlank()) return@runCatching false
-            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-            val result = supabaseClient?.queryTable("campusprofile?university_email=ilike.$encodedEmail")?.getOrNull()
-            if (!result.isNullOrBlank()) {
-                val jsonArray = org.json.JSONArray(result)
-                if (jsonArray.length() > 0) {
-                    val row = jsonArray.getJSONObject(0)
-                    val existingProfile = _studentProfile.value
-                    val current = if (existingProfile.universityEmail.equals(cleanEmail, ignoreCase = true)) {
-                        existingProfile
-                    } else {
-                        StudentProfile()
+            val rows: List<CampusProfileRow> = sdkClient.from("campusprofile")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("university_email", cleanEmail)
                     }
-                    val remoteStudentId = row.optString("student_id").ifBlank { row.optString("id") }.takeIf { it.isNotBlank() } ?: current.studentId
-                    val remoteName = row.optString("full_name")
-                    if (!remoteName.isRealProfileDisplayName()) {
-                        return@runCatching false
-                    }
-                    val remoteAvatar = row.optString("avatar_url").takeIf { it.isNotBlank() } ?: current.avatarUrl
-                    val remoteMerit = row.optInt("campus_merit_points", current.campusMeritPoints)
-                    val remoteTrust = row.optInt("behavioral_trust_score", current.behavioralTrustScore)
-                    val remoteUni = row.optString("university_name").takeIf { it.isNotBlank() } ?: current.universityName
-                    val remoteResidence = row.optString("campus_residence").takeIf { it.isNotBlank() } ?: current.campusResidence
-                    val remotePrefsObj = row.optJSONObject("onboarding_preferences")
-                    val remotePrefs = if (remotePrefsObj != null) {
-                        StudentProfileEntity.deserializeOnboardingPreferences(remotePrefsObj.toString())
-                    } else {
-                        OnboardingPreferences()
-                    }
-                    val updated = current.copy(
-                        studentId = remoteStudentId,
-                        fullName = remoteName,
-                        avatarUrl = remoteAvatar,
-                        universityEmail = row.optString("university_email").ifBlank { cleanEmail },
-                        campusMeritPoints = remoteMerit,
-                        behavioralTrustScore = remoteTrust,
-                        universityName = remoteUni,
-                        campusResidence = remoteResidence,
-                        onboardingPreferences = if (
-                            remotePrefs.hasCompletedSurvey ||
-                            !current.universityEmail.equals(cleanEmail, ignoreCase = true) ||
-                            current.syncStatus !in setOf(
-                                com.campus.network.core.model.SyncStatus.PENDING.name,
-                                com.campus.network.core.model.SyncStatus.FAILED.name
-                            )
-                        ) {
-                            remotePrefs
-                        } else {
-                            current.onboardingPreferences
-                        }
-                    )
-                    _studentProfile.value = updated
-                    profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
-                    rememberProfile(updated)
-                    return@runCatching updated.onboardingPreferences.hasCompletedSurvey
-                } else {
-                    // Profile does not yet exist remotely, upload current profile if email is valid
-                    val current = _studentProfile.value
-                    if (current.universityEmail.isNotBlank() &&
-                        current.universityEmail.equals(cleanEmail, ignoreCase = true)
-                    ) {
-                        runCatching {
-                            persistToDatabase(current)
-                        }
-                    }
-                    return@runCatching current.onboardingPreferences.hasCompletedSurvey
+                    limit(1)
                 }
+                .decodeList()
+            if (rows.isNotEmpty()) {
+                val row = rows.first()
+                val existingProfile = _studentProfile.value
+                val current = if (existingProfile.universityEmail.equals(cleanEmail, ignoreCase = true)) {
+                    existingProfile
+                } else {
+                    StudentProfile()
+                }
+                val remoteStudentId = row.student_id.ifBlank { row.id }.takeIf { it.isNotBlank() } ?: current.studentId
+                val remoteName = row.full_name
+                if (!remoteName.isRealProfileDisplayName()) {
+                    return@runCatching false
+                }
+                val remoteAvatar = row.avatar_url?.takeIf { it.isNotBlank() && !it.startsWith("avatar_") } ?: current.avatarUrl
+                val remoteMerit = if (row.campus_merit_points != 0) row.campus_merit_points else current.campusMeritPoints
+                val remoteTrust = if (row.behavioral_trust_score != 0) row.behavioral_trust_score else current.behavioralTrustScore
+                val remoteUni = row.university_name.takeIf { it.isNotBlank() } ?: current.universityName
+                val remoteResidence = row.campus_residence?.takeIf { it.isNotBlank() } ?: current.campusResidence
+                val remotePrefs = current.onboardingPreferences
+                val updated = current.copy(
+                    studentId = remoteStudentId,
+                    fullName = remoteName,
+                    avatarUrl = remoteAvatar,
+                    universityEmail = row.university_email.ifBlank { cleanEmail },
+                    campusMeritPoints = remoteMerit,
+                    behavioralTrustScore = remoteTrust,
+                    universityName = remoteUni,
+                    campusResidence = remoteResidence,
+                    onboardingPreferences = if (
+                        remotePrefs.hasCompletedSurvey ||
+                        !current.universityEmail.equals(cleanEmail, ignoreCase = true) ||
+                        current.syncStatus !in setOf(
+                            com.campus.network.core.model.SyncStatus.PENDING.name,
+                            com.campus.network.core.model.SyncStatus.FAILED.name
+                        )
+                    ) {
+                        remotePrefs
+                    } else {
+                        current.onboardingPreferences
+                    }
+                )
+                _studentProfile.value = updated
+                profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
+                rememberProfile(updated)
+                return@runCatching updated.onboardingPreferences.hasCompletedSurvey
+            } else {
+                val current = _studentProfile.value
+                if (current.universityEmail.isNotBlank() &&
+                    current.universityEmail.equals(cleanEmail, ignoreCase = true)
+                ) {
+                    runCatching {
+                        persistToDatabase(current)
+                    }
+                }
+                return@runCatching current.onboardingPreferences.hasCompletedSurvey
             }
-            false
         }.getOrDefault(false)
     }
 
@@ -436,17 +407,16 @@ class StudentProfileRepository(
     suspend fun validateUserExistsInDatabase(email: String): Result<Boolean> = withContext(ioDispatcher) {
         runCatching {
             val cleanEmail = email.trim()
-            if (cleanEmail.isBlank()) {
-                return@runCatching false
-            }
-            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-            val client = supabaseClient ?: return@runCatching true
-            val queryResult = client.queryTable("campusprofile?university_email=ilike.$encodedEmail&select=id,university_email").getOrNull()
-            if (queryResult.isNullOrBlank()) {
-                return@runCatching true
-            }
-            val jsonArray = org.json.JSONArray(queryResult.trim())
-            jsonArray.length() > 0
+            if (cleanEmail.isBlank()) return@runCatching false
+            val rows: List<CampusProfileRow> = sdkClient.from("campusprofile")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("university_email", cleanEmail)
+                    }
+                    limit(1)
+                }
+                .decodeList()
+            rows.isNotEmpty()
         }
     }
 
@@ -479,23 +449,22 @@ class StudentProfileRepository(
         val cleanEmail = email.trim()
         if (cleanEmail.isBlank()) return@withContext false
 
-        // 1. Check live Supabase database first
         val remoteCheck = runCatching {
-            val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
-            val queryResult = supabaseClient?.queryTable("campusprofile?university_email=ilike.$encodedEmail&select=id,university_email")?.getOrThrow()
-            if (!queryResult.isNullOrBlank()) {
-                val arr = org.json.JSONArray(queryResult.trim())
-                arr.length() > 0
-            } else {
-                false
-            }
+            val rows: List<CampusProfileRow> = sdkClient.from("campusprofile")
+                .select(columns = Columns.ALL) {
+                    filter {
+                        eq("university_email", cleanEmail)
+                    }
+                    limit(1)
+                }
+                .decodeList()
+            rows.isNotEmpty()
         }.getOrNull()
 
         if (remoteCheck != null) {
             return@withContext remoteCheck
         }
 
-        // 2. Fallback to local Room cache if network request failed
         val local = profileDao?.getProfileByEmail(cleanEmail)
         if (local != null && local.universityEmail.isNotBlank()) {
             return@withContext true
@@ -503,37 +472,60 @@ class StudentProfileRepository(
         false
     }
 
-    suspend fun updateProfileDirect(profile: StudentProfile): Result<Unit> = withContext(ioDispatcher) {
-        persistToDatabase(profile)
-    }
-
-    suspend fun markFailedWritesPending() = withContext(ioDispatcher) {
-        val failedProfile = profileDao?.getFailedProfile()
-        if (failedProfile != null) {
-            profileDao?.updateProfileSyncStatus(
-                failedProfile.id,
-                com.campus.network.core.model.SyncStatus.PENDING.name,
-                failedProfile.syncId
-            )
-        }
-    }
-
-    suspend fun applyGuestSession() = withContext(ioDispatcher) {
-        _isAuthenticatedSession.value = false
-        _isGuestSession.value = true
-        val current = _studentProfile.value
-        _studentProfile.value = current.copy(
-            personaRole = "Guest Preview (Unverified)",
-            onboardingPreferences = current.onboardingPreferences.copy(
-                isVerifiedStudentEmail = false
-            )
+    suspend fun saveProfile(
+        studentId: String = _studentProfile.value.studentId,
+        fullName: String = _studentProfile.value.fullName,
+        universityEmail: String = _studentProfile.value.universityEmail,
+        universityName: String = _studentProfile.value.universityName,
+        degreeProgram: String = _studentProfile.value.degreeProgram,
+        academicYear: String = _studentProfile.value.academicYear,
+        campusResidence: String = _studentProfile.value.campusResidence,
+        phoneNumber: String = _studentProfile.value.phoneNumber,
+        bio: String = _studentProfile.value.bio,
+        avatarUrl: String? = _studentProfile.value.avatarUrl,
+        preferredRendezvousPoint: String = _studentProfile.value.preferredRendezvousPoint,
+        notificationsEnabled: Boolean = _studentProfile.value.notificationsEnabled,
+        escrowAlertsEnabled: Boolean = _studentProfile.value.escrowAlertsEnabled,
+        questRemindersEnabled: Boolean = _studentProfile.value.questRemindersEnabled,
+        isTrustScorePublic: Boolean = _studentProfile.value.isTrustScorePublic,
+        isOnlineStatusVisible: Boolean = _studentProfile.value.isOnlineStatusVisible,
+        activityLedgerVisibility: String = _studentProfile.value.activityLedgerVisibility,
+        locationPrivacyScope: com.campus.network.core.model.LocationPrivacyScope = _studentProfile.value.locationPrivacyScope,
+        interests: List<String> = _studentProfile.value.interests,
+        onboardingPreferences: OnboardingPreferences = _studentProfile.value.onboardingPreferences
+    ): Result<Unit> = withContext(ioDispatcher) {
+        val updated = _studentProfile.value.copy(
+            studentId = studentId,
+            fullName = fullName,
+            universityEmail = universityEmail,
+            universityName = universityName,
+            degreeProgram = degreeProgram,
+            academicYear = academicYear,
+            campusResidence = campusResidence,
+            phoneNumber = phoneNumber,
+            bio = bio,
+            avatarUrl = avatarUrl,
+            preferredRendezvousPoint = preferredRendezvousPoint,
+            notificationsEnabled = notificationsEnabled,
+            escrowAlertsEnabled = escrowAlertsEnabled,
+            questRemindersEnabled = questRemindersEnabled,
+            isTrustScorePublic = isTrustScorePublic,
+            isOnlineStatusVisible = isOnlineStatusVisible,
+            activityLedgerVisibility = activityLedgerVisibility,
+            locationPrivacyScope = locationPrivacyScope,
+            interests = interests,
+            onboardingPreferences = onboardingPreferences
         )
+        persistToDatabase(updated)
     }
 
-    suspend fun updateLocationPrivacyScope(
-        scope: com.campus.network.core.model.LocationPrivacyScope
-    ) = withContext(ioDispatcher) {
-        _locationPrivacyScope.value = scope
+    suspend fun retryFailedUploads() = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        if (current.syncStatus == com.campus.network.core.model.SyncStatus.FAILED.name ||
+            current.syncStatus == com.campus.network.core.model.SyncStatus.PENDING.name
+        ) {
+            persistToDatabase(current)
+        }
     }
 
     suspend fun saveOnboardingPreferences(preferences: OnboardingPreferences): Result<Unit> = withContext(ioDispatcher) {
@@ -613,7 +605,6 @@ class StudentProfileRepository(
         }
         val cleanName = fullName?.trim()?.takeIf { it.isNotEmpty() } ?: current.fullName
         val cleanEmail = email.trim().takeIf { it.isNotEmpty() } ?: current.universityEmail
-        // Keep an already saved custom avatar; the identity provider photo is only a fallback.
         val cleanAvatar = current.avatarUrl?.takeIf { it.isNotBlank() }
             ?: avatarUrl?.trim()?.takeIf { it.isNotEmpty() }
         val currentPrefs = current.onboardingPreferences
@@ -642,7 +633,7 @@ class StudentProfileRepository(
         _studentProfile.value = authenticatedProfile.copy(fullName = "")
         profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(_studentProfile.value))
         if (authenticatedProfile.fullName.isRealProfileDisplayName()) {
-        persistToDatabase(authenticatedProfile)
+            persistToDatabase(authenticatedProfile)
         }
     }
 
@@ -653,6 +644,17 @@ class StudentProfileRepository(
         val updated = current.copy(avatarUrl = fallbackUrl)
         _studentProfile.value = updated
         profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
+    }
+
+    suspend fun markFailedWritesPending() = withContext(ioDispatcher) {
+        val failedProfile = profileDao?.getFailedProfile()
+        if (failedProfile != null) {
+            profileDao?.updateProfileSyncStatus(
+                failedProfile.id,
+                com.campus.network.core.model.SyncStatus.PENDING.name,
+                failedProfile.syncId
+            )
+        }
     }
 
     suspend fun completeQuest(questId: String) = withContext(ioDispatcher) {
@@ -717,16 +719,6 @@ class StudentProfileRepository(
         persistToDatabase(updated)
     }
 
-    suspend fun clearStatusNote(): Result<Unit> = withContext(ioDispatcher) {
-        val current = _studentProfile.value
-        val updated = current.copy(
-            statusNote = null,
-            statusNoteEmoji = null,
-            statusNoteExpiry = null
-        )
-        persistToDatabase(updated)
-    }
-
     suspend fun updateCampusMeritPoints(points: Int) = withContext(ioDispatcher) {
         val current = _studentProfile.value
         _studentProfile.value = current.copy(campusMeritPoints = points.coerceAtLeast(0))
@@ -750,7 +742,6 @@ class StudentProfileRepository(
         _studentProfile.value = current.copy(preferredRendezvousPoint = spotName.trim())
         persistToDatabase(_studentProfile.value)
     }
-
 
     suspend fun addProfile(newProfile: StudentProfile) = withContext(ioDispatcher) {
         val current = _studentProfile.value
@@ -797,9 +788,29 @@ class StudentProfileRepository(
         persistToDatabase(updated)
     }
 
+    suspend fun updateLocationPrivacyScope(scope: com.campus.network.core.model.LocationPrivacyScope) {
+        _locationPrivacyScope.value = scope
+        val current = _studentProfile.value
+        persistToDatabase(current.copy(locationPrivacyScope = scope))
+    }
+
+    suspend fun updateStatusNote(note: String?, emoji: String?, expiry: String? = null) = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        val updated = current.copy(
+            statusNote = note,
+            statusNoteEmoji = emoji,
+            statusNoteExpiry = expiry
+        )
+        persistToDatabase(updated)
+    }
+
+    suspend fun clearStatusNote() = withContext(ioDispatcher) {
+        updateStatusNote(null, null, null)
+    }
+
     suspend fun clearCache(): Long = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        val freedBytes = 38_500_000L // 38.5 MB cleared
+        val freedBytes = 38_500_000L
         val newStorage = (current.storageUsedBytes - freedBytes).coerceAtLeast(0L)
         _studentProfile.value = current.copy(storageUsedBytes = newStorage)
         persistToDatabase(_studentProfile.value)
@@ -813,14 +824,22 @@ class StudentProfileRepository(
     }
 
     suspend fun deleteAccount(reason: String) = withContext(ioDispatcher) {
-        // 1. Hard-delete the account and all owned data server-side via Edge Function.
-        val payload = org.json.JSONObject().apply {
+        val payload = JSONObject().apply {
             put("reason", reason)
             put("user_id", _studentProfile.value.stableUserId())
         }.toString()
-        supabaseClient?.invokeFunction("delete-account", payload)
-
-        // 2. Clear local Room cache and sign out of the session.
+        runCatching {
+            val jwt = SupabaseSessionStore.accessToken() ?: return@runCatching
+            val url = URL("${BuildConfig.SUPABASE_URL.trimEnd('/')}/functions/v1/delete-account")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("apikey", BuildConfig.SUPABASE_ANON_KEY)
+            conn.setRequestProperty("Authorization", "Bearer $jwt")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+            conn.responseCode
+        }
         signOut()
     }
 
@@ -865,4 +884,21 @@ class StudentProfileRepository(
         persistToDatabase(updated)
         true
     }
+}
+
+private fun profileNameFromKnown(
+    current: StudentProfile,
+    profiles: Map<String, StudentProfile>
+): String? {
+    val candidates = listOf(
+        current.studentId,
+        current.stableUserId(),
+        current.universityEmail,
+        current.universityEmail.lowercase()
+    ).filter(String::isNotBlank)
+    for (candidate in candidates) {
+        val resolved = profiles[candidate]?.fullName?.takeIf(String::isRealProfileDisplayName)
+        if (resolved != null) return resolved
+    }
+    return current.fullName.takeIf(String::isRealProfileDisplayName)
 }

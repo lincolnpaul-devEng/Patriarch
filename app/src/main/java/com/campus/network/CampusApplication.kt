@@ -20,7 +20,7 @@ import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.SyncWatermarkStore
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.SupabaseSessionStore
 import com.campus.network.core.network.call.CallMediaProviderRegistry
 import com.campus.network.core.network.call.StreamVideoCallMediaProvider
@@ -106,13 +106,12 @@ class CampusApplication : Application(), ImageLoaderFactory {
 
         // 7. Stream Video peer A/V — same API key + stream-token edge function as Chat
         if (BuildConfig.STREAM_API_KEY.isNotBlank()) {
-            val supabase = SupabaseClientProvider()
             CallMediaProviderRegistry.install(
                 StreamVideoCallMediaProvider(
                     appContext = this,
                     apiKey = BuildConfig.STREAM_API_KEY,
                     tokenFetcher = { userId ->
-                        supabase.fetchStreamToken(userId = userId)
+                        SupabaseSdkClientProvider.fetchStreamToken(userId = userId)
                     }
                 )
             )

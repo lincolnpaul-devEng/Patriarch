@@ -57,10 +57,30 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
+import com.campus.network.core.data.SupabaseProfileNameResolver
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class HubNotificationRow(
+    val id: String = "",
+    val recipient_user_id: String = "",
+    val actor_user_id: String = "",
+    val actor_name: String = "",
+    val type: String = "DIRECT_MESSAGE",
+    val title: String = "Campus Alert",
+    val body: String = "",
+    val thread_id: String? = null,
+    val server_id: String? = null,
+    val is_read: Boolean = false,
+    val created_at_epoch_ms: Long = 0L
+)
 
 sealed interface NotificationDestination {
     data object None : NotificationDestination
@@ -160,86 +180,81 @@ fun NotificationsScreen(
 
             // 2. Load campus_notifications from Supabase
             runCatching {
-                val supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
-                val filter = when {
-                    cleanUserId.isNotBlank() && cleanEmail.isNotBlank() ->
-                        "or=(recipient_user_id.eq.$cleanUserId,recipient_user_id.eq.$cleanEmail)"
-                    cleanUserId.isNotBlank() -> "recipient_user_id=eq.$cleanUserId"
-                    else -> "recipient_user_id=eq.$cleanEmail"
-                }
-                val res = supabaseClient.queryTable("campus_notifications?$filter&order=created_at.desc&limit=30")
-                res.onSuccess { jsonStr ->
-                    runCatching {
-                        val arr = org.json.JSONArray(jsonStr)
-                        val actorIds = (0 until arr.length()).map { index ->
-                            arr.getJSONObject(index).optString("actor_user_id")
+                val supabase = SupabaseSdkClientProvider.defaultClient
+                val targetRecipients = listOfNotNull(cleanUserId.takeIf { it.isNotBlank() }, cleanEmail.takeIf { it.isNotBlank() }).distinct()
+                if (targetRecipients.isNotEmpty()) {
+                    val remoteRows = supabase.from("campus_notifications").select {
+                        filter {
+                            isIn("recipient_user_id", targetRecipients)
                         }
-                        val profileNames = com.campus.network.core.data.SupabaseProfileNameResolver(supabaseClient)
-                            .resolve(actorIds)
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            val id = obj.optString("id")
-                            val type = obj.optString("type", "DIRECT_MESSAGE").uppercase()
-                            val title = obj.optString("title", "Campus Alert")
-                            val body = obj.optString("body", "")
-                            val isRead = obj.optBoolean("is_read", false)
-                            val actorUserId = obj.optString("actor_user_id", "")
-                            val actorName = profileNames[actorUserId.lowercase()].orEmpty()
-                            val threadId = obj.optString("thread_id", "")
-                            val createdAtMs = obj.optLong("created_at_epoch_ms", System.currentTimeMillis())
+                        order("created_at_epoch_ms", order = Order.DESCENDING)
+                        limit(30)
+                    }.decodeList<HubNotificationRow>()
 
-                            if (type in setOf("FRIEND_REQUEST", "FRIEND_REQUEST_ACCEPTED", "DIRECT_MESSAGE") &&
-                                !actorName.isRealProfileDisplayName()
-                            ) {
-                                continue
-                            }
-                            val initial = actorName.trim().take(1).uppercase().ifBlank { "C" }
-                            val dateStr = formatNotificationDate(createdAtMs)
-                            val dest = when (type) {
-                                "FRIEND_REQUEST" -> {
-                                    if (actorUserId.isNotBlank()) {
-                                        NotificationDestination.FriendRequest(actorUserId, actorName)
-                                    } else {
-                                        NotificationDestination.None
-                                    }
+                    val actorIds = remoteRows.map { it.actor_user_id }
+                    val profileNames = SupabaseProfileNameResolver(supabase).resolve(actorIds)
+                    for (obj in remoteRows) {
+                        val id = obj.id
+                        val type = obj.type.uppercase()
+                        val title = obj.title
+                        val body = obj.body
+                        val isRead = obj.is_read
+                        val actorUserId = obj.actor_user_id
+                        val actorName = profileNames[actorUserId.lowercase()].orEmpty()
+                        val threadId = obj.thread_id.orEmpty()
+                        val createdAtMs = if (obj.created_at_epoch_ms > 0L) obj.created_at_epoch_ms else System.currentTimeMillis()
+
+                        if (type in setOf("FRIEND_REQUEST", "FRIEND_REQUEST_ACCEPTED", "DIRECT_MESSAGE") &&
+                            !actorName.isRealProfileDisplayName()
+                        ) {
+                            continue
+                        }
+                        val initial = actorName.trim().take(1).uppercase().ifBlank { "C" }
+                        val dateStr = formatNotificationDate(createdAtMs)
+                        val dest = when (type) {
+                            "FRIEND_REQUEST" -> {
+                                if (actorUserId.isNotBlank()) {
+                                    NotificationDestination.FriendRequest(actorUserId, actorName)
+                                } else {
+                                    NotificationDestination.None
                                 }
-                                "DIRECT_MESSAGE" -> NotificationDestination.DirectChat(
-                                    threadId.ifBlank { actorUserId },
-                                    actorName
-                                )
-                                "FLASH_MEET" -> NotificationDestination.FlashMeet(-1.3094, 36.8122)
-                                else -> NotificationDestination.None
                             }
-
-                            // Skip duplicate friend-request rows already loaded from campus_friends
-                            val isDupFriend = type == "FRIEND_REQUEST" && (
-                                list.any {
-                                    it.destination is NotificationDestination.FriendRequest &&
-                                        (it.destination as NotificationDestination.FriendRequest)
-                                            .peerUserId.equals(actorUserId, ignoreCase = true)
-                                } || list.any { it.id == "fr_$actorUserId:$cleanUserId" || it.id == id }
+                            "DIRECT_MESSAGE" -> NotificationDestination.DirectChat(
+                                threadId.ifBlank { actorUserId },
+                                actorName
                             )
-                            if (!isDupFriend) {
-                                val displayTitle = if (type == "DIRECT_MESSAGE") actorName else title
-                                val displayBody = when (type) {
-                                    "FRIEND_REQUEST" -> "$actorName sent you a friend request."
-                                    "FRIEND_REQUEST_ACCEPTED" -> "$actorName accepted your friend request."
-                                    else -> body
-                                }
-                                list.add(
-                                    CampusNotification(
-                                        id = id,
-                                        initial = initial,
-                                        avatarBgColor = generateNotificationAvatarColor(actorName),
-                                        initialTextColor = Color.White,
-                                        title = displayTitle,
-                                        date = dateStr,
-                                        description = displayBody,
-                                        isUnread = !isRead,
-                                        destination = dest
-                                    )
-                                )
+                            "FLASH_MEET" -> NotificationDestination.FlashMeet(-1.3094, 36.8122)
+                            else -> NotificationDestination.None
+                        }
+
+                        // Skip duplicate friend-request rows already loaded from campus_friends
+                        val isDupFriend = type == "FRIEND_REQUEST" && (
+                            list.any {
+                                it.destination is NotificationDestination.FriendRequest &&
+                                    (it.destination as NotificationDestination.FriendRequest)
+                                        .peerUserId.equals(actorUserId, ignoreCase = true)
+                            } || list.any { it.id == "fr_$actorUserId:$cleanUserId" || it.id == id }
+                        )
+                        if (!isDupFriend) {
+                            val displayTitle = if (type == "DIRECT_MESSAGE") actorName else title
+                            val displayBody = when (type) {
+                                "FRIEND_REQUEST" -> "$actorName sent you a friend request."
+                                "FRIEND_REQUEST_ACCEPTED" -> "$actorName accepted your friend request."
+                                else -> body
                             }
+                            list.add(
+                                CampusNotification(
+                                    id = id,
+                                    initial = initial,
+                                    avatarBgColor = generateNotificationAvatarColor(actorName),
+                                    initialTextColor = Color.White,
+                                    title = displayTitle,
+                                    date = dateStr,
+                                    description = displayBody,
+                                    isUnread = !isRead,
+                                    destination = dest
+                                )
+                            )
                         }
                     }
                 }
@@ -440,8 +455,11 @@ fun NotificationsScreen(
                                     if (!item.id.startsWith("fr_")) {
                                         scope.launch(Dispatchers.IO) {
                                             runCatching {
-                                                val client = com.campus.network.core.network.SupabaseClientProvider()
-                                                client.updateRecord("campus_notifications?id=eq.${item.id}", """{"is_read":true}""")
+                                                SupabaseSdkClientProvider.defaultClient.from("campus_notifications").update(
+                                                    mapOf("is_read" to true)
+                                                ) {
+                                                    filter { eq("id", item.id) }
+                                                }
                                             }
                                         }
                                     }

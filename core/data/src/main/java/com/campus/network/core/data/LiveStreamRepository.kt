@@ -3,19 +3,56 @@ package com.campus.network.core.data
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.LiveStreamEntity
 import com.campus.network.core.database.entity.StreamCommentEntity
-import com.campus.network.core.database.entity.StreamerProfileEntity
 import com.campus.network.core.model.LiveStream
 import com.campus.network.core.model.StreamComment
 import com.campus.network.core.model.isRealProfileDisplayName
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class LiveStreamRow(
+    val id: String = "",
+    val broadcaster_id: String = "",
+    val broadcaster_name: String = "",
+    val broadcaster_handle: String = "",
+    val broadcaster_avatar_res: Int = 0,
+    val broadcaster_avatar_url: String? = null,
+    val title: String = "",
+    val description: String = "",
+    val category: String = "",
+    val audience: String = "",
+    val is_live: Boolean = true,
+    val stream_playback_url: String? = null,
+    val viewer_count: Int = 0,
+    val peak_viewers: Int = 0,
+    val like_count: Int = 0,
+    val started_at_epoch_ms: Long = 0L,
+    val ended_at_epoch_ms: Long? = null,
+    val duration_seconds: Int = 0,
+    val server_id: String? = null
+)
+
+@Serializable
+data class StreamCommentRow(
+    val id: String = "",
+    val stream_id: String = "",
+    val sender_id: String = "",
+    val sender_name: String = "",
+    val sender_avatar_url: String? = null,
+    val sender_avatar_res: Int = 0,
+    val comment_text: String = "",
+    val timestamp_epoch_ms: Long = 0L
+)
 
 /**
  * Repository for Live Streams, Broadcasters, and Stream Comments.
@@ -23,13 +60,13 @@ import org.json.JSONObject
  */
 class LiveStreamRepository(
     private val database: CampusDatabase,
-    private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val streamDao = database.liveStreamDao()
     private val profileDao = database.streamerProfileDao()
     private val commentDao = database.streamCommentDao()
-    private val profileNameResolver = SupabaseProfileNameResolver(supabaseClient)
+    private val profileNameResolver = SupabaseProfileNameResolver(supabase)
 
     fun getAllStreams(): Flow<List<LiveStream>> {
         return streamDao.getAllStreams()
@@ -99,29 +136,39 @@ class LiveStreamRepository(
         )
         streamDao.insertStream(pendingEntity)
 
-        val remotePayload = JSONObject().apply {
-            put("id", streamId)
-            put("broadcaster_id", broadcasterId)
-            put("broadcaster_name", resolvedBroadcasterName)
-            put("broadcaster_handle", broadcasterHandle)
-            put("broadcaster_avatar_res", broadcasterAvatarRes)
-            put("title", title)
-            put("description", description)
-            put("category", category)
-            put("audience", audience)
-            put("is_live", true)
-            put("stream_playback_url", streamPlaybackUrl)
-            put("viewer_count", 1)
-            put("peak_viewers", 1)
-            put("like_count", 0)
-            put("started_at_epoch_ms", now)
-        }.toString()
+        val remoteResult = runCatching {
+            supabase.from("campus_live_streams").upsert(
+                LiveStreamRow(
+                    id = streamId,
+                    broadcaster_id = broadcasterId,
+                    broadcaster_name = resolvedBroadcasterName,
+                    broadcaster_handle = broadcasterHandle,
+                    broadcaster_avatar_res = broadcasterAvatarRes,
+                    broadcaster_avatar_url = null,
+                    title = title,
+                    description = description,
+                    category = category,
+                    audience = audience,
+                    is_live = true,
+                    stream_playback_url = streamPlaybackUrl,
+                    viewer_count = 1,
+                    peak_viewers = 1,
+                    like_count = 0,
+                    started_at_epoch_ms = now,
+                    ended_at_epoch_ms = null,
+                    duration_seconds = 0,
+                    server_id = null
+                )
+            )
+        }
 
-        val remoteResult = supabaseClient.upsertRecord("campus_live_streams", remotePayload, onConflict = "id")
-            .requireSavedRow()
-
+        val syncStatus = if (remoteResult.isSuccess) {
+            com.campus.network.core.model.SyncStatus.SYNCED
+        } else {
+            com.campus.network.core.model.SyncStatus.FAILED
+        }
         val finalEntity = pendingEntity.copy(
-            syncStatus = syncStatusFor(remoteResult).name,
+            syncStatus = syncStatus.name,
             streamPlaybackUrl = if (remoteResult.isSuccess) streamPlaybackUrl else null
         )
         streamDao.insertStream(finalEntity)
@@ -136,15 +183,21 @@ class LiveStreamRepository(
         likes: Int
     ) = withContext(ioDispatcher) {
         val now = System.currentTimeMillis()
-        val updatePayload = JSONObject().apply {
-            put("is_live", false)
-            put("ended_at_epoch_ms", now)
-            put("duration_seconds", durationSeconds)
-            put("peak_viewers", peakViewers)
-            put("like_count", likes)
-        }.toString()
-
-        supabaseClient.updateRecord("campus_live_streams?id=eq.$streamId", updatePayload)
+        runCatching {
+            supabase.from("campus_live_streams").update(
+                mapOf(
+                    "is_live" to false,
+                    "ended_at_epoch_ms" to now,
+                    "duration_seconds" to durationSeconds,
+                    "peak_viewers" to peakViewers,
+                    "like_count" to likes
+                )
+            ) {
+                filter {
+                    eq("id", streamId)
+                }
+            }
+        }
 
         streamDao.endStream(
             streamId = streamId,
@@ -181,20 +234,27 @@ class LiveStreamRepository(
         )
         commentDao.insertComment(comment)
 
-        val commentPayload = JSONObject().apply {
-            put("id", comment.id)
-            put("stream_id", streamId)
-            put("sender_id", senderId)
-            put("sender_name", resolvedSenderName)
-            put("sender_avatar_url", senderAvatarUrl)
-            put("sender_avatar_res", senderAvatarRes)
-            put("comment_text", commentText)
-            put("timestamp_epoch_ms", comment.timestampEpochMs)
-        }.toString()
+        val remoteResult = runCatching {
+            supabase.from("campus_stream_comments").upsert(
+                StreamCommentRow(
+                    id = comment.id,
+                    stream_id = streamId,
+                    sender_id = senderId,
+                    sender_name = resolvedSenderName,
+                    sender_avatar_url = senderAvatarUrl,
+                    sender_avatar_res = senderAvatarRes,
+                    comment_text = commentText,
+                    timestamp_epoch_ms = comment.timestampEpochMs
+                )
+            )
+        }
 
-        val remoteResult = supabaseClient.upsertRecord("campus_stream_comments", commentPayload, onConflict = "id")
-            .requireSavedRow()
-        val saved = comment.copy(syncStatus = syncStatusFor(remoteResult).name)
+        val syncStatus = if (remoteResult.isSuccess) {
+            com.campus.network.core.model.SyncStatus.SYNCED
+        } else {
+            com.campus.network.core.model.SyncStatus.FAILED
+        }
+        val saved = comment.copy(syncStatus = syncStatus.name)
         commentDao.insertComment(saved)
         return@withContext saved.toDomain()
     }
@@ -204,54 +264,58 @@ class LiveStreamRepository(
     }
 
     suspend fun syncRemoteLiveStreams(sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
-        val deltaFilter = if (sinceMs > 0L) "&started_at_epoch_ms=gt.$sinceMs" else ""
-        val queryResult = supabaseClient.queryTable("campus_live_streams?order=started_at_epoch_ms.asc&limit=100$deltaFilter")
-        if (queryResult.isFailure) {
-            return@withContext Result.failure(queryResult.exceptionOrNull() ?: Exception("Failed to fetch live streams"))
-        }
-        var newWatermark = sinceMs
-        val raw = queryResult.getOrNull() ?: "[]"
-        val array = JSONArray(raw)
-        val broadcasterNames = try {
-            profileNameResolver.resolve((0 until array.length()).map { array.getJSONObject(it).optString("broadcaster_id") })
-        } catch (error: Exception) {
-            return@withContext Result.failure(error)
-        }
-        val entities = mutableListOf<LiveStreamEntity>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val sat = obj.optLong("started_at_epoch_ms", System.currentTimeMillis())
-            if (sat > newWatermark) newWatermark = sat
-            entities.add(
+        runCatching {
+            val rows: List<LiveStreamRow> = supabase.from("campus_live_streams")
+                .select(columns = Columns.ALL) {
+                    if (sinceMs > 0L) {
+                        filter {
+                            gt("started_at_epoch_ms", sinceMs)
+                        }
+                    }
+                    order("started_at_epoch_ms", order = Order.ASCENDING)
+                    limit(100)
+                }
+                .decodeList<LiveStreamRow>()
+
+            var newWatermark = sinceMs
+            val broadcasterNames = try {
+                profileNameResolver.resolve(rows.map { it.broadcaster_id })
+            } catch (error: Exception) {
+                emptyMap<String, String>()
+            }
+
+            val entities = rows.map { row ->
+                val sat = row.started_at_epoch_ms
+                if (sat > newWatermark) newWatermark = sat
                 LiveStreamEntity(
-                    id = obj.getString("id"),
-                    broadcasterId = obj.getString("broadcaster_id"),
-                    broadcasterName = broadcasterNames[obj.optString("broadcaster_id").lowercase()].orEmpty(),
-                    broadcasterHandle = obj.optString("broadcaster_handle", "@broadcaster"),
-                    broadcasterAvatarRes = obj.optInt("broadcaster_avatar_res", 0),
-                    broadcasterAvatarUrl = obj.optString("broadcaster_avatar_url", "").ifBlank { null },
-                    title = obj.getString("title"),
-                    description = obj.optString("description", ""),
-                    category = obj.optString("category", "General"),
-                    audience = obj.optString("audience", "CAMPUS"),
-                    isLive = obj.optBoolean("is_live", true),
-                    streamPlaybackUrl = obj.optString("stream_playback_url", "").ifBlank { null },
-                    backdropImageRes = obj.optInt("backdrop_image_res", 0),
-                    backdropImageUrl = obj.optString("backdrop_image_url", "").ifBlank { null },
-                    viewerCount = obj.optInt("viewer_count", 0),
-                    peakViewers = obj.optInt("peak_viewers", 0),
-                    likeCount = obj.optInt("like_count", 0),
+                    id = row.id,
+                    broadcasterId = row.broadcaster_id,
+                    broadcasterName = broadcasterNames[row.broadcaster_id.lowercase()].orEmpty().ifBlank { row.broadcaster_name },
+                    broadcasterHandle = row.broadcaster_handle.ifBlank { "@broadcaster" },
+                    broadcasterAvatarRes = row.broadcaster_avatar_res,
+                    broadcasterAvatarUrl = row.broadcaster_avatar_url,
+                    title = row.title,
+                    description = row.description,
+                    category = row.category.ifBlank { "General" },
+                    audience = row.audience.ifBlank { "CAMPUS" },
+                    isLive = row.is_live,
+                    streamPlaybackUrl = row.stream_playback_url,
+                    backdropImageRes = 0,
+                    backdropImageUrl = null,
+                    viewerCount = row.viewer_count,
+                    peakViewers = row.peak_viewers,
+                    likeCount = row.like_count,
                     startedAtEpochMs = sat,
-                    endedAtEpochMs = if (obj.has("ended_at_epoch_ms") && !obj.isNull("ended_at_epoch_ms")) obj.getLong("ended_at_epoch_ms") else null,
-                    durationSeconds = obj.optInt("duration_seconds", 0),
-                    serverId = obj.optString("server_id", "").ifBlank { null }
+                    endedAtEpochMs = row.ended_at_epoch_ms,
+                    durationSeconds = row.duration_seconds,
+                    serverId = row.server_id
                 )
-            )
+            }
+            if (entities.isNotEmpty()) {
+                streamDao.insertStreams(entities)
+            }
+            newWatermark
         }
-        if (entities.isNotEmpty()) {
-            streamDao.insertStreams(entities)
-        }
-        Result.success(newWatermark)
     }
 
     private fun LiveStreamEntity.toDomain() = LiveStream(

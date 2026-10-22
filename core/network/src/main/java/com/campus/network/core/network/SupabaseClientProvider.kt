@@ -20,7 +20,13 @@ import kotlinx.coroutines.withContext
 /**
  * High-performance Supabase Client Gateway using Ktor engine.
  * Credentials injected securely from UniHub project configuration.
+ *
+ * @deprecated Replaced by [SupabaseSdkClientProvider] and the official SupabaseClient Kotlin SDK.
  */
+@Deprecated(
+    message = "Replaced by SupabaseSdkClientProvider and official SupabaseClient SDK",
+    replaceWith = ReplaceWith("SupabaseSdkClientProvider", "com.campus.network.core.network.SupabaseSdkClientProvider")
+)
 class SupabaseClientProvider(
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
     private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY,

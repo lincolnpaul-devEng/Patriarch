@@ -1,9 +1,10 @@
 package com.campus.network.core.data
 
 import com.campus.network.core.model.isRealProfileDisplayName
-import com.campus.network.core.network.SupabaseClientProvider
-import org.json.JSONArray
-import java.net.URLEncoder
+import com.campus.network.core.network.SupabaseSdkClientProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 
 data class ResolvedCampusProfile(
     val name: String,
@@ -11,7 +12,7 @@ data class ResolvedCampusProfile(
 )
 
 class SupabaseProfileNameResolver(
-    private val supabaseClient: SupabaseClientProvider
+    private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient
 ) {
     suspend fun resolve(userIds: Collection<String>): Map<String, String> =
         resolveProfiles(userIds, includeAvatar = false).mapValues { it.value.name }
@@ -28,46 +29,45 @@ class SupabaseProfileNameResolver(
             .distinctBy { it.lowercase() }
         if (requestedIds.isEmpty()) return emptyMap()
 
-        val filters = requestedIds.flatMap { userId ->
-            val encodedId = URLEncoder.encode(userId, Charsets.UTF_8.name())
-            buildList {
-                if (userId.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))) {
-                    add("user_id.eq.$encodedId")
-                }
-                add("student_id.eq.$encodedId")
-                if ('@' in userId) add("university_email.eq.$encodedId")
-            }
+        val selectColumns = if (includeAvatar) {
+            "user_id,student_id,university_email,full_name,avatar_url"
+        } else {
+            "user_id,student_id,university_email,full_name"
         }
-        val query = "campusprofile?or=(${filters.joinToString(",")})&limit=200"
-        val raw = supabaseClient.queryTable(
-            query,
-            selectQuery = if (includeAvatar) {
-                "user_id,student_id,university_email,full_name,avatar_url"
-            } else {
-                "user_id,student_id,university_email,full_name"
-            }
-        ).getOrThrow()
-        val profiles = JSONArray(raw)
+
+        val profiles: List<CampusProfileRow> = runCatching {
+            supabase.from("campusprofile")
+                .select(columns = Columns.raw(selectColumns)) {
+                    filter {
+                        or {
+                            requestedIds.forEach { userId ->
+                                eq("user_id", userId)
+                                eq("student_id", userId)
+                                if ('@' in userId) eq("university_email", userId)
+                            }
+                        }
+                    }
+                    limit(200)
+                }
+                .decodeList<CampusProfileRow>()
+        }.getOrDefault(emptyList())
+
         val profilesById = mutableMapOf<String, ResolvedCampusProfile>()
-        for (index in 0 until profiles.length()) {
-            val profile = profiles.getJSONObject(index)
-            val name = profile.optString("full_name").takeIf(String::isRealProfileDisplayName) ?: continue
+        for (profile in profiles) {
+            val name = profile.full_name.takeIf(String::isRealProfileDisplayName) ?: continue
             val avatarUrl = if (includeAvatar) {
-                profile.optString("avatar_url")
-                    .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.startsWith("avatar_") }
+                profile.avatar_url?.takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
             } else {
                 null
             }
             val resolved = ResolvedCampusProfile(name.trim(), avatarUrl)
-            listOf("user_id", "student_id", "university_email").forEach { field ->
-                profile.optString(field)
-                    .trim()
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { profilesById[it.lowercase()] = resolved }
+            listOf(profile.user_id, profile.student_id, profile.university_email).forEach { id ->
+                if (id.isNotBlank()) {
+                    profilesById[id] = resolved
+                    profilesById[id.lowercase()] = resolved
+                }
             }
         }
-        return requestedIds.mapNotNull { id ->
-            profilesById[id.lowercase()]?.let { id.lowercase() to it }
-        }.toMap()
+        return profilesById
     }
 }

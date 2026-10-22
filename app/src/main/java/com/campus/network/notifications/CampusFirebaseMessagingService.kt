@@ -4,7 +4,7 @@ import android.util.Log
 import com.campus.network.core.data.SupabaseProfileNameResolver
 import com.campus.network.core.ui.notifications.CampusPushType
 import com.campus.network.core.ui.notifications.CampusSystemNotificationCenter
-import com.campus.network.core.network.SupabaseClientProvider
+import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
@@ -154,7 +154,7 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
 
     private suspend fun resolveProfileName(userId: String): String? =
         try {
-            SupabaseProfileNameResolver(SupabaseClientProvider())
+            SupabaseProfileNameResolver(SupabaseSdkClientProvider.defaultClient)
                 .resolve(listOf(userId))[userId.trim().lowercase()]
         } catch (error: Exception) {
             Log.w(TAG, "Could not resolve a notification name from campusprofile", error)

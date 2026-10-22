@@ -9,7 +9,6 @@ import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.PaymentErrorCode
 import com.campus.network.core.model.PaymentMethodOption
 import com.campus.network.core.model.PaymentResult
-import com.campus.network.core.network.SupabaseClientProvider
 import com.campus.network.core.network.payment.PaymentProvider
 import com.campus.network.core.network.payment.PaymentProviderRegistry
 import kotlinx.coroutines.CoroutineDispatcher
@@ -24,7 +23,6 @@ import java.util.UUID
  * Never marks an order FUNDS_HELD unless [PaymentProvider.createEscrowHold] succeeds.
  */
 class SafeTradeEscrowService(
-    private val supabaseClient: SupabaseClientProvider = SupabaseClientProvider(),
     private val paymentProvider: PaymentProvider = PaymentProviderRegistry.resolve(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
