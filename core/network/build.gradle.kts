@@ -9,6 +9,7 @@ if (secretsPropertiesFile.exists()) {
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -51,7 +52,7 @@ dependencies {
     // Stream Video / Audio (CallMediaProvider)
     api(libs.stream.video.core)
 
-    // Ktor WebSockets Engine
+    // Ktor WebSockets Engine (kept during migration; payment/Cloudinary/OpenRouter still use it)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.websockets)
@@ -60,6 +61,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Supabase Kotlin SDK (migrating from custom Ktor REST — side-by-side during transition)
+    api(platform(libs.supabase.bom))
+    api(libs.supabase.postgrest)
+    api(libs.supabase.auth)
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")

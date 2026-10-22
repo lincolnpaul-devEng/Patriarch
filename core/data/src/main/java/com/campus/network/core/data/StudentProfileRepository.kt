@@ -11,6 +11,7 @@ import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.model.stableUserId
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.StudentProfileEntity
+import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.SupabaseSessionStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import io.github.jan.supabase.postgrest.from
+
+/**
+ * Serializable row shape returned by the Supabase `campusprofile` table.
+ * Matches the PostgREST column names exactly.
+ */
+@Serializable
+data class CampusProfileRow(
+    val id: String,
+    val user_id: String,
+    val student_id: String,
+    val full_name: String,
+    val university_email: String,
+    val university_name: String,
+    val avatar_url: String?,
+)
 
 /**
  * Repository for Tab 5: Profile (Gamified Persona).
@@ -31,6 +51,7 @@ import kotlinx.coroutines.withContext
 class StudentProfileRepository(
     private val database: CampusDatabase? = null,
     private val supabaseClient: com.campus.network.core.network.SupabaseClientProvider? = null,
+    private val sdkClient: com.campus.network.core.network.SupabaseSdkClientProvider? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val profileDao = database?.studentProfileDao()
@@ -90,6 +111,11 @@ class StudentProfileRepository(
     }
 
     suspend fun refreshKnownProfiles(sinceMs: Long = 0L): Map<String, StudentProfile> = withContext(ioDispatcher) {
+        // Prefer the Supabase Kotlin SDK; fall back to the custom Ktor client if not yet migrated.
+        val sdk = sdkClient
+        if (sdk != null) {
+            return@withContext refreshKnownProfilesViaSdk(sinceMs)
+        }
         runCatching {
             val client = supabaseClient ?: return@runCatching _knownProfiles.value
             val deltaFilter = if (sinceMs > 0L) "&updated_at=gt.$sinceMs" else ""
@@ -132,6 +158,42 @@ class StudentProfileRepository(
                 _knownProfiles.value
             }
         }.getOrDefault(_knownProfiles.value)
+    }
+
+    private suspend fun refreshKnownProfilesViaSdk(sinceMs: Long): Map<String, StudentProfile> = withContext(ioDispatcher) {
+        val client = sdkClient ?: return@withContext _knownProfiles.value
+        try {
+            val query = client.supabase.from("campusprofile").select("*")
+            val filtered = if (sinceMs > 0L) query.gt("updated_at", sinceMs) else query
+            val rows: List<CampusProfileRow> = filtered.decodeList()
+            val map = mutableMapOf<String, StudentProfile>()
+            for (row in rows) {
+                val avatar = row.avatar_url.takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
+                if (row.full_name.isRealProfileDisplayName()) {
+                    val prof = StudentProfile(
+                        studentId = row.student_id.ifBlank { row.id },
+                        fullName = row.full_name,
+                        avatarUrl = avatar,
+                        universityEmail = row.university_email,
+                        universityName = row.university_name
+                    )
+                    if (row.id.isNotBlank()) map[row.id] = prof
+                    if (row.user_id.isNotBlank()) map[row.user_id] = prof
+                    if (row.student_id.isNotBlank()) map[row.student_id] = prof
+                    if (row.university_email.isNotBlank()) {
+                        map[row.university_email] = prof
+                        map[row.university_email.lowercase()] = prof
+                    }
+                }
+            }
+            _knownProfiles.value = map
+            val current = _studentProfile.value
+            val canonicalName = profileNameFromKnown(current, map)
+            _studentProfile.value = current.copy(fullName = canonicalName.orEmpty())
+            map
+        } catch (e: Exception) {
+            _knownProfiles.value
+        }
     }
 
     suspend fun syncRemoteProfiles(sinceMs: Long): Result<Long> = withContext(ioDispatcher) {

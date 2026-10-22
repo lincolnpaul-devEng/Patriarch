@@ -21,7 +21,6 @@ import androidx.navigation.navArgument
 import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.data.CampusDirectoryRepository
 import com.campus.network.core.data.CampusHubRepository
-import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.FlashMeetRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.database.CampusDatabase
@@ -68,7 +67,8 @@ fun CampusNavHost(
     studentProfileRepository: StudentProfileRepository = remember(database) {
         StudentProfileRepository(
             database = database,
-            supabaseClient = com.campus.network.core.network.SupabaseClientProvider()
+            supabaseClient = com.campus.network.core.network.SupabaseClientProvider(),
+            sdkClient = com.campus.network.core.network.SupabaseSdkClientProvider()
         )
     },
     onToggleBottomBar: (Boolean) -> Unit = {}
