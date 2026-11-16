@@ -98,8 +98,8 @@ fun GridScreen(vm: SnackVm, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.Top
             ) {
                 Column {
-                    Text(text = "Chips", style = ts(30, FontWeight.Normal, Ink, lh = 1.05f, ls = -.5f))
-                    Text(text = "Collections", style = ts(26, FontWeight.Normal, Ink.copy(alpha = 0.85f), lh = 1.05f, ls = -.5f))
+                    Text(text = "Campus", style = ts(30, FontWeight.Normal, Ink, lh = 1.05f, ls = -.5f))
+                    Text(text = "Products", style = ts(26, FontWeight.Normal, Ink.copy(alpha = 0.85f), lh = 1.05f, ls = -.5f))
                 }
                 BackBtn(onClick = { vm.go(SnackScreen.Home) })
             }
@@ -208,10 +208,10 @@ fun HomeScreen(vm: SnackVm, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.Top
             ) {
                 Column {
-                    Text(text = "Order From The", style = ts(26, FontWeight.Normal, Ink, lh = 1.1f, ls = -.5f))
+                    Text(text = "Buy & Sell The", style = ts(26, FontWeight.Normal, Ink, lh = 1.1f, ls = -.5f))
                     Row {
                         Text(text = "Best Of ", style = ts(26, FontWeight.Normal, Ink, lh = 1.1f, ls = -.5f))
-                        Text(text = "Snacks", style = ts(28, FontWeight.Normal, Ink, lh = 1.1f, ls = -.5f))
+                        Text(text = "Products", style = ts(28, FontWeight.Normal, Ink, lh = 1.1f, ls = -.5f))
                     }
                 }
                 MenuBtn()

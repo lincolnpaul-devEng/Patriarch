@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -54,6 +55,7 @@ fun BestFootballMatchScreen(
     onNavigateToChannels: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
+    onNavigateToSnack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -303,7 +305,9 @@ fun BestFootballMatchScreen(
             ) {
                 // User's Real Profile Name (replaces mock name SLAVA KORNiLOV)
                 Box(
-                    modifier = Modifier.offset(x = 15.dp, y = 116.dp)
+                    modifier = Modifier
+                        .offset(x = 15.dp, y = 116.dp)
+                        .widthIn(max = 248.dp)
                 ) {
                     Box {
                         DText(
@@ -324,6 +328,61 @@ fun BestFootballMatchScreen(
                                 letterSpacing = -0.9f
                             )
                         }
+                    }
+                }
+
+                // Product (Snack Ordering) Card: exact look of GO LIVE card, placed on the right of the user name on the same row (y = 116.dp), height = 142.dp (matching the two names)
+                Box(
+                    modifier = Modifier
+                        .offset(x = 270.dp, y = 116.dp)
+                        .size(width = 108.dp, height = 142.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(White)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onNavigateToSnack
+                        )
+                ) {
+                    // Fold at top right: 38x26, triangle Lilac + line Purple@.55
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(width = 38.dp, height = 26.dp)
+                    ) {
+                        val fold = Path().apply {
+                            moveTo(0f, 0f)
+                            lineTo(size.width, 0f)
+                            lineTo(size.width, size.height)
+                            close()
+                        }
+                        drawPath(fold, color = Lilac)
+                        drawLine(
+                            color = Purple.copy(alpha = 0.55f),
+                            start = Offset(0f, 0f),
+                            end = Offset(size.width, size.height),
+                            strokeWidth = 2.4f.dp.toPx()
+                        )
+                    }
+
+                    // "BUY OR\nSELL" text at (12, 16)
+                    Box(modifier = Modifier.offset(x = 12.dp, y = 16.dp)) {
+                        DText(
+                            text = "BUY OR\nSELL",
+                            size = 23f,
+                            color = Ink,
+                            lineHeight = 21f
+                        )
+                    }
+
+                    // "NOW" indicator below it at (12, 64)
+                    Box(modifier = Modifier.offset(x = 12.dp, y = 64.dp)) {
+                        DText(
+                            text = "NOW",
+                            size = 32f,
+                            color = Red,
+                            strokeEm = 0.02f
+                        )
                     }
                 }
 

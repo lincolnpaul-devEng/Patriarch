@@ -75,6 +75,11 @@ fun MainSwipeablePagerScreen(
                     },
                     onNavigateToMessages = {
                         coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                    },
+                    onNavigateToSnack = {
+                        navController.navigate(Screen.Snack.route) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
