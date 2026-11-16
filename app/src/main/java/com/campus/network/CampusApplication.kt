@@ -41,7 +41,7 @@ class CampusApplication : Application(), ImageLoaderFactory {
     var isElevatedRiskDevice: Boolean = false
         private set
 
-    lateinit var database: CampusDatabase
+    lateinit var container: AppContainer
         private set
 
     var streamChatEngine: StreamChatEngine? = null
@@ -78,8 +78,8 @@ class CampusApplication : Application(), ImageLoaderFactory {
         // 1. Initialize Bundled Google Unicode Emoji Font (Supports all ~3,700+ emojis offline)
         EmojiCompat.init(BundledEmojiCompatConfig(this))
 
-        // 2. Initialize Room Local Cache
-        database = CampusDatabase.getInstance(this)
+        // 2. Initialize AppContainer (owns Room Local Cache + app-scoped repositories)
+        container = DefaultAppContainer(this)
 
         // 3. Initialize sync watermark store + schedule periodic delta sync worker
         SyncWatermarkStore.initialize(this)

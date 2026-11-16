@@ -787,6 +787,13 @@ fun PostProductDrawerSheet(
                         onValueChange = { title = it },
                         label = { Text("Product Title *") },
                         placeholder = { Text("e.g. TI-84 Plus CE Calculator, Organic Chemistry 4th Ed") },
+                        supportingText = {
+                            Text(
+                                text = "Describe the item only (e.g. 'Coffee Beans', not 'Coffee Beans 1kg'). Quantity & units are handled dynamically at purchase.",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),

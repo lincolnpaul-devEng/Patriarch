@@ -29,6 +29,10 @@ android {
 
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -84,8 +88,11 @@ dependencies {
     // Supabase Kotlin SDK (migrating from custom Ktor REST — side-by-side during transition)
     api(platform(libs.supabase.bom))
     api(libs.supabase.postgrest)
+    api(libs.supabase.gotrue)
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
     testImplementation(libs.kotlinx.coroutines.core)
+    // Robolectric for the Android-backed SupabaseSessionStore (EncryptedSharedPreferences)
+    testImplementation("org.robolectric:robolectric:4.13")
 }

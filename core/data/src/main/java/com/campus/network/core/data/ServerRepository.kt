@@ -89,7 +89,26 @@ data class ServerMemberRow(
     val custom_status: String? = null,
     val joined_at_epoch_ms: Long = 0L,
     val badge: String? = null,
-    val updated_at: Long = 0L
+    val created_at: String? = null,
+    val updated_at: String? = null
+)
+
+@Serializable
+data class ServerMemberWriteRow(
+    val id: String,
+    val server_id: String,
+    val user_id: String,
+    val display_name: String,
+    val handle: String = "@student",
+    val role: String = "MEMBER",
+    val role_title: String = "Member",
+    val role_color_hex: Long = 0xFF5C6470,
+    val avatar_url: String? = null,
+    val avatar_res_name: String = "",
+    val is_online: Boolean = true,
+    val joined_at_epoch_ms: Long = System.currentTimeMillis(),
+    val custom_status: String? = null,
+    val badge: String? = null
 )
 
 @Serializable
@@ -608,7 +627,7 @@ class ServerRepository(
         // Check if member already in server
         val existingMember = if (userId.isNotBlank()) memberDao.getMemberSync(server.id, userId) else null
         if (userId.isNotBlank()) {
-            val memberRow = ServerMemberRow(
+            val memberRow = ServerMemberWriteRow(
                 id = "${server.id}:${userId}",
                 server_id = server.id,
                 user_id = userId,
@@ -623,7 +642,7 @@ class ServerRepository(
                 joined_at_epoch_ms = System.currentTimeMillis()
             )
             val res = runCatching {
-                supabase.from("server_members").upsert(memberRow)
+                supabase.from("server_members").upsert(memberRow, onConflict = "id")
             }
             if (res.isFailure) {
                 return@withContext Result.failure(res.exceptionOrNull() ?: IllegalStateException("Failed to join server on cloud"))
@@ -677,7 +696,7 @@ class ServerRepository(
 
         val existingMember = if (userId.isNotBlank()) memberDao.getMemberSync(serverId, userId) else null
         if (userId.isNotBlank()) {
-            val memberRow = ServerMemberRow(
+            val memberRow = ServerMemberWriteRow(
                 id = "${serverId}:${userId}",
                 server_id = serverId,
                 user_id = userId,
@@ -692,7 +711,7 @@ class ServerRepository(
                 joined_at_epoch_ms = System.currentTimeMillis()
             )
             val res = runCatching {
-                supabase.from("server_members").upsert(memberRow)
+                supabase.from("server_members").upsert(memberRow, onConflict = "id")
             }
             if (res.isFailure) {
                 return@withContext Result.failure(res.exceptionOrNull() ?: IllegalStateException("Failed to join server on cloud"))
@@ -760,6 +779,14 @@ class ServerRepository(
                 )
             }
             if (servers.isNotEmpty()) serverDao.insertServers(servers)
+            if (sinceMs == 0L) {
+                val remoteIds = servers.map { it.id }
+                if (remoteIds.isNotEmpty()) {
+                    serverDao.deleteGhostServers(remoteIds)
+                } else {
+                    serverDao.clearSyncedServers()
+                }
+            }
             newestTimestamp
         }
     }
@@ -875,12 +902,15 @@ class ServerRepository(
     suspend fun syncRemoteMembers(serverId: String, sinceMs: Long = 0L): Result<Long> = withContext(ioDispatcher) {
         val cleanServerId = serverId.trim()
         if (cleanServerId.isBlank()) return@withContext Result.success(sinceMs)
+        val cursor = if (sinceMs > 0L) {
+            java.time.Instant.ofEpochMilli(sinceMs).toString()
+        } else null
         val result = runCatching {
             supabase.from("server_members").select {
                 filter {
                     eq("server_id", cleanServerId)
-                    if (sinceMs > 0L) {
-                        gt("updated_at", sinceMs)
+                    if (cursor != null) {
+                        gt("updated_at", cursor)
                     }
                 }
             }.decodeList<ServerMemberRow>()
@@ -891,7 +921,10 @@ class ServerRepository(
                 val profileNames = profileNameResolver.resolve(list.map { it.user_id })
                 val members = mutableListOf<ServerMemberEntity>()
                 for (obj in list) {
-                    if (obj.updated_at > newWatermark) newWatermark = obj.updated_at
+                    val updatedAt = runCatching {
+                        obj.updated_at?.let { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() } ?: 0L
+                    }.getOrDefault(0L)
+                    if (updatedAt > newWatermark) newWatermark = updatedAt
                     val srvId = obj.server_id
                     val uId = obj.user_id
                     if (srvId.isNotBlank() && uId.isNotBlank()) {
@@ -927,13 +960,16 @@ class ServerRepository(
         val cleanEmail = email.trim()
         val targetIds = listOfNotNull(cleanUserId.takeIf { it.isNotBlank() }, cleanEmail.takeIf { it.isNotBlank() }).distinct()
         if (targetIds.isEmpty()) return@withContext Result.success(sinceMs)
+        val cursor = if (sinceMs > 0L) {
+            java.time.Instant.ofEpochMilli(sinceMs).toString()
+        } else null
 
         val result = runCatching {
             supabase.from("server_members").select {
                 filter {
                     isIn("user_id", targetIds)
-                    if (sinceMs > 0L) {
-                        gt("updated_at", sinceMs)
+                    if (cursor != null) {
+                        gt("updated_at", cursor)
                     }
                 }
             }.decodeList<ServerMemberRow>()
@@ -943,7 +979,10 @@ class ServerRepository(
             runCatching {
                 val profileNames = profileNameResolver.resolve(list.map { it.user_id })
                 for (obj in list) {
-                    if (obj.updated_at > newWatermark) newWatermark = obj.updated_at
+                    val updatedAt = runCatching {
+                        obj.updated_at?.let { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() } ?: 0L
+                    }.getOrDefault(0L)
+                    if (updatedAt > newWatermark) newWatermark = updatedAt
                     val srvId = obj.server_id
                     val uId = obj.user_id
                     if (srvId.isNotBlank() && uId.isNotBlank()) {
@@ -963,6 +1002,14 @@ class ServerRepository(
                             badge = obj.badge?.takeIf { it.isNotBlank() }
                         )
                         memberDao.insertMember(ServerMemberEntity.fromDomain(member))
+                    }
+                }
+                if (sinceMs == 0L) {
+                    val validServerIds = list.map { it.server_id }.filter { it.isNotBlank() }.distinct()
+                    if (validServerIds.isNotEmpty()) {
+                        memberDao.deleteGhostMemberships(cleanUserId, cleanEmail, validServerIds)
+                    } else {
+                        memberDao.clearSyncedMembershipsForUser(cleanUserId, cleanEmail)
                     }
                 }
             }
@@ -1060,6 +1107,14 @@ class ServerRepository(
         }
         if (resolvedFriends.isNotEmpty()) {
             friendDao.insertFriends(resolvedFriends.map(FriendEntity::fromDomain))
+        }
+        if (sinceMs == 0L) {
+            val remoteIds = resolvedFriends.map { it.id }
+            if (remoteIds.isNotEmpty()) {
+                friendDao.deleteGhostFriends(cleanUserId, cleanEmail, remoteIds)
+            } else {
+                friendDao.clearSyncedFriends(cleanUserId, cleanEmail)
+            }
         }
         android.util.Log.d("ServerRepository", "syncRemoteFriends completed: loaded ${resolvedFriends.size} friend relationships")
         resolvedFriends

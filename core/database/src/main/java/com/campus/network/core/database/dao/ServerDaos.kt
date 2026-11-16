@@ -54,6 +54,12 @@ interface ServerDao {
     @Query("SELECT * FROM servers WHERE syncStatus = 'FAILED' ORDER BY createdAtEpochMs ASC")
     suspend fun getFailedServers(): List<ServerEntity>
 
+    @Query("DELETE FROM servers WHERE id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostServers(validIds: List<String>)
+
+    @Query("DELETE FROM servers WHERE syncStatus != 'PENDING'")
+    suspend fun clearSyncedServers()
+
     @Query("""
         SELECT DISTINCT s.* FROM servers s
         LEFT JOIN server_members m ON s.id = m.serverId
@@ -163,6 +169,12 @@ interface ServerMemberDao {
 
     @Query("UPDATE server_members SET displayName = :displayName, handle = :handle, avatarUrl = :avatarUrl, avatarResName = :avatarResName WHERE serverId = :serverId AND role = 'OWNER'")
     suspend fun updateServerOwnerProfile(serverId: String, displayName: String, handle: String, avatarUrl: String?, avatarResName: String)
+
+    @Query("DELETE FROM server_members WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND syncStatus != 'PENDING' AND serverId NOT IN (:validServerIds)")
+    suspend fun deleteGhostMemberships(userId: String, email: String, validServerIds: List<String>)
+
+    @Query("DELETE FROM server_members WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND syncStatus != 'PENDING'")
+    suspend fun clearSyncedMembershipsForUser(userId: String, email: String)
 }
 
 @Dao
@@ -205,6 +217,12 @@ interface FriendDao {
 
     @Query("DELETE FROM friends WHERE id = :id")
     suspend fun deleteFriendRelationship(id: String)
+
+    @Query("DELETE FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostFriends(userId: String, email: String, validIds: List<String>)
+
+    @Query("DELETE FROM friends WHERE (userId = :userId OR (:email != '' AND userId = :email)) AND syncStatus != 'PENDING'")
+    suspend fun clearSyncedFriends(userId: String, email: String)
 }
 
 @Dao
@@ -266,7 +284,7 @@ interface ServerChannelMessageDao {
     @Query(
         """
         UPDATE server_channel_messages
-        SET isOptimistic = 0, isDelivered = 1
+        SET isOptimistic = 0, isDelivered = 1, syncStatus = 'SYNCED', syncId = NULL
         WHERE id = :messageId
         """
     )

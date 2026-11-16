@@ -314,6 +314,14 @@ class LiveStreamRepository(
             if (entities.isNotEmpty()) {
                 streamDao.insertStreams(entities)
             }
+            if (sinceMs == 0L) {
+                val remoteIds = entities.map { it.id }
+                if (remoteIds.isNotEmpty()) {
+                    streamDao.deleteGhostStreams(remoteIds)
+                } else {
+                    streamDao.clearSyncedStreams()
+                }
+            }
             newWatermark
         }
     }

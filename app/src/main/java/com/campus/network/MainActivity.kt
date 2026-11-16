@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             CampusNetworkTheme {
                 MainAppScreen(
-                    database = app.database,
+                    container = app.container,
                     streamChatEngine = app.streamChatEngine
                 )
             }

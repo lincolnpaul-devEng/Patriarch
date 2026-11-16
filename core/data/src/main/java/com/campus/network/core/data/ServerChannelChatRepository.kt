@@ -2,6 +2,7 @@ package com.campus.network.core.data
 
 import com.campus.network.core.database.dao.ServerChannelMessageDao
 import com.campus.network.core.database.entity.ServerChannelMessageEntity
+import com.campus.network.core.model.SyncStatus
 import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.SupabaseSdkClientProvider
 import io.github.jan.supabase.SupabaseClient
@@ -102,7 +103,9 @@ class ServerChannelChatRepository(
                 timestampEpochMs = timestampEpochMs,
                 isOptimistic = true,
                 isDelivered = false,
-                isMine = isMine
+                isMine = isMine,
+                syncStatus = SyncStatus.PENDING.name,
+                syncId = java.util.UUID.randomUUID().toString()
             )
         )
     }
@@ -151,6 +154,10 @@ class ServerChannelChatRepository(
     }
 
     suspend fun markDelivered(messageId: String) = markMessageDelivered(messageId)
+
+    suspend fun markMessageFailed(messageId: String) = withContext(ioDispatcher) {
+        messageDao?.updateSyncStatus(messageId, null, com.campus.network.core.model.SyncStatus.FAILED.name)
+    }
 
     suspend fun getPendingMessages(): List<RemoteChannelChatMessage> = withContext(ioDispatcher) {
         val dao = messageDao ?: return@withContext emptyList()

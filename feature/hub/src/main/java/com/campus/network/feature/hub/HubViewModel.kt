@@ -189,11 +189,22 @@ class HubViewModel(
 
             val personalizedItems = searchFilteredItems
                 .map { item ->
-                    if (preferredCurrency != "KES" && item.currency == "KES") {
-                        item.copy(currency = preferredCurrency)
-                    } else {
-                        item
-                    }
+                    val sellerProf = studentProfileRepository.findKnownProfile(item.sellerUserId)
+                        ?: studentProfileRepository.findKnownProfile(item.sellerName)
+                    val canonicalSellerName = com.campus.network.core.model.cleanDisplayName(sellerProf?.fullName ?: item.sellerName)
+                        .ifBlank { "Campus Peer" }
+                    val canonicalSellerId = sellerProf?.stableUserId()
+                        ?.ifBlank { sellerProf.studentId }
+                        ?.ifBlank { item.sellerUserId }
+                        ?: item.sellerUserId
+                    val canonicalSellerAvatar = sellerProf?.avatarUrl ?: item.sellerAvatarUrl
+                    val updatedCurrency = if (preferredCurrency != "KES" && item.currency == "KES") preferredCurrency else item.currency
+                    item.copy(
+                        sellerName = canonicalSellerName,
+                        sellerUserId = canonicalSellerId,
+                        sellerAvatarUrl = canonicalSellerAvatar,
+                        currency = updatedCurrency
+                    )
                 }
                 .sortedWith(
                     compareByDescending<MarketItem> { item ->

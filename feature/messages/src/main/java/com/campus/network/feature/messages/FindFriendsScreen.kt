@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.campus.network.core.ui.components.CampusStudentAvatar
 
 /**
  * Campus-style directory to find students with accounts and send / accept friend requests.
@@ -287,29 +288,17 @@ private fun CampusPeerFriendCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF818CF8), Color(0xFF4F46E5))
-                        )
-                    )
                     .border(1.5.dp, Color.White, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                if (!peer.avatarUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = peer.avatarUrl,
-                        contentDescription = peer.fullName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Text(
-                        text = peer.initials.take(2),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                }
+                CampusStudentAvatar(
+                    avatarUrl = peer.avatarUrl,
+                    fullName = peer.fullName,
+                    modifier = Modifier.fillMaxSize(),
+                    backgroundColor = Color(0xFF4F46E5),
+                    initialsColor = Color.White,
+                    fontSize = 16.sp
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))

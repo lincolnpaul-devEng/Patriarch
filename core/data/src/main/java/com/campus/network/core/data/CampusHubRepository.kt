@@ -7,6 +7,7 @@ import com.campus.network.core.database.entity.MicroGigEntity
 import com.campus.network.core.model.GigUrgency
 import com.campus.network.core.model.MarketItem
 import com.campus.network.core.model.MicroGig
+import com.campus.network.core.model.cleanDisplayName
 import com.campus.network.core.model.isRealProfileDisplayName
 import com.campus.network.core.network.OpenRouterAiClient
 import com.campus.network.core.network.SupabaseSdkClientProvider
@@ -345,6 +346,10 @@ class CampusHubRepository(
             val isOwner = viewerId.isNotBlank() &&
                 sellerId.isNotBlank() &&
                 viewerId.equals(sellerId, ignoreCase = true)
+            val cleanObjName = cleanDisplayName(obj.seller_name)
+            val resolvedSellerName = sellerNames[sellerId.lowercase()]?.takeIf { it.isNotBlank() }
+                ?: cleanObjName.takeIf { it.isNotBlank() }
+                ?: "Campus Peer"
             MarketItemEntity(
                 id = itemId,
                 title = obj.title,
@@ -352,7 +357,7 @@ class CampusHubRepository(
                 currency = obj.currency,
                 category = obj.category,
                 condition = obj.condition,
-                sellerName = sellerNames[sellerId.lowercase()].orEmpty(),
+                sellerName = resolvedSellerName,
                 sellerUserId = sellerId,
                 sellerRating = obj.seller_rating.toFloat(),
                 isCampusVerifiedSeller = obj.is_campus_verified_seller,
@@ -372,6 +377,14 @@ class CampusHubRepository(
         }
         if (entities.isNotEmpty()) {
             itemDao.insertItems(entities)
+        }
+        if (sinceMs == 0L) {
+            val remoteIds = entities.map { it.id }
+            if (remoteIds.isNotEmpty()) {
+                itemDao.deleteGhostItems(remoteIds)
+            } else {
+                itemDao.clearSyncedItems()
+            }
         }
         Result.success(newWatermark)
     }
@@ -420,6 +433,14 @@ class CampusHubRepository(
         }
         if (entities.isNotEmpty()) {
             gigDao.insertGigs(entities)
+        }
+        if (sinceMs == 0L) {
+            val remoteIds = entities.map { it.id }
+            if (remoteIds.isNotEmpty()) {
+                gigDao.deleteGhostGigs(remoteIds)
+            } else {
+                gigDao.clearSyncedGigs()
+            }
         }
         Result.success(newWatermark)
     }

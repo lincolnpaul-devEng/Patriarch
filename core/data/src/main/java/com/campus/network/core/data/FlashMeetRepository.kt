@@ -233,6 +233,14 @@ class FlashMeetRepository(
             if (entities.isNotEmpty()) {
                 dao.insertMeets(entities)
             }
+            if (sinceMs == 0L) {
+                val remoteIds = entities.map { it.id }
+                if (remoteIds.isNotEmpty()) {
+                    dao.deleteGhostMeets(remoteIds)
+                } else {
+                    dao.clearSyncedMeets()
+                }
+            }
             newWatermark
         }
     }

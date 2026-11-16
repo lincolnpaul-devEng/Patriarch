@@ -21,8 +21,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import com.campus.network.core.data.AcademicChannelsRepository
-import com.campus.network.core.database.CampusDatabase
+import com.campus.network.AppContainer
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.feature.channels.ChannelsViewModel
 import com.campus.network.feature.channels.model.ChannelViewMode
@@ -42,9 +41,10 @@ import com.campus.network.ui.navigation.Screen
 
 @Composable
 fun MainAppScreen(
-    database: CampusDatabase,
+    container: AppContainer,
     streamChatEngine: StreamChatEngine?
 ) {
+    val database = container.database
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val navController = rememberNavController()
@@ -52,12 +52,7 @@ fun MainAppScreen(
     val currentRoute = navBackStackEntry?.destination?.route
     val networkState = rememberCampusNetworkState()
 
-    val studentProfileRepository = remember(database) {
-        com.campus.network.core.data.StudentProfileRepository(
-            database = database,
-            sdkClient = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
-        )
-    }
+    val studentProfileRepository = container.studentProfileRepository
 
     val telecomCallManager = remember(context) {
         CampusTelecomCallManager(context, coroutineScope)
@@ -66,32 +61,21 @@ fun MainAppScreen(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                // serverRepository wired below after remember — use database friends dao path via factory recreate
                 return MessagesViewModel(
                     streamChatEngine = streamChatEngine,
                     telecomCallManager = telecomCallManager,
                     studentProfileRepository = studentProfileRepository,
                     chatMessageDao = database.chatMessageDao(),
-                    supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient,
-                    serverRepository = com.campus.network.core.data.ServerRepository(
-                        database = database,
-                        supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
-                    ),
+                    supabase = container.supabaseClient,
+                    serverRepository = container.serverRepository,
                     context = context.applicationContext
                 ) as T
             }
         }
     )
 
-    val academicChannelsRepository = remember(database) {
-        AcademicChannelsRepository(database)
-    }
-    val serverRepository = remember(database) {
-        com.campus.network.core.data.ServerRepository(
-            database = database,
-            supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
-        )
-    }
+    val academicChannelsRepository = container.academicChannelsRepository
+    val serverRepository = container.serverRepository
     val channelsViewModel: ChannelsViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -216,7 +200,7 @@ fun MainAppScreen(
     // Keep bottom tabs visible on Servers hub + Messages threads so unread badges stay discoverable.
     // Hide only during immersive channel chat / deep message screens (same as WhatsApp / Discord).
     val bottomTabRoutes = remember {
-        setOf("tab_hub", "tab_map", "tab_channels", "tab_messages", "tab_profile")
+        setOf("tab_map", "tab_channels", "tab_messages", "tab_profile")
     }
     val isChannelImmersion = currentRoute == "tab_channels" && channelsUiState.viewMode != ChannelViewMode.CHANNELS_HUB
     val isMessagesImmersion = currentRoute == "tab_messages" &&
@@ -246,11 +230,10 @@ fun MainAppScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             CampusNavHost(
                 navController = navController,
-                database = database,
+                container = container,
                 streamChatEngine = streamChatEngine,
                 messagesViewModel = messagesViewModel,
                 channelsViewModel = channelsViewModel,
-                studentProfileRepository = studentProfileRepository,
                 onToggleBottomBar = { visible -> isScreenHidingBottomBar = !visible },
                 modifier = Modifier.padding(
                     bottom = if (isBottomBarVisible) paddingValues.calculateBottomPadding() else 0.dp

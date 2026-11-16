@@ -18,13 +18,9 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.campus.network.core.data.AcademicChannelsRepository
+import com.campus.network.AppContainer
 import com.campus.network.core.data.CampusDirectoryRepository
-import com.campus.network.core.data.CampusHubRepository
 import com.campus.network.core.data.DeltaSyncManager
-import com.campus.network.core.data.FlashMeetRepository
-import com.campus.network.core.data.StudentProfileRepository
-import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.model.stableUserId
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.feature.channels.ChannelsScreen
@@ -60,36 +56,29 @@ import kotlinx.coroutines.launch
 @Composable
 fun CampusNavHost(
     navController: NavHostController,
-    database: CampusDatabase,
+    container: AppContainer,
     streamChatEngine: StreamChatEngine?,
     modifier: Modifier = Modifier,
     messagesViewModel: MessagesViewModel? = null,
     channelsViewModel: ChannelsViewModel? = null,
-    studentProfileRepository: StudentProfileRepository = remember(database) {
-        StudentProfileRepository(
-            database = database,
-            sdkClient = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
-        )
-    },
     onToggleBottomBar: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val database = container.database
     val coroutineScope = rememberCoroutineScope()
     val authClient = remember(context) { com.campus.network.core.network.SupabaseGoogleAuthClient(context) }
 
-    // Repositories backed by local database cache and worker thread dispatchers
+    // App-scoped repositories (single instances owned by the AppContainer)
+    val studentProfileRepository = container.studentProfileRepository
+    val flashMeetRepository = container.flashMeetRepository
+    val academicChannelsRepository = container.academicChannelsRepository
+    val campusHubRepository = container.hubRepository
+    val serverRepository = container.serverRepository
+    val liveStreamRepository = container.liveStreamRepository
+
+    // Context-scoped helpers (not app-scoped state)
     val directoryRepository = remember(context) { CampusDirectoryRepository(context.applicationContext) }
-    val flashMeetRepository = remember(database) { FlashMeetRepository(database) }
     val placesRepository = remember { com.campus.network.core.data.PlacesRepository() }
-    val academicChannelsRepository = remember(database) { AcademicChannelsRepository(database) }
-    val campusHubRepository = remember(context) { CampusHubRepository(context, database) }
-    val serverRepository = remember(database) {
-        com.campus.network.core.data.ServerRepository(
-            database = database,
-            supabase = com.campus.network.core.network.SupabaseSdkClientProvider.defaultClient
-        )
-    }
-    val liveStreamRepository = remember(database) { com.campus.network.core.data.LiveStreamRepository(database) }
 
     // Scoped ViewModels managed by ViewModelProvider to survive configuration changes
     val resolvedMessagesViewModel: MessagesViewModel = messagesViewModel ?: viewModel(
@@ -277,36 +266,36 @@ fun CampusNavHost(
         // Auth Screen (Sign in with Google / Log in with Email / Join Patriarch program)
         composable(route = Screen.Auth.route) {
             AuthScreen(
+                studentProfileRepository = studentProfileRepository,
                 onLoginSuccess = { email, fullName, avatarUrl ->
-                    coroutineScope.launch {
-                        val matchedUni = directoryRepository.resolveUniversityFromEmail(email)
-                        val countryEntry = matchedUni?.let { u ->
-                            directoryRepository.getCountries().firstOrNull { it.code.equals(u.countryCode, ignoreCase = true) }
-                        }
-                        studentProfileRepository.syncProfileWithRemote(email)
-                        studentProfileRepository.applyAuthenticatedUser(
-                            fullName = fullName,
-                            email = email,
-                            avatarUrl = avatarUrl,
-                            matchedUniversity = matchedUni,
-                            countryName = countryEntry?.name,
-                            currencyCode = countryEntry?.currencyCode
-                        )
-                        studentProfileRepository.setAvatarFallbackIfMissing(avatarUrl)
-                        runCatching {
-                            serverRepository.syncRemoteServers()
-                            val sId = studentProfileRepository.getProfileSync()?.studentId?.ifBlank { email }.orEmpty()
-                            serverRepository.syncRemoteMemberships(sId, email)
-                            resolvedChannelsViewModel.refreshServers()
-                        }
+                    profileViewModel.resetDeletionState()
+                    val matchedUni = directoryRepository.resolveUniversityFromEmail(email)
+                    val countryEntry = matchedUni?.let { u ->
+                        directoryRepository.getCountries().firstOrNull { it.code.equals(u.countryCode, ignoreCase = true) }
+                    }
+                    studentProfileRepository.syncProfileWithRemote(email)
+                    studentProfileRepository.applyAuthenticatedUser(
+                        fullName = fullName,
+                        email = email,
+                        avatarUrl = avatarUrl,
+                        matchedUniversity = matchedUni,
+                        countryName = countryEntry?.name,
+                        currencyCode = countryEntry?.currencyCode
+                    )
+                    studentProfileRepository.setAvatarFallbackIfMissing(avatarUrl)
+                    runCatching {
+                        serverRepository.syncRemoteServers()
+                        val sId = studentProfileRepository.getProfileSync()?.studentId?.ifBlank { email }.orEmpty()
+                        serverRepository.syncRemoteMemberships(sId, email)
+                        resolvedChannelsViewModel.refreshServers()
+                    }
 
-                        val isSurveyDone =
-                            studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true
+                    val isSurveyDone =
+                        studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true
 
-                        val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
-                        navController.navigate(nextDestination) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
-                        }
+                    val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
+                    navController.navigate(nextDestination) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
                     }
                 },
                 onNavigateToVerify = { target, isPhone ->
@@ -470,82 +459,37 @@ fun CampusNavHost(
             )
         }
 
-        // Tab 4: Hub Layer (Campus Micro-Commerce)
+        // Tab 4: Homescreen (Best Football Match UI)
         composable(route = Screen.Hub.route) {
             val p = currentProfile
-            val activeUserId = p?.studentId?.takeIf { it.isNotBlank() } ?: p?.universityEmail?.takeIf { it.isNotBlank() }.orEmpty()
-            val pendingFriendsCount by remember(activeUserId) {
-                if (activeUserId.isNotBlank()) {
-                    serverRepository.getPendingReceivedFriendRequestsCount(activeUserId)
-                } else {
-                    kotlinx.coroutines.flow.flowOf(0)
+            com.campus.network.feature.hub.bestfootball.BestFootballMatchScreen(
+                userFullName = p?.fullName,
+                userAvatarUrl = p?.avatarUrl,
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToGoLive = {
+                    navController.navigate(Screen.GoLive.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToChannels = {
+                    navController.navigate(Screen.Channels.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToMap = {
+                    navController.navigate(Screen.Map.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToMessages = {
+                    navController.navigate(Screen.Messages.route) {
+                        launchSingleTop = true
+                    }
                 }
-            }.collectAsState(initial = 0)
-
-            HubScreen(
-                viewModel = hubViewModel,
-                unreadNotificationsCount = pendingFriendsCount,
-                onRetrySync = {
-                    coroutineScope.launch {
-                        DeltaSyncManager.get(context).retryFailedSyncs()
-                    }
-                },
-                onNavigateToChat = { peerId, peerName ->
-                    val resolvedPeerId = peerId.trim().ifBlank {
-                        peerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
-                    }
-                    resolvedMessagesViewModel.onEvent(
-                        com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
-                            peerId = resolvedPeerId,
-                            peerName = peerName,
-                            peerHandle = "@${resolvedPeerId.lowercase().replace(Regex("[^a-z0-9_]"), "")}",
-                            serverName = "Campus Market",
-                            serverTag = "MARKET"
-                        )
-                    )
-                    navController.navigate(Screen.Messages.route)
-                },
-                onMessageSeller = { sellerId, sellerName, initialOrderMessage ->
-                    val myId = resolvedMessagesViewModel.uiState.value.studentProfile
-                        ?.stableUserId()
-                        .orEmpty()
-                    val peerId = sellerId.trim()
-                    val channelPeerId = when {
-                        peerId.isNotBlank() && myId.isNotBlank() ->
-                            com.campus.network.core.model.directMessageChannelId(myId, peerId)
-                        peerId.isNotBlank() -> peerId
-                        else -> sellerName.lowercase().replace(Regex("[^a-z0-9]"), "_")
-                    }
-                    resolvedMessagesViewModel.onEvent(
-                        com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
-                            peerId = channelPeerId,
-                            peerName = sellerName,
-                            peerHandle = "@${peerId.ifBlank { sellerName }.lowercase().replace(Regex("[^a-z0-9]"), "")}",
-                            serverName = "Campus Market",
-                            serverTag = "SAFETRADE"
-                        )
-                    )
-                    if (!initialOrderMessage.isNullOrBlank()) {
-                        resolvedMessagesViewModel.onEvent(
-                            com.campus.network.feature.messages.MessagesEvent.SendMessage(
-                                text = initialOrderMessage
-                            )
-                        )
-                    }
-                    navController.navigate(Screen.Messages.route)
-                },
-                onNavigateToLiveFeed = { storyId ->
-                    navController.navigate(Screen.LiveFeed.createRoute(storyId))
-                },
-                onNavigateToGoLive = { navController.navigate(Screen.GoLive.route) },
-                onNavigateToMap = { lat, lng, _ ->
-                    mapViewModel.onEvent(com.campus.network.feature.map.MapEvent.FocusCoordinatesOnMap(lat, lng))
-                    navController.navigate(Screen.Map.route)
-                },
-                onNavigateToNotifications = {
-                    navController.navigate(Screen.Notifications.route)
-                },
-                onToggleBottomBar = onToggleBottomBar
             )
         }
 
@@ -621,9 +565,14 @@ fun CampusNavHost(
                 },
                 onSignOut = {
                     coroutineScope.launch {
+                        profileViewModel.resetDeletionState()
                         authClient.signOut()
                         studentProfileRepository.signOut()
-                        serverRepository.clearLocalCache()
+                        // Wipe every local table so the next sign-in starts from remote truth
+                        // (prevents ghost data from a previous account leaking into this one).
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            database.clearAllTables()
+                        }
                         resolvedChannelsViewModel.clearSession()
                         profileViewModel.onEvent(com.campus.network.feature.profile.ProfileEvent.SignOut)
                         navController.navigate(Screen.Auth.route) {

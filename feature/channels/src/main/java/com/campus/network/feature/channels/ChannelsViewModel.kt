@@ -486,12 +486,8 @@ class ChannelsViewModel(
                         )
                     }
                     _serversList.value = mapped
-                    val profileId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: ""
-                    val userEmail = _currentProfile.value?.universityEmail.orEmpty().trim().lowercase()
                     val joinedOnes = mapped.filter {
-                        _joinedServerIds.value.contains(it.id) ||
-                        (profileId.isNotBlank() && it.ownerId.equals(profileId, ignoreCase = true)) ||
-                        (userEmail.isNotBlank() && it.ownerId.equals(userEmail, ignoreCase = true))
+                        _joinedServerIds.value.contains(it.id)
                     }
                     if (_selectedServerId.value.isEmpty() && joinedOnes.isNotEmpty()) {
                         _selectedServerId.value = joinedOnes.first().id
@@ -787,9 +783,7 @@ class ChannelsViewModel(
         val typingMap = slice2.typingByChannelId
         val myStableId = profile?.stableUserId().orEmpty()
         val joinedServersList = allServers.filter { srv ->
-            slice1.joinedServerIds.contains(srv.id) ||
-            (currentUserId.isNotBlank() && srv.ownerId.equals(currentUserId, ignoreCase = true)) ||
-            (currentEmail.isNotBlank() && srv.ownerId.equals(currentEmail, ignoreCase = true))
+            slice1.joinedServerIds.contains(srv.id)
         }.map { srv ->
             val channelsWithTyping = srv.channels.map { ch ->
                 val typers = typingMap[ch.id].orEmpty()
@@ -1102,8 +1096,20 @@ class ChannelsViewModel(
                     if (remote.isSuccess) {
                         channelChatRepository.markDelivered(msgId)
                     } else {
-                        _feedbackMessage.value =
-                            "Saved offline — will sync when you're back online"
+                        // Be honest about what happened: distinguish offline-queued (kept for
+                        // retry) from transport errors (kept for retry) from real rejections.
+                        val failure = remote.exceptionOrNull()
+                        _feedbackMessage.value = when (failure) {
+                            is com.campus.network.core.network.PostgrestHttpException ->
+                                if (failure.isTransient) {
+                                    "Server trouble — message saved and will retry automatically"
+                                } else {
+                                    channelChatRepository.markMessageFailed(msgId)
+                                    "Couldn't send — the server rejected this message"
+                                }
+                            is java.io.IOException -> "Saved offline — will sync when you're back online"
+                            else -> "Message saved — will retry when the connection is stable"
+                        }
                     }
                 }
             }
@@ -1398,45 +1404,57 @@ class ChannelsViewModel(
                     viewModelScope.launch {
                         _isJoiningServer.value = true
 
-                        _joinedServerIds.value = _joinedServerIds.value + previewId
-                        _selectedServerId.value = previewId
-                        _previewServerId.value = null
+                        val repo = serverRepository
+                        if (repo == null) {
+                            _isJoiningServer.value = false
+                            _feedbackMessage.value = "Server repository unavailable"
+                            return@launch
+                        }
 
-                        val currentMembers = _serverMembers.value[previewId].orEmpty()
-                        val newMember = ServerMemberItem(
-                            id = "mem_${authorId}_$previewId",
-                            serverId = previewId,
-                            name = author,
-                            handle = authorHandle,
-                            avatarResName = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) null else authorAvatar,
-                            avatarUrl = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) authorAvatar else null,
-                            serverNickname = author,
-                            serverTag = "MEMBER",
-                            serverTagColorHex = 0xFF5C6470,
-                            role = ServerMemberRole("Member", ServerRoleType.MEMBER, 0xFF5C6470, isOwner = false),
-                            isOnline = true,
-                            joinedDate = "Joined Just Now",
-                            bio = "Campus peer & server member.",
-                            friendStatus = FriendRequestStatus.NONE,
-                            isSelf = true
-                        )
-                        _serverMembers.value = _serverMembers.value + (previewId to (currentMembers + newMember).distinctBy { it.id })
-
-                        serverRepository?.joinServerDirectly(
+                        val joinResult = repo.joinServerDirectly(
                             serverId = previewId,
                             userId = authorId,
                             avatarUrl = authorAvatar,
                             avatarResName = authorAvatar ?: ""
                         )
 
-                        runCatching {
-                            serverRepository?.syncRemoteMembers(previewId)
-                            serverRepository?.syncRemoteServers()
-                        }
+                        joinResult.fold(
+                            onSuccess = { srv ->
+                                _joinedServerIds.value = _joinedServerIds.value + previewId
+                                _selectedServerId.value = previewId
+                                _previewServerId.value = null
 
-                        kotlinx.coroutines.delay(450)
+                                val currentMembers = _serverMembers.value[previewId].orEmpty()
+                                val newMember = ServerMemberItem(
+                                    id = "mem_${authorId}_$previewId",
+                                    serverId = previewId,
+                                    name = author,
+                                    handle = authorHandle,
+                                    avatarResName = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) null else authorAvatar,
+                                    avatarUrl = if (authorAvatar?.startsWith("http") == true || authorAvatar?.startsWith("content:") == true) authorAvatar else null,
+                                    serverNickname = author,
+                                    serverTag = "MEMBER",
+                                    serverTagColorHex = 0xFF5C6470,
+                                    role = ServerMemberRole("Member", ServerRoleType.MEMBER, 0xFF5C6470, isOwner = false),
+                                    isOnline = true,
+                                    joinedDate = "Joined Just Now",
+                                    bio = "Campus peer & server member.",
+                                    friendStatus = FriendRequestStatus.NONE,
+                                    isSelf = true
+                                )
+                                _serverMembers.value = _serverMembers.value + (previewId to (currentMembers + newMember).distinctBy { it.id })
+
+                                runCatching {
+                                    repo.syncRemoteMembers(previewId)
+                                    repo.syncRemoteServers()
+                                }
+                                _feedbackMessage.value = "Joined ${targetServer?.name ?: srv.name}!"
+                            },
+                            onFailure = { err ->
+                                _feedbackMessage.value = "Failed to join: ${err.localizedMessage ?: err.message ?: "Network error"}"
+                            }
+                        )
                         _isJoiningServer.value = false
-                        _feedbackMessage.value = "Joined ${targetServer?.name ?: "server"}!"
                     }
                 }
             }
@@ -1955,6 +1973,11 @@ class ChannelsViewModel(
                 )
                 if (remote.isSuccess) {
                     channelChatRepository.markDelivered(msg.id)
+                } else {
+                    val failure = remote.exceptionOrNull()
+                    if (failure is com.campus.network.core.network.PostgrestHttpException && !failure.isTransient) {
+                        channelChatRepository.markMessageFailed(msg.id)
+                    }
                 }
             }
         }

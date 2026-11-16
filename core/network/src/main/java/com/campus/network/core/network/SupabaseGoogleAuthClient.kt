@@ -107,17 +107,9 @@ class SupabaseGoogleAuthClient(
         googleId: String?
     ): Result<AuthenticatedSessionUser> = withContext(ioDispatcher) {
         runCatching {
-            val user = AuthenticatedSessionUser(
-                userId = googleId?.takeIf { it.isNotBlank() } ?: "google_${System.currentTimeMillis()}",
-                email = email.trim(),
-                fullName = fullName,
-                avatarUrl = avatarUrl,
-                accessToken = null,
-                refreshToken = null,
-                requiresEmailConfirmation = false
-            )
-            saveSession("{}", user)
-            user
+            // Fabricated local-only sessions are no longer supported: the caller must
+            // complete a real Supabase Auth exchange (ID token / password / OTP).
+            error("A real Supabase session is required; Google-account profile fallback was removed")
         }
     }
 
@@ -245,8 +237,17 @@ class SupabaseGoogleAuthClient(
         setHasSeenIntroOnboarding(hadSeenIntro)
     }
 
-    private fun saveSession(rawJson: String, user: AuthenticatedSessionUser) {
+    private suspend fun saveSession(rawJson: String, user: AuthenticatedSessionUser) {
         SupabaseSessionStore.save(user)
+        // Bring the SDK Auth plugin in lock-step so PostgREST attaches the fresh JWT.
+        if (!user.accessToken.isNullOrBlank()) {
+            runCatching {
+                SupabaseSdkClientProvider.syncSession(
+                    accessToken = user.accessToken,
+                    refreshToken = user.refreshToken
+                )
+            }
+        }
     }
 
     private fun parseAuthResponse(

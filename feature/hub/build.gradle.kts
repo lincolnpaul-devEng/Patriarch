@@ -60,4 +60,6 @@ dependencies {
     implementation(libs.google.maps.compose)
     implementation(libs.maps.ktx)
     implementation(libs.play.services.maps)
+
+    testImplementation("junit:junit:4.13.2")
 }

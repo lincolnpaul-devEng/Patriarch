@@ -46,12 +46,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -453,6 +455,38 @@ fun OnboardingSurveyScreen(
                     onContinue = { persistAndFinish(completedConsent = true) },
                     onDecline = { persistAndFinish(completedConsent = false) }
                 )
+            }
+        }
+    }
+
+    if (isSaving) {
+        Dialog(
+            onDismissRequest = { /* non-dismissible */ }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF1E3A8A),
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text(
+                        text = "Saving onboarding preferences...",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A)
+                    )
+                }
             }
         }
     }

@@ -39,7 +39,10 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -98,7 +101,8 @@ private val BrandAuthBlue = BrandBlueAuth
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthScreen(
-    onLoginSuccess: (email: String, fullName: String?, avatarUrl: String?) -> Unit,
+    studentProfileRepository: com.campus.network.core.data.StudentProfileRepository? = null,
+    onLoginSuccess: suspend (email: String, fullName: String?, avatarUrl: String?) -> Unit,
     onNavigateToVerify: (target: String, isPhone: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -111,6 +115,7 @@ fun AuthScreen(
     // 0 = Log In, 1 = Sign Up (Register) - matching SocialPulse app/auth/flow.tsx
     var activeTab by remember { mutableIntStateOf(0) }
     var isLoading by remember { mutableStateOf(false) }
+    var loadingMessage by remember { mutableStateOf("Connecting to Patriarch...") }
     var statusBannerMessage by remember { mutableStateOf<String?>(null) }
     var isStatusError by remember { mutableStateOf(false) }
 
@@ -135,6 +140,7 @@ fun AuthScreen(
     fun handleGoogleAccountAuthenticated(account: GoogleSignInAccount) {
         coroutineScope.launch {
             isLoading = true
+            loadingMessage = "Authenticating with Google..."
             statusBannerMessage = null
             val idToken = account.idToken
             val rawEmail = account.email ?: ""
@@ -166,13 +172,39 @@ fun AuthScreen(
                 val finalName = sessionUser.fullName ?: cleanName
                 val finalAvatar = sessionUser.avatarUrl ?: photoUrl
 
-                isLoading = false
-                showAuthSheet = false
-                onLoginSuccess(
-                    finalEmail,
-                    finalName,
-                    finalAvatar
-                )
+                loadingMessage = "Verifying campus credentials..."
+                val exists = studentProfileRepository?.validateUserExistsInDatabase(finalEmail)?.getOrDefault(false) ?: true
+
+                if (activeTab == 0 && !exists) {
+                    authClient.signOut()
+                    isLoading = false
+                    showFeedback(
+                        "No registered account found for $finalEmail. If your account was deleted or you are a new student, please select Sign Up to register.",
+                        isError = true
+                    )
+                    return@onSuccess
+                }
+
+                if (activeTab == 1 && exists) {
+                    isLoading = false
+                    showFeedback(
+                        "An account with $finalEmail already exists. Please select Log In.",
+                        isError = true
+                    )
+                    return@onSuccess
+                }
+
+                loadingMessage = "Opening campus dashboard..."
+                runCatching {
+                    onLoginSuccess(
+                        finalEmail,
+                        finalName,
+                        finalAvatar
+                    )
+                }.onFailure { err ->
+                    isLoading = false
+                    showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
+                }
             }.onFailure { err ->
                 isLoading = false
                 showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
@@ -198,6 +230,7 @@ fun AuthScreen(
 
     fun launchGoogleSignIn() {
         isLoading = true
+        loadingMessage = "Opening Google Sign-In..."
         statusBannerMessage = null
         val webClientId = BuildConfig.GOOGLE_CLIENT_ID_WEB
         val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -219,17 +252,32 @@ fun AuthScreen(
         }
         coroutineScope.launch {
             isLoading = true
+            loadingMessage = "Verifying student account..."
             statusBannerMessage = null
             val cleanEmail = loginEmail.trim().lowercase()
+
+            val exists = studentProfileRepository?.validateUserExistsInDatabase(cleanEmail)?.getOrDefault(false) ?: true
+            if (!exists) {
+                isLoading = false
+                showFeedback("No registered account found for $cleanEmail. Please select Sign Up to register.", isError = true)
+                return@launch
+            }
+
+            loadingMessage = "Logging in to Patriarch..."
             val result = authClient.signInWithPassword(
                 email = cleanEmail,
                 password = loginPassword
             )
-            isLoading = false
             result.onSuccess { user ->
-                showAuthSheet = false
-                onLoginSuccess(user.email.lowercase(), user.fullName, user.avatarUrl)
+                loadingMessage = "Opening campus dashboard..."
+                runCatching {
+                    onLoginSuccess(user.email.lowercase(), user.fullName, user.avatarUrl)
+                }.onFailure { err ->
+                    isLoading = false
+                    showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(err), isError = true)
+                }
             }.onFailure { err ->
+                isLoading = false
                 val friendly = SupabaseGoogleAuthClient.getFriendlyErrorMessage(err)
                 if (err.message?.contains("Email not confirmed", ignoreCase = true) == true) {
                     showAuthSheet = false
@@ -248,9 +296,19 @@ fun AuthScreen(
         }
         coroutineScope.launch {
             isLoading = true
+            loadingMessage = "Checking email availability..."
             statusBannerMessage = null
             val cleanEmail = regEmail.trim().lowercase()
             val cleanName = regFullName.trim()
+
+            val exists = studentProfileRepository?.validateUserExistsInDatabase(cleanEmail)?.getOrDefault(false) ?: false
+            if (exists) {
+                isLoading = false
+                showFeedback("An account with $cleanEmail already exists. Please select Log In.", isError = true)
+                return@launch
+            }
+
+            loadingMessage = "Creating your account..."
             val result = authClient.signUpWithEmail(
                 fullName = cleanName,
                 email = cleanEmail,
@@ -816,6 +874,38 @@ fun AuthScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
                     }
+                }
+            }
+        }
+    }
+
+    if (isLoading) {
+        Dialog(
+            onDismissRequest = { /* non-dismissible */ }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = BrandAuthBlue,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text(
+                        text = loadingMessage,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A)
+                    )
                 }
             }
         }

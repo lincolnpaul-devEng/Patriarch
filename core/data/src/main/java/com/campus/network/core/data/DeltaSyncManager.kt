@@ -174,6 +174,19 @@ class DeltaSyncManager private constructor(
         var cause: Throwable? = error
         while (cause != null) {
             if (cause is IOException) return true
+            // PostgREST 5xx/429 rejections are retriable; 4xx are permanent.
+            if (cause is com.campus.network.core.network.PostgrestHttpException) {
+                return cause.isTransient
+            }
+            // SDK Auth exceptions carry their own HTTP semantics; 4xx means the refresh
+            // token is dead (permanent), anything without a status is assumed temporary.
+            if (cause is io.github.jan.supabase.exceptions.RestException) {
+                return false
+            }
+            // Transport-layer timeouts are not IOExceptions but are retriable.
+            if (cause is io.ktor.client.plugins.HttpRequestTimeoutException) return true
+            if (cause is io.ktor.client.network.sockets.ConnectTimeoutException) return true
+            if (cause is io.ktor.client.network.sockets.SocketTimeoutException) return true
             cause = cause.cause
         }
         return false
@@ -186,16 +199,17 @@ class DeltaSyncManager private constructor(
             Result.failure(SecurityException("Sign in before syncing profile changes"))
         } else {
             runCatching {
-                supabase.from("campusprofile").update(
-                    CampusProfileRow(
-                        id = row.id,
+                // Upsert (not update) so a missing provisioned row is created instead of a
+                // silent 0-row no-op, and the client's PK id is never sent (server-owned).
+                supabase.from("campusprofile").upsert(
+                    CampusProfileWriteRow(
                         user_id = userId,
                         full_name = row.fullName,
                         university_name = row.universityName,
+                        avatar_url = row.avatarUrl,
                         degree_program = row.degreeProgram,
                         academic_year = row.academicYear,
                         bio = row.bio,
-                        avatar_url = row.avatarUrl,
                         campus_residence = row.campusResidence,
                         phone_number = row.phoneNumber,
                         preferred_rendezvous_point = row.preferredRendezvousPoint,
@@ -205,11 +219,13 @@ class DeltaSyncManager private constructor(
                         is_trust_score_public = row.isTrustScorePublic,
                         is_online_status_visible = row.isOnlineStatusVisible,
                         activity_ledger_visibility = row.activityLedgerVisibility,
-                        location_privacy_scope = row.locationPrivacyScope
-                    )
-                ) {
-                    filter { eq("user_id", userId) }
-                }
+                        location_privacy_scope = row.locationPrivacyScope,
+                        onboarding_preferences = OnboardingPreferencesRow.fromDomain(
+                            com.campus.network.core.database.entity.StudentProfileEntity.deserializeOnboardingPreferences(row.onboardingPreferencesJson)
+                        )
+                    ),
+                    onConflict = "user_id"
+                )
                 Unit
             }
         }
@@ -278,7 +294,7 @@ class DeltaSyncManager private constructor(
     private suspend fun uploadMember(row: ServerMemberEntity): Boolean {
         val result = runCatching {
             supabase.from("server_members").upsert(
-                ServerMemberRow(
+                ServerMemberWriteRow(
                     id = row.id,
                     server_id = row.serverId,
                     user_id = row.userId,
@@ -291,7 +307,8 @@ class DeltaSyncManager private constructor(
                     avatar_res_name = row.avatarResName,
                     is_online = row.isOnline,
                     joined_at_epoch_ms = row.joinedAtEpochMs
-                )
+                ),
+                onConflict = "id"
             )
             Unit
         }
@@ -447,7 +464,7 @@ class DeltaSyncManager private constructor(
 
     private suspend fun uploadChannelMessage(row: ServerChannelMessageEntity): Boolean {
         val result = runCatching {
-            supabase.from("server_channel_messages").upsert(
+            supabase.from("campus_server_channel_messages").upsert(
                 ServerChannelMessageRow(
                     id = row.id,
                     server_id = row.serverId,

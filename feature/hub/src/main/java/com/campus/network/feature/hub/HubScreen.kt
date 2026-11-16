@@ -219,6 +219,7 @@ fun HubScreen(
     var isFilterDrawerOpen by remember { mutableStateOf(false) }
     var selectedItemForDetails by remember { mutableStateOf<MarketItem?>(null) }
     var isOptionsSheetOpen by remember { mutableStateOf(false) }
+    var selectedBasketQuantity by remember { mutableStateOf(1) }
     var isCheckoutSheetOpen by remember { mutableStateOf(false) }
     var basketConfigsByItemId by remember { mutableStateOf<Map<String, ProductBasketConfig>>(emptyMap()) }
     var selectedItemForEscrowVerification by remember { mutableStateOf<MarketItem?>(null) }
@@ -693,6 +694,11 @@ fun HubScreen(
                     }
                 },
                 onOpenOptionsSheet = {
+                    selectedBasketQuantity = 1
+                    isOptionsSheetOpen = true
+                },
+                onOpenOptionsSheetWithQuantity = { qty ->
+                    selectedBasketQuantity = qty
                     isOptionsSheetOpen = true
                 },
                 onOpenCheckoutSheet = {
@@ -721,6 +727,7 @@ fun HubScreen(
             item = selectedItemForDetails,
             isOpen = isOptionsSheetOpen && selectedItemForDetails != null,
             initialConfig = selectedItemForDetails?.let { basketConfigsByItemId[it.id] },
+            initialQuantity = selectedBasketQuantity,
             onDismiss = { isOptionsSheetOpen = false },
             onShareClick = {
                 selectedItemForDetails?.let { item ->

@@ -115,7 +115,8 @@ data class MarketItem(
     /** Seller-only secret. Empty for non-owners after sync/redaction. */
     val qrReleaseCode: String = "",
     val syncStatus: String = SyncStatus.SYNCED.name,
-    val syncId: String? = null
+    val syncId: String? = null,
+    val sellerAvatarUrl: String? = null
 )
 
 /**

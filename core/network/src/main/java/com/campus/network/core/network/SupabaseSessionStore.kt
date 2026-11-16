@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import org.json.JSONObject
-import android.util.Base64
+import io.github.jan.supabase.gotrue.SessionManager
+import io.github.jan.supabase.gotrue.user.UserSession
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.header
@@ -15,8 +15,13 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 
 /** The only source of Supabase user credentials for PostgREST and Edge Functions. */
 object SupabaseSessionStore {
@@ -63,37 +68,78 @@ object SupabaseSessionStore {
         }
     }
 
+    /** For unit test injection of in-memory preferences without Android crypto runtime. */
+    fun initializeForTesting(testPrefs: SharedPreferences) {
+        prefs = testPrefs
+    }
+
+    private fun decodeJwtPayload(token: String): JSONObject? = runCatching {
+        val parts = token.split('.')
+        if (parts.size != 3) return null
+        val payload = parts[1].trim().replace('-', '+').replace('_', '/')
+        val padded = when (payload.length % 4) {
+            2 -> "$payload=="
+            3 -> "$payload="
+            else -> payload
+        }
+        val bytes = java.util.Base64.getDecoder().decode(padded)
+        JSONObject(String(bytes, Charsets.UTF_8))
+    }.getOrNull()
+
     fun session(): JSONObject? = prefs?.getString(SESSION_KEY, null)?.let { runCatching { JSONObject(it) }.getOrNull() }
 
     fun accessToken(): String? = session()?.optString("access_token")?.takeIf { it.split('.').size == 3 }
 
     suspend fun validAccessToken(supabaseUrl: String, anonKey: String): String = refreshMutex.withLock {
         val current = accessToken() ?: throw SecurityException("Sign in to access campus data")
-        val expiresAt = runCatching {
-            val payload = current.split('.')[1]
-            JSONObject(String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)))
-                .getLong("exp")
-        }.getOrDefault(0L)
+        val expiresAt = decodeJwtPayload(current)?.optLong("exp", 0L) ?: 0L
+        // Another writer (SDK auto-refresh job) may have rotated the token while we queued
+        // on the mutex — re-check before doing anything destructive.
         if (expiresAt > System.currentTimeMillis() / 1000 + 60) return@withLock current
 
+        // Prefer the SDK refresh path (single-flight + persists rotated tokens itself).
+        val sdkRefreshed = runCatching {
+            val refreshToken = session()?.optString("refresh_token")?.takeIf(String::isNotBlank)
+                ?: throw SecurityException("Session expired. Sign in again")
+            SupabaseSdkClientProvider.refreshSession(refreshToken)
+        }.getOrNull()
+        if (sdkRefreshed != null && sdkRefreshed.split('.').size == 3) {
+            // saveSdkSession already persisted the rotated tokens via the SessionManager.
+            return@withLock sdkRefreshed
+        }
+
+        // Manual refresh fallback (edge: SDK not initialized yet).
         val refreshToken = session()?.optString("refresh_token")?.takeIf(String::isNotBlank)
             ?: throw SecurityException("Session expired. Sign in again")
-        val response = client.post("$supabaseUrl/auth/v1/token?grant_type=refresh_token") {
-            header("apikey", anonKey)
-            contentType(ContentType.Application.Json)
-            setBody(JSONObject().put("refresh_token", refreshToken).toString())
+        val refreshResult = runCatching {
+            val response = client.post("$supabaseUrl/auth/v1/token?grant_type=refresh_token") {
+                header("apikey", anonKey)
+                contentType(ContentType.Application.Json)
+                setBody(JSONObject().put("refresh_token", refreshToken).toString())
+            }
+            if (!response.status.isSuccess()) {
+                throw IllegalStateException("refresh rejected (${response.status.value})")
+            }
+            JSONObject(response.bodyAsText())
         }
-        if (!response.status.isSuccess()) {
-            clear()
+        val body = refreshResult.getOrNull()
+        val nextToken = body?.optString("access_token")?.takeIf { it.split('.').size == 3 }
+        if (nextToken == null) {
+            // Only clear when the stored token is unchanged (nobody refreshed meanwhile):
+            // a concurrent SDK refresh invalidates the old refresh token we tried — the
+            // user is not signed out just because we raced.
+            if (accessToken() == current) clear()
             throw SecurityException("Session expired. Sign in again")
         }
-        val body = JSONObject(response.bodyAsText())
-        val nextToken = body.optString("access_token").takeIf { it.split('.').size == 3 }
-            ?: throw SecurityException("Supabase did not return an access token")
         val prior = session() ?: throw SecurityException("Session was cleared")
         prior.put("access_token", nextToken)
         prior.put("refresh_token", body.optString("refresh_token", refreshToken))
         prefs?.edit()?.putString(SESSION_KEY, prior.toString())?.commit()
+        // Keep the SDK session in lock-step so PostgREST/Edge calls never send a stale JWT.
+        SupabaseSdkClientProvider.syncSession(
+            accessToken = nextToken,
+            refreshToken = prior.optString("refresh_token").takeIf(String::isNotBlank)
+        )
         nextToken
     }
 
@@ -109,5 +155,48 @@ object SupabaseSessionStore {
             }.toString()).apply()
     }
 
-    fun clear() { prefs?.edit()?.remove(SESSION_KEY)?.commit() }
+    fun clear() {
+        prefs?.edit()?.remove(SESSION_KEY)?.commit()
+        // Drop the in-memory SDK session on a worker thread (no network calls).
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            SupabaseSdkClientProvider.clearSession()
+        }
+    }
+
+    /**
+     * Builds a Supabase SDK [UserSession] from the encrypted store so the official SDK can
+     * auto-refresh it. Token-only legacy sessions are returned with an empty refresh token.
+     */
+    fun loadSdkSession(): UserSession? {
+        val json = session() ?: return null
+        val accessToken = json.optString("access_token").takeIf { it.split('.').size == 3 } ?: return null
+        val refreshToken = json.optString("refresh_token").takeIf(String::isNotBlank).orEmpty()
+        val expiresAtSecs = decodeJwtPayload(accessToken)?.optLong("exp", 0L) ?: 0L
+        val expiresIn = (expiresAtSecs - System.currentTimeMillis() / 1000).coerceAtLeast(0L)
+        return UserSession(
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            expiresIn = expiresIn,
+            tokenType = "bearer",
+            user = null
+        )
+    }
+
+    /** Persists an SDK-managed session (e.g. after an SDK auto-refresh) into the encrypted store. */
+    fun saveSdkSession(session: UserSession) {
+        val target = session() ?: JSONObject()
+        if (session.accessToken.isNotBlank()) target.put("access_token", session.accessToken)
+        if (session.refreshToken.isNotBlank()) target.put("refresh_token", session.refreshToken)
+        checkNotNull(prefs) { "SupabaseSessionStore must be initialized by the Application" }
+            .edit().putString(SESSION_KEY, target.toString()).apply()
+    }
+
+    /** A [SessionManager] that persists SDK sessions in the same encrypted store the app uses. */
+    val sdkSessionManager: SessionManager = object : SessionManager {
+        override suspend fun saveSession(session: UserSession) = saveSdkSession(session)
+        override suspend fun loadSession(): UserSession? = loadSdkSession()
+        override suspend fun deleteSession() {
+            prefs?.edit()?.remove(SESSION_KEY)?.commit()
+        }
+    }
 }

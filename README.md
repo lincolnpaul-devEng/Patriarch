@@ -82,7 +82,15 @@ These back the Edge Functions:
 - `supabase/functions/send-verification-otp` — Resend OTP email (needs `RESEND_API_KEY`)
 - `supabase/functions/cloudinary-signature` — short-lived signed Cloudinary upload params (needs Cloudinary creds)
 - `supabase/functions/ai-completions` — bounded OpenRouter proxy (needs `OPENROUTER_API_KEY`)
-- `supabase/functions/delete-account` — hard-deletes the Supabase Auth account, all owned rows across tables, and Cloudinary assets (needs `SUPABASE_SERVICE_ROLE_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`)
+- `supabase/functions/delete-account` — hard-deletes the Supabase Auth account, invokes the atomic `delete_own_account_data()` RPC to clean up all owned rows across application tables, and deletes Cloudinary assets (needs `SUPABASE_SERVICE_ROLE_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`)
+
+## Dependency pins and architecture notes
+
+- **Kotlin & Toolchain**: Kotlin `1.9.23`, AGP `8.4.0`, KSP `1.9.23-1.0.20`, Java 17.
+- **Supabase SDK**: Pinned to `2.0.0` for full compatibility with Kotlin `1.9.23` and Ktor `2.3.10`.
+- **Session Architecture**: Unified behind `SupabaseSessionStore` + `SupabaseSdkClientProvider`. Coroutine-safe, no `runBlocking`, auto-refreshed via the SDK `SessionManager` and backed by AES-256 `EncryptedSharedPreferences`.
+- **Dependency Container**: `AppContainer` (`DefaultAppContainer`) in `:app` manages app-scoped repositories and client instances.
+- **Google Services Policy**: `app/google-services.json` contains client configuration (app IDs, client IDs) required for Firebase Cloud Messaging and Google Auth. Server credentials (FCM service accounts, Google Client Secrets) must never be placed in this file and reside exclusively in Supabase Edge Functions.
 
 ## Database migrations
 

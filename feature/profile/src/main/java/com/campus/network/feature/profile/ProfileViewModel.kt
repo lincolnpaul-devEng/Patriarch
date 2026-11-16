@@ -12,13 +12,18 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class ProfileUiState(
     val profile: StudentProfile? = null,
     val isLoading: Boolean = false,
-    val isDeleted: Boolean = false
+    val isDeletingAccount: Boolean = false,
+    val isAccountDeleted: Boolean = false,
+    val deletionProgress: Float = 0f,
+    val deletionStageText: String = ""
 )
 
 sealed interface ProfileEvent {
@@ -68,13 +73,31 @@ class ProfileViewModel(
     private val _userMessage = MutableSharedFlow<String>()
     val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
 
-    val uiState: StateFlow<ProfileUiState> = repository.getProfile()
-        .map { profile -> ProfileUiState(profile = profile, isLoading = false) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = ProfileUiState(isLoading = true)
+    private val _isDeletingAccount = MutableStateFlow(false)
+    private val _isAccountDeleted = MutableStateFlow(false)
+    private val _deletionProgress = MutableStateFlow(0f)
+    private val _deletionStageText = MutableStateFlow("")
+
+    val uiState: StateFlow<ProfileUiState> = combine(
+        repository.getProfile(),
+        _isDeletingAccount,
+        _isAccountDeleted,
+        _deletionProgress,
+        _deletionStageText
+    ) { profile, isDeleting, isDeleted, progress, stageText ->
+        ProfileUiState(
+            profile = profile,
+            isLoading = false,
+            isDeletingAccount = isDeleting,
+            isAccountDeleted = isDeleted,
+            deletionProgress = progress,
+            deletionStageText = stageText
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = ProfileUiState(isLoading = true)
+    )
 
     fun onEvent(event: ProfileEvent) {
         viewModelScope.launch {
@@ -153,9 +176,44 @@ class ProfileViewModel(
                     _userMessage.emit("Upgraded storage by +1 GB! New Quota: 2 GB")
                 }
                 is ProfileEvent.DeleteAccount -> {
-                    repository.deleteAccount(event.reason)
-                    repository.signOut()
-                    _userMessage.emit("Account deleted")
+                    _isDeletingAccount.value = true
+                    _deletionProgress.value = 0.08f
+                    _deletionStageText.value = "Initiating secure deletion & verifying credentials..."
+
+                    val stagesJob = viewModelScope.launch {
+                        val stages = listOf(
+                            0.22f to "Deleting chat messages, direct threads & reactions...",
+                            0.45f to "Reconciling community servers & transferring memberships...",
+                            0.65f to "Clearing marketplace listings, bids & campus wallet...",
+                            0.80f to "Purging student profile, avatar & storage assets...",
+                            0.92f to "Wiping local session cache & security tokens..."
+                        )
+                        for ((prog, text) in stages) {
+                            kotlinx.coroutines.delay(450)
+                            if (!_isDeletingAccount.value) break
+                            _deletionProgress.value = prog
+                            _deletionStageText.value = text
+                        }
+                    }
+
+                    val result = repository.deleteAccount(event.reason)
+                    stagesJob.cancel()
+
+                    if (result.isSuccess) {
+                        _deletionProgress.value = 1.0f
+                        _deletionStageText.value = "Account deleted permanently."
+                        kotlinx.coroutines.delay(650)
+                        _isDeletingAccount.value = false
+                        _isAccountDeleted.value = true
+                        _userMessage.emit("Account deleted permanently.")
+                    } else {
+                        _isDeletingAccount.value = false
+                        _deletionProgress.value = 0f
+                        _deletionStageText.value = ""
+                        _userMessage.emit(
+                            "Deletion failed: ${result.exceptionOrNull()?.message ?: "try again later"}"
+                        )
+                    }
                 }
                 is ProfileEvent.DepositWallet -> {
                     val success = repository.depositToWallet(event.amount)
@@ -182,11 +240,22 @@ class ProfileViewModel(
                     }
                 }
                 is ProfileEvent.SignOut -> {
+                    _isDeletingAccount.value = false
+                    _isAccountDeleted.value = false
+                    _deletionProgress.value = 0f
+                    _deletionStageText.value = ""
                     repository.signOut()
                     _userMessage.emit("Signed out of Patriarch")
                 }
             }
         }
+    }
+
+    fun resetDeletionState() {
+        _isDeletingAccount.value = false
+        _isAccountDeleted.value = false
+        _deletionProgress.value = 0f
+        _deletionStageText.value = ""
     }
 
     suspend fun retryFailedUploads() {

@@ -4,6 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -114,6 +118,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.campus.network.core.model.ConsistencyQuest
 import com.campus.network.core.model.StudentProfile
@@ -181,6 +187,13 @@ fun ProfileScreen(
             if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                 onRetrySync()
             }
+        }
+    }
+
+    LaunchedEffect(uiState.isAccountDeleted) {
+        if (uiState.isAccountDeleted) {
+            viewModel.resetDeletionState()
+            onSignOut()
         }
     }
 
@@ -885,6 +898,116 @@ fun ProfileScreen(
                 showDeleteAccountDialog = false
             }
         )
+    }
+
+    if (uiState.isDeletingAccount) {
+        val animatedProgress by animateFloatAsState(
+            targetValue = uiState.deletionProgress.coerceIn(0f, 1f),
+            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+            label = "accountDeletionProgress"
+        )
+        val percent = (animatedProgress * 100).toInt()
+
+        Dialog(
+            onDismissRequest = { /* non-dismissible */ },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xE6050B14)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(0.90f)
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                    border = BorderStroke(1.dp, Color(0xFF1E293B))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEF4444).copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Deleting Account",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = uiState.deletionStageText.ifBlank { "Purging account data permanently..." },
+                            fontSize = 13.sp,
+                            color = Color(0xFF94A3B8),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.height(38.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Progress Bar matching the reference progress line design
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF1E293B))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction = animatedProgress.coerceIn(0.01f, 1f))
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF3B82F6))
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Text(
+                                text = "$percent%",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // 6. Upgrade Storage Dialog

@@ -34,6 +34,12 @@ interface FlashMeetDao {
 
     @Query("SELECT * FROM flash_meets WHERE syncStatus = 'FAILED' ORDER BY createdAtEpochMs ASC")
     suspend fun getFailedMeets(): List<FlashMeetEntity>
+
+    @Query("DELETE FROM flash_meets WHERE id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostMeets(validIds: List<String>)
+
+    @Query("DELETE FROM flash_meets WHERE syncStatus != 'PENDING'")
+    suspend fun clearSyncedMeets()
 }
 
 @Dao
@@ -123,6 +129,12 @@ interface MarketItemDao {
 
     @Query("SELECT * FROM market_items WHERE syncStatus = 'FAILED' ORDER BY timestampMs ASC")
     suspend fun getFailedItems(): List<MarketItemEntity>
+
+    @Query("DELETE FROM market_items WHERE id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostItems(validIds: List<String>)
+
+    @Query("DELETE FROM market_items WHERE syncStatus != 'PENDING'")
+    suspend fun clearSyncedItems()
 }
 
 @Dao
@@ -141,6 +153,12 @@ interface MicroGigDao {
 
     @Query("SELECT * FROM micro_gigs WHERE syncStatus = 'FAILED' ORDER BY timestampMs ASC")
     suspend fun getFailedGigs(): List<MicroGigEntity>
+
+    @Query("DELETE FROM micro_gigs WHERE id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostGigs(validIds: List<String>)
+
+    @Query("DELETE FROM micro_gigs WHERE syncStatus != 'PENDING'")
+    suspend fun clearSyncedGigs()
 }
 @Dao
 interface LiveStreamDao {
@@ -167,6 +185,12 @@ interface LiveStreamDao {
 
     @Query("SELECT * FROM live_streams WHERE syncStatus = 'FAILED' ORDER BY startedAtEpochMs ASC")
     suspend fun getFailedStreams(): List<LiveStreamEntity>
+
+    @Query("DELETE FROM live_streams WHERE id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostStreams(validIds: List<String>)
+
+    @Query("DELETE FROM live_streams WHERE syncStatus != 'PENDING'")
+    suspend fun clearSyncedStreams()
 
     @Query("UPDATE live_streams SET isLive = 0, endedAtEpochMs = :endedAt, durationSeconds = :duration, peakViewers = :peak, likeCount = :likes WHERE id = :streamId")
     suspend fun endStream(streamId: String, endedAt: Long, duration: Int, peak: Int, likes: Int)
