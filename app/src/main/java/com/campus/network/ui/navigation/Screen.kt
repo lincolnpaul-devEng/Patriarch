@@ -114,6 +114,12 @@ sealed class Screen(
         icon = Icons.Default.Home
     )
 
+    data object Snack : Screen(
+        route = "snack_ordering",
+        title = "Market",
+        icon = Icons.Default.Home
+    )
+
     companion object {
         val bottomTabs: List<Screen>
             get() = listOf(Hub, Map, Channels, Messages, Profile)

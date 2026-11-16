@@ -51,13 +51,13 @@ val CampusSecondary = BrandBlueMid
 val CampusAccentGold = BrandGold
 val CampusAlertRed = AlertRed
 
-val DarkBackground = Color(0xFF0B1320)
+val DarkBackground = Color(0xFFA969FE)
 val DarkSurface = Color(0xFF111D30)
 val DarkSurfaceElevated = Color(0xFF192B45)
 val DarkTextPrimary = Color(0xFFF8FAFC)
 val DarkTextSecondary = Color(0xFF94A3B8)
 
-val LightBackground = SurfaceSubtle
+val LightBackground = Color(0xFFA969FE)
 val LightSurface = SurfaceWhite
 val LightSurfaceElevated = SurfaceElevated
 val LightTextPrimary = TextPrimary

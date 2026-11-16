@@ -373,123 +373,67 @@ fun CampusNavHost(
                 }
             )
         }
-        // Tab 1: Map (The Flash-Meet & Campus Navigation Interface)
+        // Tab 1: Map
         composable(route = Screen.Map.route) {
-            MapScreen(
-                viewModel = mapViewModel,
-                onNavigateToMessages = {
-                    navController.navigate(Screen.Messages.route)
-                },
-                onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route)
-                },
-                onNavigateToNotifications = {
-                    navController.navigate(Screen.Notifications.route)
-                },
-                onToggleBottomBar = onToggleBottomBar,
-                onRetrySync = {
-                    coroutineScope.launch {
-                        DeltaSyncManager.get(context).retryFailedSyncs()
-                    }
-                }
+            com.campus.network.ui.MainSwipeablePagerScreen(
+                currentProfile = currentProfile,
+                mapViewModel = mapViewModel,
+                channelsViewModel = resolvedChannelsViewModel,
+                messagesViewModel = resolvedMessagesViewModel,
+                profileViewModel = profileViewModel,
+                navController = navController,
+                serverRepository = serverRepository,
+                studentProfileRepository = studentProfileRepository,
+                context = context,
+                initialPage = 2
             )
         }
 
-        // Tab 2: Channels (The Academic Workspace / Servers)
+        // Tab 2: Channels (Servers)
         composable(route = Screen.Channels.route) {
-            ChannelsScreen(
-                viewModel = resolvedChannelsViewModel,
-                onNavigateToChannelChat = {
-                    navController.navigate(Screen.Messages.route)
-                },
-                onNavigateToMessages = {
-                    navController.navigate(Screen.Messages.route)
-                },
-                onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route)
-                },
-                onNavigateToNotifications = {
-                    navController.navigate(Screen.Notifications.route)
-                },
-                onNavigateToDirectChat = { peerId, peerName, peerHandle, serverName, serverTag ->
-                    resolvedMessagesViewModel.onEvent(
-                        com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
-                            peerId = peerId,
-                            peerName = peerName,
-                            peerHandle = peerHandle,
-                            serverName = serverName,
-                            serverTag = serverTag
-                        )
-                    )
-                    navController.navigate(Screen.Messages.route)
-                }
+            com.campus.network.ui.MainSwipeablePagerScreen(
+                currentProfile = currentProfile,
+                mapViewModel = mapViewModel,
+                channelsViewModel = resolvedChannelsViewModel,
+                messagesViewModel = resolvedMessagesViewModel,
+                profileViewModel = profileViewModel,
+                navController = navController,
+                serverRepository = serverRepository,
+                studentProfileRepository = studentProfileRepository,
+                context = context,
+                initialPage = 1
             )
         }
 
-        // Tab 3: Messages (Direct Streams)
+        // Tab 3: Messages
         composable(route = Screen.Messages.route) {
-            MessagesScreen(
-                viewModel = resolvedMessagesViewModel,
-                onNavigateBack = {
-                    navController.navigate(Screen.Channels.route) {
-                        popUpTo(Screen.Channels.route) { inclusive = false }
-                    }
-                },
-                onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route)
-                },
-                onNavigateToServer = { serverId ->
-                    if (serverId.isNotBlank()) {
-                        resolvedChannelsViewModel.onEvent(
-                            com.campus.network.feature.channels.ChannelsEvent.SelectServer(serverId)
-                        )
-                    }
-                    navController.navigate(Screen.Channels.route) {
-                        popUpTo(Screen.Channels.route) { inclusive = false }
-                    }
-                },
-                onAddServer = {
-                    resolvedChannelsViewModel.onEvent(
-                        com.campus.network.feature.channels.ChannelsEvent.AddServerClick
-                    )
-                    navController.navigate(Screen.Channels.route) {
-                        popUpTo(Screen.Channels.route) { inclusive = false }
-                    }
-                }
+            com.campus.network.ui.MainSwipeablePagerScreen(
+                currentProfile = currentProfile,
+                mapViewModel = mapViewModel,
+                channelsViewModel = resolvedChannelsViewModel,
+                messagesViewModel = resolvedMessagesViewModel,
+                profileViewModel = profileViewModel,
+                navController = navController,
+                serverRepository = serverRepository,
+                studentProfileRepository = studentProfileRepository,
+                context = context,
+                initialPage = 3
             )
         }
 
-        // Tab 4: Homescreen (Best Football Match UI)
+        // Tab 4: Homescreen (Main Swipeable Pager starting on Home)
         composable(route = Screen.Hub.route) {
-            val p = currentProfile
-            com.campus.network.feature.hub.bestfootball.BestFootballMatchScreen(
-                userFullName = p?.fullName,
-                userAvatarUrl = p?.avatarUrl,
-                onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route) {
-                        launchSingleTop = true
-                    }
-                },
-                onNavigateToGoLive = {
-                    navController.navigate(Screen.GoLive.route) {
-                        launchSingleTop = true
-                    }
-                },
-                onNavigateToChannels = {
-                    navController.navigate(Screen.Channels.route) {
-                        launchSingleTop = true
-                    }
-                },
-                onNavigateToMap = {
-                    navController.navigate(Screen.Map.route) {
-                        launchSingleTop = true
-                    }
-                },
-                onNavigateToMessages = {
-                    navController.navigate(Screen.Messages.route) {
-                        launchSingleTop = true
-                    }
-                }
+            com.campus.network.ui.MainSwipeablePagerScreen(
+                currentProfile = currentProfile,
+                mapViewModel = mapViewModel,
+                channelsViewModel = resolvedChannelsViewModel,
+                messagesViewModel = resolvedMessagesViewModel,
+                profileViewModel = profileViewModel,
+                navController = navController,
+                serverRepository = serverRepository,
+                studentProfileRepository = studentProfileRepository,
+                context = context,
+                initialPage = 0
             )
         }
 
@@ -551,36 +495,26 @@ fun CampusNavHost(
             )
         }
 
-        // Tab 5: Profile (Gamified Persona)
+        // Snack Ordering / Product UI Flow
+        composable(route = Screen.Snack.route) {
+            com.campus.network.feature.hub.snack.SnackOrderingScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Tab 5: Profile
         composable(route = Screen.Profile.route) {
-            ProfileScreen(
-                viewModel = profileViewModel,
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onRetrySync = {
-                    coroutineScope.launch {
-                        profileViewModel.retryFailedUploads()
-                    }
-                },
-                onSignOut = {
-                    coroutineScope.launch {
-                        profileViewModel.resetDeletionState()
-                        authClient.signOut()
-                        studentProfileRepository.signOut()
-                        // Wipe every local table so the next sign-in starts from remote truth
-                        // (prevents ghost data from a previous account leaking into this one).
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            database.clearAllTables()
-                        }
-                        resolvedChannelsViewModel.clearSession()
-                        profileViewModel.onEvent(com.campus.network.feature.profile.ProfileEvent.SignOut)
-                        navController.navigate(Screen.Auth.route) {
-                            popUpTo(0) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    }
-                }
+            com.campus.network.ui.MainSwipeablePagerScreen(
+                currentProfile = currentProfile,
+                mapViewModel = mapViewModel,
+                channelsViewModel = resolvedChannelsViewModel,
+                messagesViewModel = resolvedMessagesViewModel,
+                profileViewModel = profileViewModel,
+                navController = navController,
+                serverRepository = serverRepository,
+                studentProfileRepository = studentProfileRepository,
+                context = context,
+                initialPage = 4
             )
         }
 

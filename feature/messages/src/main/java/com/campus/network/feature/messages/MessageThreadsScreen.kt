@@ -136,7 +136,7 @@ fun MessageThreadsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFE3E5E8))
+            .background(Color.Transparent)
     ) {
         Row(
             modifier = Modifier
@@ -593,7 +593,7 @@ private fun MessagePeopleRail(
 ) {
     Column(
         modifier = modifier
-            .background(Color(0xFFE3E5E8))
+            .background(Color.Transparent)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

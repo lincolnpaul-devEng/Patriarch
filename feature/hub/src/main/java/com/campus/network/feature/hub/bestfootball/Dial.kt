@@ -65,7 +65,7 @@ val MATCHES = listOf(
     MatchItem("mersey", "DESiGN", "05 SEP", "18:15", "d4"),
     MatchItem("kings", "CHESS", "08 SEP", "19:30", "d1"),
     MatchItem("hornets", "HACK", "11 SEP", "21:30", "d2"),
-    MatchItem("azure", "SPORTS", "19 SEP", "14:00", "d3"),
+    MatchItem("azure", "PRODUCTS", "19 SEP", "14:00", "d3"),
     MatchItem("fox", "MEDiA", "23 SEP", "17:45", "d5"),
     MatchItem("atlas", "MEET", "26 SEP", "20:00", "d6")
 )
@@ -293,16 +293,16 @@ fun DialLayer(
             }
         }
 
-        // 5. Dial Gesture Hit Area (x: 0..393, y: 262..477)
+        // 5. Dial Gesture Hit Area: centered 241dp wide at x=76dp (matching HTML reference, leaves edges open for smooth swiping)
         if (!isStatsOpen) {
             Box(
                 modifier = Modifier
-                    .offset(x = 0.dp, y = 262.dp)
-                    .size(width = 393.dp, height = 215.dp)
+                    .offset(x = 76.dp, y = 262.dp)
+                    .size(width = 241.dp, height = 215.dp)
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            onPointerDown(down.position + Offset(0f, 262f * density.density))
+                            onPointerDown(down.position + Offset(76f * density.density, 262f * density.density))
                             onDragStart()
 
                             var lastX = down.position.x
@@ -326,7 +326,7 @@ fun DialLayer(
                                     lastX = currentX
                                     lastT = now
 
-                                    onPointerMove(change.position + Offset(0f, 262f * density.density))
+                                    onPointerMove(change.position + Offset(76f * density.density, 262f * density.density))
                                     onDragMove(dx, dt)
                                     change.consume()
                                 } else {

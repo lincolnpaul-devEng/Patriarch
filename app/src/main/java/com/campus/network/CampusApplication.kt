@@ -18,7 +18,6 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.SyncWatermarkStore
-import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.SupabaseSessionStore

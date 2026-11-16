@@ -57,7 +57,7 @@ variables (see "Supabase secrets to upload" below).
   authenticated data access.
 - Session tokens are stored in `EncryptedSharedPreferences` (AES256-GCM key, AES256-SIV pref keys),
   migrated from the legacy plaintext `socialpulse-auth-token` SharedPreferences.
-- Room uses an additive migration (`13 → 14`) with `exportSchema = true`; destructive migration is removed.
+- Room uses additive migrations (`13 → 14 → 15 → 16`) with `exportSchema = true`; destructive migration is removed.
 
 ## Supabase secrets to upload
 

@@ -169,7 +169,7 @@ fun MainAppScreen(
                     }
                 }
                 is com.campus.network.core.ui.notifications.CampusNotificationDeepLink.OpenSafePayMarketplace -> {
-                    navController.navigate(Screen.Hub.route) {
+                    navController.navigate(Screen.Snack.route) {
                         launchSingleTop = true
                     }
                 }
@@ -211,22 +211,8 @@ fun MainAppScreen(
         !isScreenHidingBottomBar
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            AnimatedVisibility(
-                visible = isBottomBarVisible,
-                enter = slideInVertically { height -> height } + fadeIn(),
-                exit = slideOutVertically { height -> height } + fadeOut()
-            ) {
-                CampusBottomNavBar(
-                    navController = navController,
-                    currentRoute = currentRoute,
-                    channelsUnreadCount = channelsTabUnread,
-                    messagesUnreadCount = messagesTabUnread
-                )
-            }
-        }
-    ) { paddingValues ->
+        modifier = Modifier.fillMaxSize()
+    ) { _ ->
         Box(modifier = Modifier.fillMaxSize()) {
             CampusNavHost(
                 navController = navController,
@@ -234,10 +220,8 @@ fun MainAppScreen(
                 streamChatEngine = streamChatEngine,
                 messagesViewModel = messagesViewModel,
                 channelsViewModel = channelsViewModel,
-                onToggleBottomBar = { visible -> isScreenHidingBottomBar = !visible },
-                modifier = Modifier.padding(
-                    bottom = if (isBottomBarVisible) paddingValues.calculateBottomPadding() else 0.dp
-                )
+                onToggleBottomBar = { /* bottom nav removed */ },
+                modifier = Modifier.fillMaxSize()
             )
 
             // Global Floating Top Offline Toast Banner (Pattern A)
