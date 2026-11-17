@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Videocam
 import com.campus.network.core.ui.components.CampusStudentAvatar
@@ -356,6 +357,7 @@ fun HubScreen(
                     onNotificationClick = {
                         onNavigateToNotifications()
                     },
+                    onSellClick = { isPostDialogOpen = true },
                     unreadNotificationsCount = unreadNotificationsCount,
                     onLocationClick = {
                         scope.launch {
@@ -906,6 +908,7 @@ private fun HeroScenicHeader(
     onLogoClick: () -> Unit,
     onChatClick: () -> Unit,
     onNotificationClick: () -> Unit,
+    onSellClick: () -> Unit,
     unreadNotificationsCount: Int = 0,
     onLocationClick: () -> Unit
 ) {
@@ -1088,11 +1091,38 @@ private fun HeroScenicHeader(
                     .clickable { onLogoClick() }
             )
 
-            // Right Action Buttons (Chat & Notifications)
+            // Right Action Buttons (Sell, Chat & Notifications)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Frosted Sell Button — opens the Safe-Trade product creation drawer
+                Row(
+                    modifier = Modifier
+                        .height(46.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.94f))
+                        .border(1.dp, Color.Black.copy(alpha = 0.08f), CircleShape)
+                        .shadow(3.dp, CircleShape)
+                        .clickable { onSellClick() }
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sell,
+                        contentDescription = "Sell",
+                        tint = Color(0xFF1E2229),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Sell",
+                        color = Color(0xFF1E2229),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
                 // Circular Frosted Chat Button
                 Box(
                     modifier = Modifier
