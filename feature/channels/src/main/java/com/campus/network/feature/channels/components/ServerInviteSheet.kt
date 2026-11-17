@@ -1,5 +1,6 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -81,7 +82,7 @@ fun ServerInviteSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         dragHandle = null
     ) {

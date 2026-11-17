@@ -1,5 +1,7 @@
 package com.campus.network.feature.channels
 
+import com.campus.network.core.ui.components.HomescreenBackground
+import com.campus.network.core.ui.components.HomescreenPurple
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
@@ -166,11 +168,7 @@ fun ChannelsScreen(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
+    HomescreenBackground(modifier = modifier) {
         AnimatedContent(
             targetState = uiState.viewMode,
             transitionSpec = {
@@ -942,11 +940,11 @@ private fun ServerDetailsPanel(
     }
     val isBannerUrl = server.bannerResName?.startsWith("http") == true
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
+    HomescreenBackground(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
         // 1. OPTIONAL SERVER BANNER (Rendered if server owner created a banner)
         if (isBannerUrl || bannerResId != null) {
             Box(
@@ -1488,6 +1486,7 @@ private fun ServerDetailsPanel(
                         }
                     }
                 }
+        }
         }
         }
     }

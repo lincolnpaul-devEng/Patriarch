@@ -21,6 +21,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import com.campus.network.core.ui.components.CampusStudentAvatar
+import com.campus.network.core.ui.components.HomescreenInk
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -265,7 +268,8 @@ fun CampusLiveFeedScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFF0F172A))
+                    .background(HomescreenPurple)
+                    .homescreenDotGrid()
                     .statusBarsPadding()
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
@@ -274,7 +278,7 @@ fun CampusLiveFeedScreen(
                     onClick = onNavigateBack,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                        .background(HomescreenInk.copy(alpha = 0.85f), CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -288,38 +292,39 @@ fun CampusLiveFeedScreen(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
+                        color = Color.White,
                         modifier = Modifier.size(80.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Visibility,
                                 contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.6f),
+                                tint = HomescreenInk.copy(alpha = 0.6f),
                                 modifier = Modifier.size(36.dp)
                             )
                         }
                     }
                     Text(
                         text = "No Live Broadcasts Right Now",
-                        color = Color.White,
+                        color = HomescreenInk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
                     Text(
                         text = "No students are currently broadcasting live on campus. Check back later or go live from the Hub!",
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = HomescreenInk.copy(alpha = 0.7f),
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Button(
                         onClick = onNavigateBack,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF6366F1)
+                            containerColor = Color.White,
+                            contentColor = HomescreenInk
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Return to Hub", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("Return to Hub", color = HomescreenInk, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

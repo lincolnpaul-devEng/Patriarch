@@ -1,5 +1,7 @@
 package com.campus.network.feature.hub
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -327,7 +329,7 @@ fun HubScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF7F9FB))
+            .background(HomescreenPurple)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -2331,7 +2333,7 @@ private fun CampusMarketSectionHeader(
                 onClick = onPostNewClick,
                 modifier = Modifier.height(36.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = BrandBluePrimary,
+                    containerColor = com.campus.network.core.ui.components.HomescreenInk,
                     contentColor = Color.White
                 ),
                 shape = RoundedCornerShape(18.dp),
@@ -3368,7 +3370,7 @@ private fun CampusMarketFilterDrawerSheet(
         ModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             dragHandle = {
                 Box(
@@ -3548,7 +3550,8 @@ private fun CampusMarketFilterDrawerSheet(
                             .height(52.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandBluePrimary
+                            containerColor = Color.White,
+                            contentColor = com.campus.network.core.ui.components.HomescreenInk
                         )
                     ) {
                         Text(

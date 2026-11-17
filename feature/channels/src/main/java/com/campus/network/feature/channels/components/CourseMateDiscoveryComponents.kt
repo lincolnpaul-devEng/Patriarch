@@ -1,5 +1,7 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.homescreenDotGrid
+import com.campus.network.core.ui.components.HomescreenPurple
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -157,7 +159,7 @@ fun CourseMateDiscoverScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
             .statusBarsPadding()
     ) {
         // 1. Top Bar: Back Icon + Large "Discover" + Info Question Icon
@@ -398,7 +400,7 @@ fun IndividualStudentProfileScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
     ) {
         Column(
             modifier = Modifier

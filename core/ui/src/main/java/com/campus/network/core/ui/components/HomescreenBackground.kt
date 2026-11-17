@@ -1,6 +1,5 @@
 package com.campus.network.core.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,12 +18,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 val HomescreenPurple = Color(0xFFA969FE)
 val HomescreenInk = Color(0xFF0B0612)
+val HomescreenOrange = Color(0xFFFF4D32)
 
 @Composable
 fun HomescreenBackground(
@@ -35,34 +36,79 @@ fun HomescreenBackground(
         modifier = modifier
             .fillMaxSize()
             .background(HomescreenPurple)
+            .homescreenDotGrid()
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val dotColor = Color(70, 20, 140, (255 * 0.16f).toInt())
-            val step = 14f.dp.toPx()
-            val rows = (size.height / step).toInt()
-            val cols = (size.width / step).toInt()
-            val fadeStart = 324f.dp.toPx()
-            val fadeEnd = 596f.dp.toPx()
-
-            for (r in 0..rows) {
-                val cy = 4f.dp.toPx() + r * step
-                val alpha = when {
-                    cy <= fadeStart -> 1f
-                    cy >= fadeEnd -> 0f
-                    else -> 1f - (cy - fadeStart) / (fadeEnd - fadeStart)
-                }
-                if (alpha <= 0.01f) continue
-                for (c in 0..cols) {
-                    val cx = 7f.dp.toPx() + c * step
-                    drawCircle(
-                        color = dotColor.copy(alpha = dotColor.alpha * alpha),
-                        radius = 1.7f.dp.toPx(),
-                        center = Offset(cx, cy)
-                    )
-                }
-            }
-        }
         content()
+    }
+}
+
+/**
+ * Orange drawer-sheet background matching the home screen's RedPanel look:
+ * flat HomescreenOrange with a red dot grid fading to transparent at 60% height.
+ */
+@Composable
+fun DrawerSheetBackground(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(HomescreenOrange)
+            .drawerDotGrid()
+    ) {
+        content()
+    }
+}
+
+/** Violet dot grid drawn behind content — mirrors the home screen canvas. */
+fun Modifier.homescreenDotGrid(): Modifier = drawBehind {
+    val dotColor = Color(70, 20, 140, (255 * 0.16f).toInt())
+    val step = 14f.dp.toPx()
+    val rows = (size.height / step).toInt()
+    val cols = (size.width / step).toInt()
+    val fadeStart = 324f.dp.toPx()
+    val fadeEnd = 596f.dp.toPx()
+
+    for (r in 0..rows) {
+        val cy = 4f.dp.toPx() + r * step
+        val alpha = when {
+            cy <= fadeStart -> 1f
+            cy >= fadeEnd -> 0f
+            else -> 1f - (cy - fadeStart) / (fadeEnd - fadeStart)
+        }
+        if (alpha <= 0.01f) continue
+        for (c in 0..cols) {
+            val cx = 7f.dp.toPx() + c * step
+            drawCircle(
+                color = dotColor.copy(alpha = dotColor.alpha * alpha),
+                radius = 1.7f.dp.toPx(),
+                center = Offset(cx, cy)
+            )
+        }
+    }
+}
+
+/** Red dot grid drawn behind content — mirrors the home screen's red panel canvas. */
+fun Modifier.drawerDotGrid(): Modifier = drawBehind {
+    val dotColor = Color(130, 20, 0, (255 * 0.20f).toInt())
+    val step = 14f.dp.toPx()
+    val rows = (size.height / step).toInt()
+    val cols = (size.width / step).toInt()
+    val fadeEnd = size.height * 0.60f
+
+    for (r in 0..rows) {
+        val cy = 4f.dp.toPx() + r * step
+        val alpha = (1f - (cy / fadeEnd)).coerceIn(0f, 1f)
+        if (alpha <= 0.01f) continue
+        for (c in 0..cols) {
+            val cx = 7f.dp.toPx() + c * step
+            drawCircle(
+                color = dotColor.copy(alpha = dotColor.alpha * alpha),
+                radius = 1.7f.dp.toPx(),
+                center = Offset(cx, cy)
+            )
+        }
     }
 }
 

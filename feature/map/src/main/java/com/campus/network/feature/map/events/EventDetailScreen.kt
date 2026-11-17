@@ -1,5 +1,7 @@
 package com.campus.network.feature.map.events
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -81,7 +83,7 @@ fun EventDetailScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(HomescreenPurple).homescreenDotGrid()
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

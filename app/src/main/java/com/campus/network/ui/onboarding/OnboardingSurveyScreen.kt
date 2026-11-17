@@ -1,5 +1,7 @@
 package com.campus.network.ui.onboarding
 
+import com.campus.network.core.ui.components.HomescreenInk
+import com.campus.network.core.ui.components.HomescreenPurple
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -294,10 +296,10 @@ fun OnboardingSurveyScreen(
     Surface(
         modifier = modifier
             .fillMaxSize()
-            .background(PureWhite)
+            .background(com.campus.network.core.ui.components.HomescreenPurple)
             .statusBarsPadding()
             .navigationBarsPadding(),
-        color = PureWhite
+        color = com.campus.network.core.ui.components.HomescreenPurple
     ) {
         AnimatedContent(
             targetState = currentStep,
@@ -644,7 +646,7 @@ private fun StickyContinueFooter(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PureWhite)
+            .background(com.campus.network.core.ui.components.HomescreenPurple)
     ) {
         HorizontalDivider(thickness = 1.dp, color = DividerHairline)
         Box(
@@ -657,8 +659,8 @@ private fun StickyContinueFooter(
                 enabled = enabled,
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = BrandPrimary,
-                    contentColor = PureWhite,
+                    containerColor = Color.White,
+                    contentColor = com.campus.network.core.ui.components.HomescreenInk,
                     disabledContainerColor = DisabledPillGrey,
                     disabledContentColor = PureWhite
                 ),
@@ -692,7 +694,7 @@ private fun DualActionFooter(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PureWhite)
+            .background(com.campus.network.core.ui.components.HomescreenPurple)
     ) {
         HorizontalDivider(thickness = 1.dp, color = DividerHairline)
         Row(
@@ -706,8 +708,8 @@ private fun DualActionFooter(
                 enabled = enabled,
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = BrandPrimary,
-                    contentColor = PureWhite
+                    containerColor = Color.White,
+                    contentColor = com.campus.network.core.ui.components.HomescreenInk
                 ),
                 modifier = Modifier
                     .weight(1f)
@@ -768,7 +770,7 @@ private fun RecommendationCalloutWithMascotRow(
                 modifier = Modifier
                     .weight(1f)
                     .border(1.25.dp, InkBlack, RectangleShape)
-                    .background(PureWhite)
+                    .background(com.campus.network.core.ui.components.HomescreenPurple)
                     .padding(horizontal = 14.dp, vertical = 18.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -826,7 +828,7 @@ private fun SquareSearchField(
         modifier = modifier
             .fillMaxWidth()
             .border(1.25.dp, BrandPrimary, RectangleShape)
-            .background(PureWhite)
+            .background(com.campus.network.core.ui.components.HomescreenPurple)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1308,8 +1310,8 @@ private fun UniversitySelectionStep(
                         enabled = customInputText.trim().isNotEmpty(),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandPrimary,
-                            contentColor = PureWhite,
+                            containerColor = Color.White,
+                            contentColor = com.campus.network.core.ui.components.HomescreenInk,
                             disabledContainerColor = DisabledPillGrey
                         ),
                         modifier = Modifier

@@ -1,5 +1,6 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -135,7 +136,7 @@ fun ServerProfileDrawer(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         dragHandle = {
             Box(
@@ -803,7 +804,7 @@ fun ServerProfileDrawer(
                     Text("Got It", color = Color(0xFF5865F2), fontWeight = FontWeight.Bold)
                 }
             },
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -860,7 +861,7 @@ fun ServerProfileDrawer(
                     Text("Cancel", color = Color(0xFF5C6470))
                 }
             },
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -921,7 +922,7 @@ fun ServerProfileDrawer(
                     Text("Cancel", color = Color(0xFF5C6470))
                 }
             },
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -940,7 +941,7 @@ fun ServerProfileDrawer(
                     Text("OK", color = Color(0xFF5865F2), fontWeight = FontWeight.Bold)
                 }
             },
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -969,7 +970,7 @@ fun ServerProfileDrawer(
                     Text("Cancel", color = Color(0xFF5C6470))
                 }
             },
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -998,7 +999,7 @@ fun ServerProfileDrawer(
                     Text("Cancel", color = Color(0xFF5C6470))
                 }
             },
-            containerColor = Color.White,
+            containerColor = HomescreenOrange,
             shape = RoundedCornerShape(16.dp)
         )
     }

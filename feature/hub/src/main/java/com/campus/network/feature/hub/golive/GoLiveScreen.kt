@@ -6,6 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import com.campus.network.core.ui.components.HomescreenInk
+import com.campus.network.core.ui.components.HomescreenOrange
+import com.campus.network.core.ui.components.HomescreenPurple
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -101,8 +104,6 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 private val LiveBrush = Brush.horizontalGradient(listOf(Color(0xFFFF512F), Color(0xFFDD2476)))
-private val PanelBg = Color(0xF2101014)
-private val FieldBg = Color(0xFF1D1D24)
 private val Muted = Color(0xFF9A9AA6)
 private val Accent = Color(0xFFFF512F)
 
@@ -310,7 +311,7 @@ private fun PermissionGate(
     onOpenSettings: () -> Unit,
     onClose: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
+    Box(modifier = Modifier.fillMaxSize().background(HomescreenPurple).statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
         GlassButton(Icons.Default.Close, "Close", onClose, Modifier.align(Alignment.TopStart))
         Column(
             modifier = Modifier.align(Alignment.Center),
@@ -321,11 +322,11 @@ private fun PermissionGate(
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Default.Videocam, null, tint = Color.White, modifier = Modifier.size(40.dp)) }
             Spacer(Modifier.height(24.dp))
-            Text("Allow camera & microphone", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text("Allow camera & microphone", color = HomescreenInk, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             Spacer(Modifier.height(10.dp))
             Text(
                 "So your campus can see and hear you live. We only use them while you're on the Go Live screen.",
-                color = Muted, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center
+                color = HomescreenInk.copy(alpha = 0.7f), fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(28.dp))
             PrimaryButton(
@@ -391,16 +392,16 @@ private fun SetupPhase(
                 .imePadding()
                 .heightIn(max = maxPanel)
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .background(PanelBg)
+                .background(HomescreenOrange)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(top = 18.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
         ) {
-            Text("Go Live", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Go Live", color = HomescreenInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
-            Text("Tell your campus what's happening", color = Muted, fontSize = 13.sp)
+            Text("Tell your campus what's happening", color = HomescreenInk.copy(alpha = 0.7f), fontSize = 13.sp)
 
             Spacer(Modifier.height(16.dp))
 
@@ -414,7 +415,7 @@ private fun SetupPhase(
                 Row(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(Accent.copy(alpha = 0.16f))
+                        .background(Color.White)
                         .clickable(enabled = !aiLoading) {
                             aiLoading = true
                             scope.launch {
@@ -434,12 +435,12 @@ private fun SetupPhase(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (aiLoading) {
-                        CircularProgressIndicator(Modifier.size(14.dp), color = Accent, strokeWidth = 2.dp)
+                        CircularProgressIndicator(Modifier.size(14.dp), color = HomescreenInk, strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Default.AutoAwesome, null, tint = Accent, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.AutoAwesome, null, tint = HomescreenInk, modifier = Modifier.size(14.dp))
                     }
                     Spacer(Modifier.width(6.dp))
-                    Text(if (aiLoading) "Writing…" else "Write with AI", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(if (aiLoading) "Writing…" else "Write with AI", color = HomescreenInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -458,12 +459,12 @@ private fun SetupPhase(
                     val selected = draft.category == tag
                     Text(
                         text = tag,
-                        color = if (selected) Color.White else Muted,
+                        color = if (selected) Color.White else HomescreenInk,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .clip(CircleShape)
-                            .then(if (selected) Modifier.background(LiveBrush) else Modifier.background(FieldBg))
+                            .then(if (selected) Modifier.background(HomescreenInk) else Modifier.background(Color.White))
                             .clickable { draft.category = tag }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     )
@@ -491,16 +492,16 @@ private fun SetupPhase(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (selected) Accent.copy(alpha = 0.18f) else FieldBg)
-                            .border(1.dp, if (selected) Accent else Color.Transparent, RoundedCornerShape(14.dp))
+                            .background(if (selected) HomescreenInk else Color.White)
+                            .border(1.dp, if (selected) HomescreenInk else Color.Transparent, RoundedCornerShape(14.dp))
                             .clickable { draft.audience = option }
                             .padding(vertical = 10.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(option.icon, null, tint = if (selected) Accent else Muted, modifier = Modifier.size(15.dp))
+                        Icon(option.icon, null, tint = if (selected) Color.White else HomescreenInk.copy(alpha = 0.65f), modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text(option.label, color = if (selected) Color.White else Muted, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(option.label, color = if (selected) Color.White else HomescreenInk, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
             }
@@ -520,7 +521,7 @@ private fun SetupPhase(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Add a title, or tap Write with AI, to go live",
-                    color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                    color = HomescreenInk.copy(alpha = 0.65f), fontSize = 12.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -689,9 +690,9 @@ private fun LivePhase(
     if (showEndDialog) {
         AlertDialog(
             onDismissRequest = { showEndDialog = false },
-            containerColor = Color(0xFF1B1B22),
-            title = { Text("End live stream?", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = { Text("Your viewers will be disconnected. You can't resume this stream.", color = Muted) },
+            containerColor = com.campus.network.core.ui.components.HomescreenOrange,
+            title = { Text("End live stream?", color = com.campus.network.core.ui.components.HomescreenInk, fontWeight = FontWeight.Bold) },
+            text = { Text("Your viewers will be disconnected. You can't resume this stream.", color = com.campus.network.core.ui.components.HomescreenInk.copy(alpha = 0.75f)) },
             confirmButton = {
                 TextButton(onClick = {
                     showEndDialog = false
@@ -699,10 +700,10 @@ private fun LivePhase(
                         liveStreamRepository?.endStream(streamId, seconds, peak, likes)
                     }
                     onEnded(StreamSummary(seconds, peak, likes, newFollowers = 0))
-                }) { Text("End stream", color = Color(0xFFFF5A5F), fontWeight = FontWeight.Bold) }
+                }) { Text("End stream", color = Color(0xFF7A1606), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showEndDialog = false }) { Text("Keep streaming", color = Color.White) }
+                TextButton(onClick = { showEndDialog = false }) { Text("Keep streaming", color = com.campus.network.core.ui.components.HomescreenInk) }
             }
         )
     }
@@ -721,15 +722,15 @@ private fun SummaryPhase(
 ) {
     BackHandler(onBack = onDone)
     Column(
-        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp),
+        modifier = Modifier.fillMaxSize().background(HomescreenPurple).statusBarsPadding().navigationBarsPadding().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.weight(1f))
         Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF34D399), modifier = Modifier.size(64.dp))
         Spacer(Modifier.height(16.dp))
-        Text("Stream ended", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("Stream ended", color = HomescreenInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
-        Text(title, color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Text(title, color = HomescreenInk.copy(alpha = 0.65f), fontSize = 14.sp, textAlign = TextAlign.Center, maxLines = 2)
         if (saveReplay) {
             Spacer(Modifier.height(10.dp))
             Text(
@@ -751,14 +752,14 @@ private fun SummaryPhase(
         if (saveReplay) {
             Row(
                 modifier = Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(16.dp))
-                    .border(BorderStroke(1.dp, Color.White.copy(0.25f)), RoundedCornerShape(16.dp))
+                    .border(BorderStroke(1.dp, HomescreenInk.copy(alpha = 0.4f)), RoundedCornerShape(16.dp))
                     .clickable(onClick = onShare),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Share, null, tint = HomescreenInk, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Share replay", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Share replay", color = HomescreenInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -778,7 +779,7 @@ private fun formatDuration(totalSeconds: Int): String {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, color = Color(0xFFD0D0DA), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    Text(text, color = HomescreenInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
 }
 
 @Composable
@@ -806,11 +807,11 @@ private fun StatPill(text: String, icon: ImageVector? = null) {
 @Composable
 private fun SummaryStat(label: String, value: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).background(FieldBg).padding(16.dp)
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp)
     ) {
-        Text(label, color = Muted, fontSize = 12.sp)
+        Text(label, color = HomescreenInk.copy(alpha = 0.6f), fontSize = 12.sp)
         Spacer(Modifier.height(6.dp))
-        Text(value, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = HomescreenInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -820,16 +821,16 @@ private fun ToggleRow(title: String, subtitle: String, icon: ImageVector, checke
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = Muted, modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = HomescreenInk.copy(alpha = 0.65f), modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = Muted, fontSize = 11.5.sp)
+            Text(title, color = HomescreenInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = HomescreenInk.copy(alpha = 0.65f), fontSize = 11.5.sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = Accent, checkedThumbColor = Color.White)
+            colors = SwitchDefaults.colors(checkedTrackColor = HomescreenInk, checkedThumbColor = Color.White)
         )
     }
 }
@@ -854,8 +855,8 @@ private fun DarkField(
         ),
         shape = RoundedCornerShape(14.dp),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = FieldBg, unfocusedContainerColor = FieldBg,
-            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+            focusedTextColor = HomescreenInk, unfocusedTextColor = HomescreenInk,
             cursorColor = Accent,
             focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
         ),
@@ -870,15 +871,15 @@ private fun PrimaryButton(text: String, onClick: () -> Unit, icon: ImageVector? 
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(16.dp))
-            .then(if (enabled) Modifier.background(LiveBrush) else Modifier.background(FieldBg))
+            .then(if (enabled) Modifier.background(Color.White) else Modifier.background(Color.White.copy(alpha = 0.55f)))
             .clickable(enabled = enabled, onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, null, tint = if (enabled) Color.White else Muted, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = if (enabled) HomescreenInk else HomescreenInk.copy(alpha = 0.45f), modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, color = if (enabled) Color.White else Muted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = if (enabled) HomescreenInk else HomescreenInk.copy(alpha = 0.45f), fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }

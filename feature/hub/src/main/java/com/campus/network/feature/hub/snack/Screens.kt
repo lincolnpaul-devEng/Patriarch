@@ -1,5 +1,7 @@
 package com.campus.network.feature.hub.snack
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -499,7 +501,7 @@ fun CartScreen(vm: SnackVm, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
             .statusBarsPadding()
     ) {
         Column(

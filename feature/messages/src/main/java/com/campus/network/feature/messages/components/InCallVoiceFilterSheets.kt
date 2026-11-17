@@ -1,5 +1,6 @@
 package com.campus.network.feature.messages.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -103,7 +104,7 @@ fun InCallMoreOptionsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SheetSurfaceBg,
+        containerColor = HomescreenOrange,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -413,7 +414,7 @@ fun VoiceMorphSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SheetSurfaceBg,
+        containerColor = HomescreenOrange,
         dragHandle = {
             Box(
                 modifier = Modifier

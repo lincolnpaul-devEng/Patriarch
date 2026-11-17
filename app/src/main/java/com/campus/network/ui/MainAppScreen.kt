@@ -211,7 +211,8 @@ fun MainAppScreen(
         !isScreenHidingBottomBar
 
     Scaffold(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        containerColor = com.campus.network.core.ui.components.HomescreenPurple
     ) { _ ->
         Box(modifier = Modifier.fillMaxSize()) {
             CampusNavHost(

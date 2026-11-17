@@ -1,5 +1,6 @@
 package com.campus.network.feature.hub.notifications
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -390,7 +391,7 @@ fun NotificationSettingsScreen(
             ModalBottomSheet(
                 onDismissRequest = { activeEditingItem = null },
                 sheetState = sheetState,
-                containerColor = Color.White
+                containerColor = HomescreenOrange,
             ) {
                 Column(
                     modifier = Modifier

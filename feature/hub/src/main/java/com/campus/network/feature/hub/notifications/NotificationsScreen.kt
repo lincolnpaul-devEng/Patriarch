@@ -270,7 +270,7 @@ fun NotificationsScreen(
 
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = Color(0xFFF6F7F9) // Light grayish off-white matching Reference Image 1
+        color = com.campus.network.core.ui.components.HomescreenPurple // Violet theme consistent with home screen
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(

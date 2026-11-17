@@ -1,5 +1,6 @@
 package com.campus.network.feature.hub.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
@@ -330,7 +331,7 @@ fun PostProductDrawerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
             Box(
@@ -1602,9 +1603,9 @@ fun PostProductDrawerSheet(
                         enabled = buttonEnabled,
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF014784),
+                            containerColor = Color.White,
                             disabledContainerColor = Color(0xFFCBD5E1),
-                            contentColor = Color.White
+                            contentColor = com.campus.network.core.ui.components.HomescreenInk
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1771,8 +1772,8 @@ fun PostProductDrawerSheet(
                                 isMapFullscreenOpen = false
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF014784),
-                                contentColor = Color.White
+                                containerColor = Color.White,
+                                contentColor = com.campus.network.core.ui.components.HomescreenInk
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier

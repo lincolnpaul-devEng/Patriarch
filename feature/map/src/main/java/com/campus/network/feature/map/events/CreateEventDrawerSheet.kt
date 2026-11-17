@@ -1,5 +1,6 @@
 package com.campus.network.feature.map.events
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -230,7 +231,7 @@ fun CreateEventDrawerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null,
         modifier = modifier

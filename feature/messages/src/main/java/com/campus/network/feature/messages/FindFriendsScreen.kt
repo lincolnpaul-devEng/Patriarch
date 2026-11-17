@@ -1,5 +1,7 @@
 package com.campus.network.feature.messages
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,7 +75,7 @@ fun FindFriendsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF7F8FA))
+            .background(HomescreenPurple).homescreenDotGrid()
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {

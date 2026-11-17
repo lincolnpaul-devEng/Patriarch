@@ -1,5 +1,6 @@
 package com.campus.network.feature.hub.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -198,7 +199,7 @@ fun SafeTradeEscrowBuyerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null,
         modifier = modifier

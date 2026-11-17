@@ -1,5 +1,7 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.homescreenDotGrid
+import com.campus.network.core.ui.components.HomescreenPurple
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -102,7 +104,7 @@ fun ChannelProfileScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {

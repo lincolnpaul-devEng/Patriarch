@@ -1,5 +1,6 @@
 package com.campus.network.core.ui.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
@@ -492,7 +493,7 @@ fun CampusInlineNetworkAlertCard(
             },
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF0F172A),
+                containerColor = com.campus.network.core.ui.components.HomescreenInk,
                 contentColor = Color.White
             ),
             modifier = Modifier

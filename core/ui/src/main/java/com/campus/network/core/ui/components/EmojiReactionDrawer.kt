@@ -176,7 +176,7 @@ fun HybridEmojiReactionDrawer(
         modifier = modifier
             .fillMaxWidth()
             .height(340.dp)
-            .background(Color.White)
+            .background(HomescreenOrange)
             .navigationBarsPadding()
     ) {
         HorizontalDivider(thickness = 0.8.dp, color = Color(0xFFE2E8F0))
@@ -274,7 +274,7 @@ private fun GiphyPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenOrange)
     ) {
         // Search Input Bar
         Surface(

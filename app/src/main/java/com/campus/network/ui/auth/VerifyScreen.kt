@@ -1,5 +1,6 @@
 package com.campus.network.ui.auth
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat

@@ -1,5 +1,7 @@
 package com.campus.network.feature.messages
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -82,7 +84,7 @@ fun BroadcastScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
             .statusBarsPadding()
     ) {
         Column(

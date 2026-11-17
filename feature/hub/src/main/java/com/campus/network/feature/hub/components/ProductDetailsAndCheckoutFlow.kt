@@ -1,5 +1,8 @@
 package com.campus.network.feature.hub.components
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -345,7 +348,7 @@ fun MarketProductDetailsFullScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
     ) {
         // 1. Edge-to-Edge Swipeable Hero Photo Gallery with Parallax (Context Retention - Timestamp 11:50)
         Box(
@@ -1174,7 +1177,10 @@ fun MarketProductDetailsFullScreen(
                             Button(
                                 onClick = { isSellerQrModalOpen = true },
                                 shape = RoundedCornerShape(26.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = com.campus.network.core.ui.components.HomescreenInk,
+                                    contentColor = Color.White
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(50.dp)
@@ -1328,7 +1334,10 @@ fun MarketProductDetailsFullScreen(
                                     }
                                 },
                                 shape = RoundedCornerShape(26.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = com.campus.network.core.ui.components.HomescreenInk,
+                                    contentColor = Color.White
+                                ),
                                 contentPadding = PaddingValues(horizontal = 18.dp),
                                 modifier = Modifier
                                     .weight(1f)
@@ -1521,7 +1530,7 @@ private fun SellerQrTicketModalSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White
+        containerColor = HomescreenOrange,
     ) {
         Column(
             modifier = Modifier
@@ -1568,7 +1577,10 @@ private fun SellerQrTicketModalSheet(
             Button(
                 onClick = onShareTicket,
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                colors = ButtonDefaults.buttonColors(
+                                    containerColor = com.campus.network.core.ui.components.HomescreenInk,
+                                    contentColor = Color.White
+                                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
@@ -1654,7 +1666,7 @@ fun ProductOptionsBasketDrawerSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         dragHandle = null
     ) {
         Box(
@@ -2151,7 +2163,7 @@ fun BasketEscrowCheckoutSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        containerColor = Color.White
+        containerColor = HomescreenOrange,
     ) {
         Column(
             modifier = Modifier
@@ -2457,8 +2469,10 @@ fun BasketEscrowCheckoutSheet(
                     enabled = !isLocking && paymentProviderReady,
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = BrandBluePrimary,
-                        disabledContainerColor = BrandBluePrimary.copy(alpha = 0.45f)
+                        containerColor = Color.White,
+                        contentColor = com.campus.network.core.ui.components.HomescreenInk,
+                        disabledContainerColor = Color.White.copy(alpha = 0.5f),
+                        disabledContentColor = com.campus.network.core.ui.components.HomescreenInk.copy(alpha = 0.45f)
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2605,7 +2619,10 @@ fun BasketEscrowCheckoutSheet(
                             )
                         },
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                        colors = ButtonDefaults.buttonColors(
+                                    containerColor = com.campus.network.core.ui.components.HomescreenInk,
+                                    contentColor = Color.White
+                                ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp)
@@ -2698,7 +2715,10 @@ private fun ActiveEscrowOrderBanner(
                 Button(
                     onClick = onMessageSeller,
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandBluePrimary),
+                    colors = ButtonDefaults.buttonColors(
+                                    containerColor = com.campus.network.core.ui.components.HomescreenInk,
+                                    contentColor = Color.White
+                                ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     modifier = Modifier.weight(1f)
                 ) {

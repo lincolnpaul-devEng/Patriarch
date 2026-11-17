@@ -1,5 +1,8 @@
 package com.campus.network.feature.messages
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.Manifest
 import android.content.Context
 import android.net.Uri
@@ -272,7 +275,7 @@ fun DirectChatScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 1. Floating Top App Header
@@ -1435,7 +1438,7 @@ private fun MessageActionBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color.White
+        containerColor = HomescreenOrange,
     ) {
         Column(
             modifier = Modifier
@@ -1587,7 +1590,7 @@ private fun PeerProfileBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color.White
+        containerColor = HomescreenOrange,
     ) {
         Column(
             modifier = Modifier

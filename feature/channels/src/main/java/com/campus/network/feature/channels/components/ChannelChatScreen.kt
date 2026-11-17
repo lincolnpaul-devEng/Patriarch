@@ -1,5 +1,7 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.homescreenDotGrid
+import com.campus.network.core.ui.components.HomescreenPurple
 import android.Manifest
 import android.content.ContentUris
 import android.content.pm.PackageManager
@@ -253,7 +255,7 @@ fun ChannelChatScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomescreenPurple).homescreenDotGrid()
             .statusBarsPadding()
     ) {
         // TOP APP BAR / CHANNEL HEADER — badge = other channel threads only (not this chat)

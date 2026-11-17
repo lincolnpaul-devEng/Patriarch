@@ -1,5 +1,7 @@
 package com.campus.network.feature.profile
 
+import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -110,7 +112,7 @@ fun CampusWalletScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .background(Color(0xFFF8F9FA))
+            .background(HomescreenPurple).homescreenDotGrid()
     ) {
         // Top App Bar
         Row(

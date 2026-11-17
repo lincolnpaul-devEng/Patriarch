@@ -1,5 +1,6 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -169,7 +170,7 @@ fun EditServerSettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         dragHandle = null,
         modifier = modifier.fillMaxSize()

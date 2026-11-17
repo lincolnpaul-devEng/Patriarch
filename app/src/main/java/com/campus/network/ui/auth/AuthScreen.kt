@@ -1,5 +1,6 @@
 package com.campus.network.ui.auth
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -511,7 +512,7 @@ fun AuthScreen(
                     }
                 },
                 sheetState = sheetState,
-                containerColor = Color(0xFFF8FAFC),
+                containerColor = HomescreenOrange,
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
             ) {
                 AnimatedContent(

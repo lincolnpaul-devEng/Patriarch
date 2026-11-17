@@ -1,5 +1,6 @@
 package com.campus.network.feature.profile
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1785,7 +1786,7 @@ private fun EditProfileDrawerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
             Box(
@@ -2221,7 +2222,7 @@ private fun MultiProfileSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White
+        containerColor = HomescreenOrange,
     ) {
         Column(
             modifier = Modifier

@@ -1,5 +1,6 @@
 package com.campus.network.feature.channels.components
 
+import com.campus.network.core.ui.components.HomescreenOrange
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -78,7 +79,7 @@ fun CreateChannelModalSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = HomescreenOrange,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         dragHandle = null,
         modifier = Modifier.fillMaxSize()
