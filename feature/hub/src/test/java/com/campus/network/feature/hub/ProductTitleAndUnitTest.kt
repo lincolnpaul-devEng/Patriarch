@@ -1,6 +1,6 @@
 package com.campus.network.feature.hub
 
-import com.campus.network.feature.hub.components.extractCleanTitleAndUnit
+import com.campus.network.feature.hub.market.extractCleanTitleAndUnit
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

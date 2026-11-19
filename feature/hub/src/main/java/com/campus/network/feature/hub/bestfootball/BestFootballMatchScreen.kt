@@ -50,12 +50,15 @@ import kotlin.math.roundToInt
 fun BestFootballMatchScreen(
     userFullName: String? = null,
     userAvatarUrl: String? = null,
+    campusStats: com.campus.network.core.data.CampusStatsRepository.CampusStats =
+        com.campus.network.core.data.CampusStatsRepository.CampusStats.Empty,
+    unreadFriendMessages: List<UnreadFriendMessage> = emptyList(),
     onNavigateToProfile: () -> Unit = {},
     onNavigateToGoLive: () -> Unit = {},
     onNavigateToChannels: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
-    onNavigateToSnack: () -> Unit = {},
+    onNavigateToMarket: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -341,7 +344,7 @@ fun BestFootballMatchScreen(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = onNavigateToSnack
+                            onClick = onNavigateToMarket
                         )
                 ) {
                     // Fold at top right: 38x26, triangle Lilac + line Purple@.55
@@ -580,13 +583,13 @@ fun BestFootballMatchScreen(
 
                     // Values at (14, 169), (76, 169), (226, 169)
                     Box(modifier = Modifier.offset(x = 14.dp, y = 169.dp)) {
-                        DText(text = "28", size = 17f, color = Color(0xFF8FA07E), lineHeight = 17f)
+                        DText(text = "${campusStats.eventsCount}", size = 17f, color = Color(0xFF8FA07E), lineHeight = 17f)
                     }
                     Box(modifier = Modifier.offset(x = 76.dp, y = 169.dp)) {
-                        DText(text = "120", size = 17f, color = Ink, lineHeight = 17f)
+                        DText(text = "${campusStats.postsCount}", size = 17f, color = Ink, lineHeight = 17f)
                     }
                     Box(modifier = Modifier.offset(x = 226.dp, y = 169.dp)) {
-                        DText(text = "19", size = 17f, color = Ink, lineHeight = 17f)
+                        DText(text = "${campusStats.guildsCount}", size = 17f, color = Ink, lineHeight = 17f)
                     }
                 }
             }
@@ -602,15 +605,19 @@ fun BestFootballMatchScreen(
             // 4. Stats Rows (zIndex 14)
             StatRows(
                 prog = prog,
+                eventsCount = campusStats.eventsCount,
+                postsCount = campusStats.postsCount,
+                guildsCount = campusStats.guildsCount,
                 modifier = Modifier
                     .fillMaxSize()
                     .zIndex(14f)
             )
 
-            // 5. Stat Cards Row (zIndex 15)
-            if (prog > 0.01f) {
+            // 5. Stat Cards Row (zIndex 15) — only friends with unread messages
+            if (prog > 0.01f && unreadFriendMessages.isNotEmpty()) {
                 StatCardsRow(
                     stIn = stIn.map { it.value },
+                    cards = unreadFriendMessages,
                     onCardClick = { _ ->
                         onNavigateToMessages()
                     },

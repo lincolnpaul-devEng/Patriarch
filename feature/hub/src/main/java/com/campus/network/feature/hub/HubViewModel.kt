@@ -14,7 +14,7 @@ import com.campus.network.core.model.PaymentMethodOption
 import com.campus.network.core.model.PaymentResult
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.stableUserId
-import com.campus.network.feature.hub.components.ProductBasketConfig
+import com.campus.network.feature.hub.market.ProductBasketConfig
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -54,6 +54,8 @@ sealed interface HubEvent {
     data class SelectAiSuggestion(val suggestion: String) : HubEvent
     data object ClearSearch : HubEvent
     data object ClearFeedback : HubEvent
+    data class DeleteListing(val itemId: String) : HubEvent
+    data class MarkListingSold(val itemId: String) : HubEvent
     data class PostItem(
         val title: String,
         val price: Double,
@@ -61,12 +63,12 @@ sealed interface HubEvent {
         val condition: String,
         val location: String,
         val description: String = "",
-        val pickupSpotName: String = "Quad Library Ground Floor Lockers",
-        val pickupSecurityLevel: String = "CCTV Monitored Safe Zone",
-        val pickupLatitude: Double = -1.3090,
-        val pickupLongitude: Double = 36.8120,
-        val pickupTiming: String = "Immediate (within 1 hr)",
-        val payoutMethod: String = "Campus SafePay Escrow",
+        val pickupSpotName: String,
+        val pickupSecurityLevel: String,
+        val pickupLatitude: Double,
+        val pickupLongitude: Double,
+        val pickupTiming: String,
+        val payoutMethod: String,
         val requiresQrReleaseCode: Boolean = true,
         val qrReleaseCode: String = "",
         val imageUrl: String? = null,
@@ -79,7 +81,9 @@ sealed interface HubEvent {
         val payout: Double,
         val duration: String,
         val tag: String,
-        val urgency: GigUrgency
+        val urgency: GigUrgency,
+        val spotsAvailable: Int = 1,
+        val bannerUrl: String? = null
     ) : HubEvent
 }
 
@@ -320,6 +324,7 @@ class HubViewModel(
      */
     suspend fun releaseEscrowFunds(itemId: String, scannedCode: String): PaymentResult<EscrowOrder> {
         val order = escrowOrdersByItemId[itemId]
+            ?: repository.fetchEscrowOrderForItem(itemId)?.also { escrowOrdersByItemId[itemId] = it }
             ?: return PaymentResult.Failure(
                 com.campus.network.core.model.PaymentErrorCode.INVALID_REQUEST,
                 "No active escrow order for this listing on this device"
@@ -329,6 +334,22 @@ class HubViewModel(
             is PaymentResult.Success -> {
                 escrowOrdersByItemId[itemId] = released.value
                 released
+            }
+        }
+    }
+
+    /** Server truth for the M-Pesa escrow order on a listing (survives app restarts). */
+    suspend fun refreshEscrowOrder(itemId: String): EscrowOrder? {
+        return repository.fetchEscrowOrderForItem(itemId)?.also { escrowOrdersByItemId[itemId] = it }
+    }
+
+    /** Cancels a funded order and returns the buyer's money (sandbox: simulated release). */
+    suspend fun refundEscrowOrder(order: EscrowOrder): PaymentResult<EscrowOrder> {
+        return when (val refunded = escrowService.refundBuyer(order, "Buyer cancelled before handover")) {
+            is PaymentResult.Failure -> refunded
+            is PaymentResult.Success -> {
+                escrowOrdersByItemId[order.marketItemId] = refunded.value
+                refunded
             }
         }
     }
@@ -351,6 +372,24 @@ class HubViewModel(
                 _aiSuggestions.value = emptyList()
             }
             HubEvent.ClearFeedback -> _feedbackMessage.value = null
+            is HubEvent.DeleteListing -> {
+                viewModelScope.launch {
+                    val result = repository.deleteMarketItem(event.itemId)
+                    _feedbackMessage.value = result.fold(
+                        onSuccess = { "Listing deleted." },
+                        onFailure = { error -> error.message ?: "Unable to delete listing." }
+                    )
+                }
+            }
+            is HubEvent.MarkListingSold -> {
+                viewModelScope.launch {
+                    val result = repository.markMarketItemSold(event.itemId)
+                    _feedbackMessage.value = result.fold(
+                        onSuccess = { "Marked as sold." },
+                        onFailure = { error -> error.message ?: "Unable to mark sold." }
+                    )
+                }
+            }
             is HubEvent.PostItem -> {
                 viewModelScope.launch {
                     val profile = uiState.value.studentProfile
@@ -411,7 +450,10 @@ class HubViewModel(
                             posterUserId = posterUserId,
                             posterDisplayName = profile?.fullName,
                             tag = event.tag,
-                            urgency = event.urgency
+                            urgency = event.urgency,
+                            spotsAvailable = event.spotsAvailable,
+                            bannerUrl = event.bannerUrl,
+                            posterTrustScore = profile?.behavioralTrustScore ?: 0
                         )
                         _isPostDialogOpen.value = false
                         _feedbackMessage.value = when (gig.syncStatus) {

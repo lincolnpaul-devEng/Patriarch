@@ -23,7 +23,13 @@ object PaymentProviderRegistry {
     }
 
     fun resolve(): PaymentProvider {
-        return overrideProvider ?: UnconfiguredPaymentProvider()
+        overrideProvider?.let { return it }
+        // M-Pesa socket: enabled via secrets.properties (Daraja creds live only in
+        // Supabase function secrets, never in the APK).
+        if (BuildConfig.MPESA_ENABLED && BuildConfig.SUPABASE_URL.isNotBlank()) {
+            return MpesaEscrowPaymentProvider()
+        }
+        return UnconfiguredPaymentProvider()
     }
 
     /** Explicitly wire a provider from out-of-band configuration (never app BuildConfig). */
@@ -35,6 +41,7 @@ object PaymentProviderRegistry {
     fun isPaymentReady(): Boolean = resolve().isConfigured
 
     fun configurationHint(): String =
-        "Payment socket empty. Configure an Edge Function and install the provider via " +
-            "PaymentProviderRegistry.installHttpProvider(...) — never ship payment secrets in BuildConfig."
+        "Payment socket empty. Set MPESA_ENABLED=true in secrets.properties and deploy the `mpesa` " +
+            "Supabase Edge Function (or install an HTTP provider via PaymentProviderRegistry.installHttpProvider(...)). " +
+            "Never ship payment secrets in BuildConfig."
 }

@@ -1,5 +1,8 @@
 package com.campus.network.feature.profile
 
+import com.campus.network.core.model.EscrowOrder
+import com.campus.network.core.model.StudentProfile
+import com.campus.network.core.model.stableUserId
 import com.campus.network.core.ui.components.HomescreenPurple
 import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.compose.foundation.BorderStroke
@@ -27,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Security
@@ -40,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,70 +67,102 @@ data class LedgerEvent(
     val category: String,
     val scoreDelta: String,
     val icon: ImageVector,
-    val verificationHash: String
+    val verificationHash: String,
+    val timestampEpochMs: Long = 0L
 )
+
+private fun formatLedgerTime(epochMs: Long): String {
+    if (epochMs <= 0L) return ""
+    val formatter = java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")
+        .withZone(java.time.ZoneId.systemDefault())
+    return formatter.format(java.time.Instant.ofEpochMilli(epochMs))
+}
 
 @Composable
 fun ActivityLedgerScreen(
     onBackClick: () -> Unit,
-    onShowFeedback: (String) -> Unit = {}
+    onShowFeedback: (String) -> Unit = {},
+    profile: StudentProfile? = null,
+    /** Real Safe Trade history — buyer + seller orders from campus_escrow_orders. */
+    escrowOrdersLoader: suspend () -> List<EscrowOrder> = { emptyList() }
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "SafeTrades", "Quests", "Badges", "Consistency")
 
-    val ledgerEvents = remember {
-        listOf(
-            LedgerEvent(
-                id = "evt-1",
-                title = "Completed Quest: 3-Day Focus Library Streak",
-                description = "Checked in to Strathmore Quad Library 3 consecutive study sessions (>45m each).",
-                timestamp = "Today, 11:24 AM",
-                category = "Quests",
-                scoreDelta = "+150 XP • +1 Trust",
-                icon = Icons.Default.Whatshot,
-                verificationHash = "0x98f2...4a12"
-            ),
-            LedgerEvent(
-                id = "evt-2",
-                title = "SafeTrade Settled: TI-84 Plus CE Graphing Calculator",
-                description = "Mutual confirmation with Kevin Cheruiyot at Student Guild Hub Table 4. SafePay released.",
-                timestamp = "Yesterday, 3:15 PM",
-                category = "SafeTrades",
-                scoreDelta = "+300 XP • +2 Trust",
-                icon = Icons.Default.Payments,
-                verificationHash = "0x83e1...29c4"
-            ),
-            LedgerEvent(
-                id = "evt-3",
-                title = "Badge Endorsement: Jetpack Compose Architect",
-                description = "Endorsed by Dr. Odhiambo (School of Computing) following peer design review.",
-                timestamp = "14 Oct, 5:40 PM",
-                category = "Badges",
-                scoreDelta = "Gold Master Level",
-                icon = Icons.Default.MilitaryTech,
-                verificationHash = "0x54a0...ee19"
-            ),
-            LedgerEvent(
-                id = "evt-4",
-                title = "24-Day Campus Consistency Streak Milestone",
-                description = "Maintained continuous daily engagement across course channels and study rooms.",
-                timestamp = "12 Oct, 9:00 AM",
-                category = "Consistency",
-                scoreDelta = "+100 Merit Points",
-                icon = Icons.Default.Stars,
-                verificationHash = "0x22c4...77d8"
-            ),
-            LedgerEvent(
-                id = "evt-5",
-                title = "SafeTrade Protected: Calculus Early Transcendentals",
-                description = "Buyer Sarah K. initiated SafePay protection vault. Delivery scheduled at Quad B.",
-                timestamp = "10 Oct, 1:30 PM",
-                category = "SafeTrades",
-                scoreDelta = "Vault Locked (KES 2,400)",
-                icon = Icons.Default.Security,
-                verificationHash = "0x11e9...b341"
-            )
-        )
+    var escrowOrders by remember { mutableStateOf<List<EscrowOrder>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        escrowOrders = runCatching { escrowOrdersLoader() }.getOrDefault(emptyList())
+        isLoading = false
+    }
+
+    val ledgerEvents: List<LedgerEvent> = remember(escrowOrders, profile) {
+        buildList<LedgerEvent> {
+            escrowOrders.forEach { order ->
+                val isSeller = profile?.stableUserId() == order.sellerUserId
+                val statusLabel = order.status.name.replace('_', ' ')
+                LedgerEvent(
+                    id = "trade-${order.id}",
+                    title = "Safe Trade: ${order.itemTitle.ifBlank { "Listing" }}",
+                    description = buildString {
+                        append(if (isSeller) "You sold this listing." else "You bought this listing.")
+                        if (order.rendezvousSpot.isNotBlank()) append(" Meet point: ${order.rendezvousSpot}.")
+                        append(" Order ${order.orderNumber}.")
+                    },
+                    timestamp = formatLedgerTime(order.createdAtEpochMs),
+                    category = "SafeTrades",
+                    scoreDelta = "$statusLabel (KES ${order.amount.toLong()})",
+                    icon = when (order.status.name) {
+                        "RELEASED_TO_SELLER" -> Icons.Default.CheckCircle
+                        "FUNDS_HELD" -> Icons.Default.Lock
+                        else -> Icons.Default.Security
+                    },
+                    verificationHash = order.orderNumber,
+                    timestampEpochMs = order.createdAtEpochMs
+                )
+            }
+            profile?.privateQuestDeck?.forEach { quest ->
+                LedgerEvent(
+                    id = "quest-${quest.id}",
+                    title = "Quest: ${quest.title}",
+                    description = quest.description,
+                    timestamp = "",
+                    category = "Quests",
+                    scoreDelta = if (quest.isCompleted) {
+                        "Completed • +${quest.xpReward} XP"
+                    } else {
+                        "${quest.currentProgress}/${quest.targetProgress} • +${quest.xpReward} XP"
+                    },
+                    icon = Icons.Default.Whatshot,
+                    verificationHash = quest.id
+                )
+            }
+            profile?.verifiedSkillBadges?.forEach { badge ->
+                LedgerEvent(
+                    id = "badge-${badge.id}",
+                    title = "Badge: ${badge.name}",
+                    description = "Verified by ${badge.facultyVerifier.ifBlank { "faculty" }} • ${badge.endorsementCount} endorsements",
+                    timestamp = badge.verifiedDate,
+                    category = "Badges",
+                    scoreDelta = badge.level.name,
+                    icon = Icons.Default.MilitaryTech,
+                    verificationHash = badge.id
+                )
+            }
+            val streak = profile?.consistencyStreakDays ?: 0
+            if (streak > 0) {
+                LedgerEvent(
+                    id = "streak-current",
+                    title = "Campus Consistency Streak",
+                    description = "Maintained continuous daily engagement across course channels and study rooms.",
+                    timestamp = "",
+                    category = "Consistency",
+                    scoreDelta = "$streak Day${if (streak == 1) "" else "s"}",
+                    icon = Icons.Default.Stars,
+                    verificationHash = "streak-$streak"
+                )
+            }
+        }.sortedByDescending { it.timestampEpochMs }
     }
 
     val filteredEvents = ledgerEvents.filter {
@@ -192,7 +229,7 @@ fun ActivityLedgerScreen(
             }
         }
 
-        // Summary Statistics Card
+        // Summary Statistics Card — real numbers from the profile + live escrow history
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -209,7 +246,10 @@ fun ActivityLedgerScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("24 Days", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF0F172A))
+                    Text(
+                        "${profile?.consistencyStreakDays ?: 0}",
+                        fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF0F172A)
+                    )
                     Text("Daily Streak", fontSize = 11.5.sp, color = Color(0xFF64748B))
                 }
 
@@ -221,8 +261,11 @@ fun ActivityLedgerScreen(
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("48 Trades", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF16A34A))
-                    Text("100% Settled", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                    Text(
+                        escrowOrders.size.toString(),
+                        fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF16A34A)
+                    )
+                    Text("Safe Trades", fontSize = 11.5.sp, color = Color(0xFF64748B))
                 }
 
                 Box(
@@ -233,7 +276,10 @@ fun ActivityLedgerScreen(
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("96 / 100", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFFEAB308))
+                    Text(
+                        "${profile?.behavioralTrustScore ?: 0} / 100",
+                        fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFFEAB308)
+                    )
                     Text("Trust Score", fontSize = 11.5.sp, color = Color(0xFF64748B))
                 }
             }
@@ -269,6 +315,21 @@ fun ActivityLedgerScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (!isLoading && filteredEvents.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No verified activity yet. Safe Trades, quests and badges appear here as they happen.",
+                            fontSize = 12.5.sp,
+                            color = Color(0xFF64748B),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
             items(filteredEvents, key = { it.id }) { event ->
                 Card(
                     shape = RoundedCornerShape(14.dp),
@@ -361,7 +422,7 @@ fun ActivityLedgerScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Ledger Hash: ${event.verificationHash}",
+                                    text = "Ledger Ref: ${event.verificationHash}",
                                     fontSize = 10.5.sp,
                                     color = Color(0xFF64748B)
                                 )

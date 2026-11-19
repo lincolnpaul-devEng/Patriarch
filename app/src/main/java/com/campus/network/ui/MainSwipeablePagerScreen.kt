@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,6 +21,8 @@ import com.campus.network.core.ui.components.ScreenNavIndicatorDots
 import com.campus.network.feature.channels.ChannelsScreen
 import com.campus.network.feature.channels.ChannelsViewModel
 import com.campus.network.feature.hub.bestfootball.BestFootballMatchScreen
+import com.campus.network.feature.hub.bestfootball.UnreadFriendMessage
+import com.campus.network.feature.messages.ThreadCategory
 import com.campus.network.feature.map.MapScreen
 import com.campus.network.feature.map.MapViewModel
 import com.campus.network.feature.messages.MessagesScreen
@@ -41,10 +45,27 @@ fun MainSwipeablePagerScreen(
     studentProfileRepository: StudentProfileRepository,
     context: Context,
     modifier: Modifier = Modifier,
-    initialPage: Int = 0
+    initialPage: Int = 0,
+    escrowOrdersLoader: suspend () -> List<com.campus.network.core.model.EscrowOrder> = { emptyList() },
+    campusStats: com.campus.network.core.data.CampusStatsRepository.CampusStats =
+        com.campus.network.core.data.CampusStatsRepository.CampusStats.Empty
 ) {
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = initialPage) { 5 }
+    val messagesUiState by messagesViewModel.uiState.collectAsState()
+    val unreadFriendMessages = messagesUiState.threads
+        .asSequence()
+        .filter { it.category == ThreadCategory.DIRECT && it.unreadCount > 0 && it.peerName.isNotBlank() }
+        .sortedByDescending { it.unreadCount }
+        .map { thread ->
+            UnreadFriendMessage(
+                id = thread.id,
+                name = thread.peerName,
+                avatarUrl = thread.avatarUrl,
+                unreadCount = thread.unreadCount
+            )
+        }
+        .toList()
 
     HorizontalPager(
         state = pagerState,
@@ -59,6 +80,8 @@ fun MainSwipeablePagerScreen(
                 BestFootballMatchScreen(
                     userFullName = currentProfile?.fullName,
                     userAvatarUrl = currentProfile?.avatarUrl,
+                    campusStats = campusStats,
+                    unreadFriendMessages = unreadFriendMessages,
                     onNavigateToProfile = {
                         coroutineScope.launch { pagerState.animateScrollToPage(4) }
                     },
@@ -76,8 +99,8 @@ fun MainSwipeablePagerScreen(
                     onNavigateToMessages = {
                         coroutineScope.launch { pagerState.animateScrollToPage(3) }
                     },
-                    onNavigateToSnack = {
-                        navController.navigate(Screen.Snack.route) {
+                    onNavigateToMarket = {
+                        navController.navigate(Screen.Market.route) {
                             launchSingleTop = true
                         }
                     }
@@ -199,6 +222,7 @@ fun MainSwipeablePagerScreen(
                 HomescreenBackground {
                     ProfileScreen(
                         viewModel = profileViewModel,
+                        escrowOrdersLoader = escrowOrdersLoader,
                         onBackClick = {
                             coroutineScope.launch { pagerState.animateScrollToPage(0) }
                         },

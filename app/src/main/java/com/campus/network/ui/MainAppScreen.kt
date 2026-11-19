@@ -169,7 +169,7 @@ fun MainAppScreen(
                     }
                 }
                 is com.campus.network.core.ui.notifications.CampusNotificationDeepLink.OpenSafePayMarketplace -> {
-                    navController.navigate(Screen.Snack.route) {
+                    navController.navigate(Screen.Market.route) {
                         launchSingleTop = true
                     }
                 }

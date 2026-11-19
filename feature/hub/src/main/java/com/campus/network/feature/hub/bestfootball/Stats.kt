@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -24,24 +25,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 
-data class StatCardData(
-    val num: String,
-    val line1: String,
-    val line2: String,
-    val face: String,
-    val blockColor: Color,
-    val blockHeight: Float
+/** Real friend conversation with unread messages — drives the home message cards. */
+data class UnreadFriendMessage(
+    val id: String,
+    val name: String,
+    val avatarUrl: String? = null,
+    val unreadCount: Int = 0
 )
 
-val STAT_CARDS = listOf(
-    StatCardData("678", "NORMAN", "CURTIS", "c1", Green, 130f),
-    StatCardData("402", "MiCHEAL", "RYAN", "c2", Mint, 89f),
-    StatCardData("345", "JULiA", "REED", "c3", Peach, 67f),
-    StatCardData("311", "AiKO", "TANAKA", "c5", Color(0xFFE8DCFF), 58f),
-    StatCardData("298", "SAM", "OKORO", "c4", Color(0xFFFFD9D0), 46f)
+private val FRIEND_CARD_COLORS = listOf(
+    Green,
+    Mint,
+    Peach,
+    Color(0xFFE8DCFF),
+    Color(0xFFFFD9D0)
 )
 
 @Composable
@@ -110,9 +114,11 @@ fun RedPanel(
 @Composable
 fun StatRows(
     prog: Float,
+    eventsCount: Int = 0,
+    postsCount: Int = 0,
+    guildsCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    // 3 Campus Stat Rows (EVENTS 28, POSTS 120, GUiLDS 19)
     Box(modifier = modifier) {
         // Row 0: top 100
         val o0 = ((prog - 0.18f - 0f * 0.09f) / 0.4f).coerceIn(0f, 1f)
@@ -126,7 +132,7 @@ fun StatRows(
                 // Number 28
                 Box(modifier = Modifier.offset(x = 17.dp, y = (-2).dp)) {
                     DText(
-                        text = "28",
+                        text = eventsCount.toString(),
                         size = 190f,
                         color = White,
                         strokeEm = 0.036f,
@@ -161,26 +167,6 @@ fun StatRows(
                     }
                     drawPath(path, color = White.copy(alpha = 0.42f))
                 }
-                // Leader Avatar s1 at (221, 113) 48x48
-                Box(
-                    modifier = Modifier
-                        .offset(x = 221.dp, y = 113.dp)
-                        .size(48.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val clip = Path().apply { addOval(Rect(0f, 0f, size.width, size.height)) }
-                        drawContext.canvas.clipPath(clip)
-                        drawFace("s1", size.width)
-                    }
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            color = Color(0xFFFFECE6).copy(alpha = 0.92f),
-                            radius = size.width / 2f + 1.25f.dp.toPx(),
-                            center = Offset(size.width / 2f, size.height / 2f),
-                            style = Stroke(width = 2.5f.dp.toPx())
-                        )
-                    }
-                }
             }
         }
 
@@ -196,7 +182,7 @@ fun StatRows(
                 // Number 120
                 Box(modifier = Modifier.offset(x = 17.dp, y = (-2).dp)) {
                     DText(
-                        text = "120",
+                        text = postsCount.toString(),
                         size = 190f,
                         color = White,
                         strokeEm = 0.036f,
@@ -231,26 +217,6 @@ fun StatRows(
                     }
                     drawPath(path, color = White.copy(alpha = 0.42f))
                 }
-                // Leader Avatar s2 at (333, 110) 48x48
-                Box(
-                    modifier = Modifier
-                        .offset(x = 333.dp, y = 110.dp)
-                        .size(48.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val clip = Path().apply { addOval(Rect(0f, 0f, size.width, size.height)) }
-                        drawContext.canvas.clipPath(clip)
-                        drawFace("s2", size.width)
-                    }
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            color = Color(0xFFFFECE6).copy(alpha = 0.92f),
-                            radius = size.width / 2f + 1.25f.dp.toPx(),
-                            center = Offset(size.width / 2f, size.height / 2f),
-                            style = Stroke(width = 2.5f.dp.toPx())
-                        )
-                    }
-                }
             }
         }
 
@@ -266,7 +232,7 @@ fun StatRows(
                 // Number 19
                 Box(modifier = Modifier.offset(x = 17.dp, y = (-2).dp)) {
                     DText(
-                        text = "19",
+                        text = guildsCount.toString(),
                         size = 190f,
                         color = White,
                         strokeEm = 0.036f,
@@ -301,26 +267,6 @@ fun StatRows(
                     }
                     drawPath(path, color = White.copy(alpha = 0.42f))
                 }
-                // Leader Avatar s3 at (198, 107) 48x48, bg #FFF748
-                Box(
-                    modifier = Modifier
-                        .offset(x = 198.dp, y = 107.dp)
-                        .size(48.dp)
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val clip = Path().apply { addOval(Rect(0f, 0f, size.width, size.height)) }
-                        drawContext.canvas.clipPath(clip)
-                        drawFace("s3", size.width)
-                    }
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            color = Color(0xFFFFECE6).copy(alpha = 0.92f),
-                            radius = size.width / 2f + 1.25f.dp.toPx(),
-                            center = Offset(size.width / 2f, size.height / 2f),
-                            style = Stroke(width = 2.5f.dp.toPx())
-                        )
-                    }
-                }
             }
         }
     }
@@ -329,9 +275,11 @@ fun StatRows(
 @Composable
 fun StatCardsRow(
     stIn: List<Float>,
-    onCardClick: ((StatCardData) -> Unit)? = null,
+    cards: List<UnreadFriendMessage>,
+    onCardClick: ((UnreadFriendMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    if (cards.isEmpty()) return
     val scrollState = rememberScrollState()
 
     Row(
@@ -341,10 +289,15 @@ fun StatCardsRow(
             .horizontalScroll(scrollState)
             .padding(horizontal = 4.dp)
     ) {
-        STAT_CARDS.forEachIndexed { i, card ->
-            val v = stIn.getOrElse(i) { 0f }
+        cards.forEachIndexed { i, card ->
+            val v = stIn.getOrElse(i) { stIn.lastOrNull() ?: 0f }
             val alpha = (v * 1.6f).coerceIn(0f, 1f)
             val tx = (1f - v) * 180f
+            val blockColor = FRIEND_CARD_COLORS[i % FRIEND_CARD_COLORS.size]
+            val nameParts = card.name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+            val line1 = nameParts.firstOrNull()?.uppercase().orEmpty()
+            val line2 = nameParts.drop(1).joinToString(" ").uppercase()
+            val initials = nameParts.take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
 
             Box(
                 modifier = Modifier
@@ -384,16 +337,29 @@ fun StatCardsRow(
                     )
                 }
 
-                // Avatar at (8, 9) 48x48
+                // Real friend avatar at (8, 9) 48x48
                 Box(
                     modifier = Modifier
                         .offset(x = 8.dp, y = 9.dp)
                         .size(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(blockColor),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val clip = Path().apply { addOval(Rect(0f, 0f, size.width, size.height)) }
-                        drawContext.canvas.clipPath(clip)
-                        drawFace(card.face, size.width)
+                    if (!card.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = card.avatarUrl,
+                            contentDescription = card.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Text(
+                            text = initials.ifBlank { "?" },
+                            color = Ink,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
@@ -402,37 +368,37 @@ fun StatCardsRow(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(start = 5.dp, end = 5.dp, bottom = 5.dp)
-                        .size(width = 116.dp, height = card.blockHeight.dp)
+                        .size(width = 116.dp, height = 92.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(card.blockColor)
+                        .background(blockColor)
                 )
 
-                // Number at left 14, bottom 60
+                // Number of new messages at left 14, bottom 60
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .offset(x = 14.dp, y = (-60).dp)
                 ) {
                     DText(
-                        text = card.num,
-                        size = 18f,
-                        color = Ink.copy(alpha = 0.38f),
+                        text = "${card.unreadCount} NEW",
+                        size = 15f,
+                        color = Ink.copy(alpha = 0.55f),
                         strokeEm = 0.02f,
-                        lineHeight = 18f
+                        lineHeight = 15f
                     )
                 }
 
-                // Name at left 14, bottom 14 (two lines)
+                // Real friend name at left 14, bottom 14 (two lines)
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .offset(x = 14.dp, y = (-14).dp)
                 ) {
                     DText(
-                        text = "${card.line1}\n${card.line2}",
-                        size = 23f,
+                        text = if (line2.isBlank()) line1 else "$line1\n$line2",
+                        size = 17f,
                         color = Ink,
-                        lineHeight = 21f
+                        lineHeight = 16f
                     )
                 }
             }

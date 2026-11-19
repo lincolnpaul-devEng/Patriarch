@@ -114,9 +114,15 @@ sealed class Screen(
         icon = Icons.Default.Home
     )
 
-    data object Snack : Screen(
-        route = "snack_ordering",
+    data object Market : Screen(
+        route = "market",
         title = "Market",
+        icon = Icons.Default.Home
+    )
+
+    data object MySelling : Screen(
+        route = "my_selling",
+        title = "My Selling",
         icon = Icons.Default.Home
     )
 

@@ -3,11 +3,13 @@ package com.campus.network
 import android.content.Context
 import com.campus.network.core.data.AcademicChannelsRepository
 import com.campus.network.core.data.CampusHubRepository
+import com.campus.network.core.data.CampusStatsRepository
 import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.FlashMeetRepository
 import com.campus.network.core.data.LiveStreamRepository
 import com.campus.network.core.data.ServerChannelChatRepository
 import com.campus.network.core.data.ServerRepository
+import com.campus.network.core.data.RendezvousRepository
 import com.campus.network.core.data.StudentProfileRepository
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.network.SupabaseSdkClientProvider
@@ -22,6 +24,8 @@ interface AppContainer {
     val studentProfileRepository: StudentProfileRepository
     val serverRepository: ServerRepository
     val hubRepository: CampusHubRepository
+    val rendezvousRepository: RendezvousRepository
+    val campusStatsRepository: CampusStatsRepository
     val academicChannelsRepository: AcademicChannelsRepository
     val serverChannelChatRepository: ServerChannelChatRepository
     val flashMeetRepository: FlashMeetRepository
@@ -51,12 +55,20 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         )
     }
 
+    override val campusStatsRepository: CampusStatsRepository by lazy {
+        CampusStatsRepository()
+    }
+
     override val hubRepository: CampusHubRepository by lazy {
         CampusHubRepository(
             context = context,
             database = database,
             supabase = supabaseClient
         )
+    }
+
+    override val rendezvousRepository: RendezvousRepository by lazy {
+        RendezvousRepository()
     }
 
     override val academicChannelsRepository: AcademicChannelsRepository by lazy {

@@ -162,6 +162,7 @@ fun ProfileScreen(
     onBackClick: () -> Unit = {},
     onSignOut: () -> Unit = {},
     onRetrySync: () -> Unit = {},
+    escrowOrdersLoader: suspend () -> List<com.campus.network.core.model.EscrowOrder> = { emptyList() },
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -240,7 +241,9 @@ fun ProfileScreen(
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onShowFeedback = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
-                }
+                },
+                profile = profile,
+                escrowOrdersLoader = escrowOrdersLoader
             )
             return
         }
@@ -415,7 +418,7 @@ fun ProfileScreen(
                     onViewActivityClick = { activeSubScreen = ProfileSubScreen.ACTIVITY_LEDGER },
                     onOfferClick = {
                         scope.launch {
-                            snackbarHostState.showSnackbar("Exclusive Offer: 20% off at Strathmore Cafeteria")
+                            snackbarHostState.showSnackbar("Campus offers are not live yet.")
                         }
                     }
                 )

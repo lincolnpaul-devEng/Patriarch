@@ -58,7 +58,7 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         ServerInviteEntity::class,
         StudentProfileEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 abstract class CampusDatabase : RoomDatabase() {
@@ -115,6 +115,11 @@ abstract class CampusDatabase : RoomDatabase() {
                     "server_invites",
                     "campusprofile"
                 ).forEach { repairOfflineSyncColumns(db, it) }
+            }
+        }
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE market_items ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'")
             }
         }
 
@@ -194,7 +199,7 @@ abstract class CampusDatabase : RoomDatabase() {
                     CampusDatabase::class.java,
                     "campus_network.db"
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                     .build()
                     .also { INSTANCE = it }
             }

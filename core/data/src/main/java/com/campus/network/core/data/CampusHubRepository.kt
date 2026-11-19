@@ -30,24 +30,46 @@ data class MarketItemRow(
     val title: String = "",
     val price: Double = 0.0,
     val currency: String = "KES",
-    val category: String = "General",
-    val condition: String = "Good",
+    val category: String = "",
+    val condition: String = "",
     val seller_name: String = "",
     val seller_id: String = "",
-    val seller_rating: Double = 5.0,
-    val is_campus_verified_seller: Boolean = true,
-    val campus_hall_location: String = "Main Campus",
+    val seller_rating: Double = 0.0,
+    val is_campus_verified_seller: Boolean = false,
+    val campus_hall_location: String = "",
     val image_url: String? = null,
     val timestamp_ms: Long = 0L,
     val description: String = "",
-    val pickup_spot_name: String = "Quad Library Ground Floor Lockers",
-    val pickup_security_level: String = "CCTV Monitored Safe Zone",
-    val pickup_latitude: Double = -1.3090,
-    val pickup_longitude: Double = 36.8120,
-    val pickup_timing: String = "Immediate (within 1 hr)",
-    val payout_method: String = "Campus SafePay Escrow",
+    val pickup_spot_name: String = "",
+    val pickup_security_level: String = "",
+    val pickup_latitude: Double = 0.0,
+    val pickup_longitude: Double = 0.0,
+    val pickup_timing: String = "",
+    val payout_method: String = "",
     val requires_qr_release_code: Boolean = true,
-    val qr_release_code: String? = null
+    val qr_release_code: String? = null,
+    val status: String = "ACTIVE"
+)
+
+@Serializable
+data class EscrowOrderRow(
+    val id: String = "",
+    val order_number: String = "",
+    val market_item_id: String = "",
+    val buyer_user_id: String = "",
+    val seller_user_id: String = "",
+    val item_title: String = "",
+    val amount: Double = 0.0,
+    val currency_code: String = "KES",
+    val payment_provider: String = "",
+    val payment_method: String = "",
+    val provider_hold_id: String = "",
+    val status: String = "",
+    val rendezvous_spot: String = "",
+    val buyer_note: String = "",
+    val created_at_epoch_ms: Long = 0L,
+    val funded_at_epoch_ms: Long? = null,
+    val released_at_epoch_ms: Long? = null
 )
 
 @Serializable
@@ -57,11 +79,11 @@ data class MicroGigRow(
     val description: String = "",
     val payout_amount: Double = 0.0,
     val currency: String = "KES",
-    val estimated_duration: String = "1 hour",
+    val estimated_duration: String = "",
     val poster_name: String = "",
     val poster_id: String = "",
-    val poster_trust_score: Int = 95,
-    val tag: String = "General",
+    val poster_trust_score: Int = 0,
+    val tag: String = "",
     val urgency_name: String = "NORMAL",
     val spots_available: Int = 1,
     val timestamp_ms: Long = 0L,
@@ -115,12 +137,12 @@ class CampusHubRepository(
         sellerUserId: String,
         location: String,
         description: String = "",
-        pickupSpotName: String = "Quad Library Ground Floor Lockers",
-        pickupSecurityLevel: String = "CCTV Monitored Safe Zone",
-        pickupLatitude: Double = -1.3090,
-        pickupLongitude: Double = 36.8120,
-        pickupTiming: String = "Immediate (within 1 hr)",
-        payoutMethod: String = "Campus SafePay Escrow",
+        pickupSpotName: String,
+        pickupSecurityLevel: String,
+        pickupLatitude: Double,
+        pickupLongitude: Double,
+        pickupTiming: String,
+        payoutMethod: String,
         requiresQrReleaseCode: Boolean = true,
         qrReleaseCode: String = "",
         imageUrl: String? = null,
@@ -155,8 +177,8 @@ class CampusHubRepository(
             condition = condition,
             sellerName = resolvedSellerName,
             sellerUserId = resolvedSellerId,
-            sellerRating = 5.0f,
-            isCampusVerifiedSeller = true,
+            sellerRating = 0f,
+            isCampusVerifiedSeller = false,
             campusHallLocation = location,
             imageUrl = serializedImageField,
             timestampMs = now,
@@ -169,6 +191,7 @@ class CampusHubRepository(
             payoutMethod = payoutMethod,
             requiresQrReleaseCode = requiresQrReleaseCode,
             qrReleaseCode = generatedReleaseCode,
+            status = "ACTIVE",
             syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
             syncId = syncId
         )
@@ -185,8 +208,8 @@ class CampusHubRepository(
                     condition = condition,
                     seller_name = resolvedSellerName,
                     seller_id = resolvedSellerId,
-                    seller_rating = 5.0,
-                    is_campus_verified_seller = true,
+                    seller_rating = 0.0,
+                    is_campus_verified_seller = false,
                     campus_hall_location = location,
                     image_url = serializedImageField,
                     timestamp_ms = now,
@@ -198,7 +221,8 @@ class CampusHubRepository(
                     pickup_timing = pickupTiming,
                     payout_method = payoutMethod,
                     requires_qr_release_code = requiresQrReleaseCode,
-                    qr_release_code = generatedReleaseCode
+                    qr_release_code = generatedReleaseCode,
+                    status = "ACTIVE"
                 )
             )
         }
@@ -213,6 +237,194 @@ class CampusHubRepository(
         return@withContext finalEntity.toDomain()
     }
 
+    /** Listings owned by [sellerId] for the My Selling screen (local-first, live rows). */
+    suspend fun getSellerListings(sellerId: String): List<MarketItem> = withContext(ioDispatcher) {
+        val resolvedId = sellerId.trim()
+        if (resolvedId.isBlank()) return@withContext emptyList()
+        val local = itemDao.getItemsBySeller(resolvedId).map { it.toDomain() }
+        runCatching {
+            supabase.from("campus_market_items")
+                .select { filter { eq("seller_id", resolvedId) } }
+                .decodeList<MarketItemRow>()
+        }.getOrDefault(emptyList()).map { obj ->
+            MarketItemEntity(
+                id = obj.id,
+                title = obj.title,
+                description = obj.description,
+                price = obj.price,
+                currency = obj.currency,
+                category = obj.category,
+                condition = obj.condition,
+                sellerName = obj.seller_name,
+                sellerUserId = obj.seller_id,
+                sellerRating = obj.seller_rating.toFloat(),
+                isCampusVerifiedSeller = obj.is_campus_verified_seller,
+                campusHallLocation = obj.pickup_spot_name,
+                imageUrl = obj.image_url,
+                timestampMs = obj.timestamp_ms,
+                pickupSpotName = obj.pickup_spot_name,
+                pickupSecurityLevel = obj.pickup_security_level,
+                pickupLatitude = obj.pickup_latitude,
+                pickupLongitude = obj.pickup_longitude,
+                pickupTiming = obj.pickup_timing,
+                payoutMethod = obj.payout_method,
+                requiresQrReleaseCode = obj.requires_qr_release_code,
+                status = obj.status,
+                qrReleaseCode = obj.qr_release_code.orEmpty(),
+                syncStatus = com.campus.network.core.model.SyncStatus.SYNCED.name,
+                syncId = null
+            )
+        }.let { remoteEntities ->
+            if (remoteEntities.isNotEmpty()) {
+                itemDao.insertItems(remoteEntities)
+            }
+            // Fresh remote truth, ordered newest first, filtered to this seller.
+            remoteEntities.sortedByDescending { it.timestampMs }.map { it.toDomain() }.ifEmpty { local }
+        }
+    }
+
+    /** Deletes a listing locally + remotely. RLS blocks non-owners on the remote write. */
+    suspend fun deleteMarketItem(itemId: String): Result<Unit> = withContext(ioDispatcher) {
+        itemDao.deleteItemById(itemId)
+        val remote = runCatching {
+            supabase.from("campus_market_items").delete { filter { eq("id", itemId) } }
+        }
+        if (remote.isSuccess) Result.success(Unit)
+        else Result.failure(remote.exceptionOrNull() ?: Exception("Unable to delete listing"))
+    }
+
+    /** Flips a listing to SOLD (local + remote). Server-side buyers also flip it on release. */
+    suspend fun markMarketItemSold(itemId: String): Result<Unit> = withContext(ioDispatcher) {
+        itemDao.updateItemStatus(itemId, "SOLD")
+        val remote = runCatching {
+            supabase.from("campus_market_items").update(
+                {
+                    set("status", "SOLD")
+                }
+            ) { filter { eq("id", itemId) } }
+        }
+        if (remote.isSuccess) Result.success(Unit)
+        else Result.failure(remote.exceptionOrNull() ?: Exception("Unable to mark listing sold"))
+    }
+
+    suspend fun fetchEscrowOrdersAsSeller(sellerId: String): List<com.campus.network.core.model.EscrowOrder> =
+        withContext(ioDispatcher) {
+            val resolvedId = sellerId.trim()
+            if (resolvedId.isBlank()) return@withContext emptyList()
+            runCatching {
+                supabase.from("campus_escrow_orders")
+                    .select {
+                        filter { eq("seller_user_id", resolvedId) }
+                        order("created_at_epoch_ms", order = Order.DESCENDING)
+                    }
+                    .decodeList<EscrowOrderRow>()
+            }.getOrDefault(emptyList()).map { row ->
+                com.campus.network.core.model.EscrowOrder(
+                    id = row.id,
+                    orderNumber = row.order_number,
+                    marketItemId = row.market_item_id,
+                    buyerUserId = row.buyer_user_id,
+                    sellerUserId = row.seller_user_id,
+                    itemTitle = row.item_title,
+                    amount = row.amount,
+                    currencyCode = row.currency_code,
+                    paymentProvider = row.payment_provider,
+                    paymentMethodId = row.payment_method,
+                    providerHoldId = row.provider_hold_id,
+                    status = runCatching {
+                        com.campus.network.core.model.EscrowOrderStatus.valueOf(row.status)
+                    }.getOrDefault(com.campus.network.core.model.EscrowOrderStatus.PENDING_PAYMENT),
+                    rendezvousSpot = row.rendezvous_spot,
+                    buyerNote = row.buyer_note,
+                    createdAtEpochMs = row.created_at_epoch_ms,
+                    fundedAtEpochMs = row.funded_at_epoch_ms,
+                    releasedAtEpochMs = row.released_at_epoch_ms
+                )
+            }
+        }
+
+    /** Fetches the escrow order attached to a listing for the signed-in buyer (RLS participant read). */
+    suspend fun fetchEscrowOrderForItem(itemId: String): com.campus.network.core.model.EscrowOrder? =
+        withContext(ioDispatcher) {
+            val resolvedId = itemId.trim()
+            if (resolvedId.isBlank()) return@withContext null
+            runCatching {
+                supabase.from("campus_escrow_orders")
+                    .select {
+                        filter { eq("market_item_id", resolvedId) }
+                        order("created_at_epoch_ms", order = Order.DESCENDING)
+                        limit(1)
+                    }
+                    .decodeList<EscrowOrderRow>()
+            }.getOrDefault(emptyList()).firstOrNull()?.let { row ->
+                com.campus.network.core.model.EscrowOrder(
+                    id = row.id,
+                    orderNumber = row.order_number,
+                    marketItemId = row.market_item_id,
+                    buyerUserId = row.buyer_user_id,
+                    sellerUserId = row.seller_user_id,
+                    itemTitle = row.item_title,
+                    amount = row.amount,
+                    currencyCode = row.currency_code,
+                    paymentProvider = row.payment_provider,
+                    paymentMethodId = row.payment_method,
+                    providerHoldId = row.provider_hold_id,
+                    status = runCatching {
+                        com.campus.network.core.model.EscrowOrderStatus.valueOf(row.status)
+                    }.getOrDefault(com.campus.network.core.model.EscrowOrderStatus.PENDING_PAYMENT),
+                    rendezvousSpot = row.rendezvous_spot,
+                    buyerNote = row.buyer_note,
+                    createdAtEpochMs = row.created_at_epoch_ms,
+                    fundedAtEpochMs = row.funded_at_epoch_ms,
+                    releasedAtEpochMs = row.released_at_epoch_ms
+                )
+            }
+        }
+
+    /** All Safe Trade orders where [userId] is buyer or seller (activity ledger / wallet history). */
+    suspend fun fetchEscrowOrdersForUser(userId: String): List<com.campus.network.core.model.EscrowOrder> =
+        withContext(ioDispatcher) {
+            val resolvedId = userId.trim()
+            if (resolvedId.isBlank()) return@withContext emptyList()
+            runCatching {
+                supabase.from("campus_escrow_orders")
+                    .select {
+                        filter { eq("buyer_user_id", resolvedId) }
+                        order("created_at_epoch_ms", order = Order.DESCENDING)
+                    }
+                    .decodeList<EscrowOrderRow>()
+            }.getOrDefault(emptyList()) + runCatching {
+                supabase.from("campus_escrow_orders")
+                    .select {
+                        filter { eq("seller_user_id", resolvedId) }
+                        order("created_at_epoch_ms", order = Order.DESCENDING)
+                    }
+                    .decodeList<EscrowOrderRow>()
+            }.getOrDefault(emptyList())
+        }.distinctBy { it.id }.map { row ->
+            com.campus.network.core.model.EscrowOrder(
+                id = row.id,
+                orderNumber = row.order_number,
+                marketItemId = row.market_item_id,
+                buyerUserId = row.buyer_user_id,
+                sellerUserId = row.seller_user_id,
+                itemTitle = row.item_title,
+                amount = row.amount,
+                currencyCode = row.currency_code,
+                paymentProvider = row.payment_provider,
+                paymentMethodId = row.payment_method,
+                providerHoldId = row.provider_hold_id,
+                status = runCatching {
+                    com.campus.network.core.model.EscrowOrderStatus.valueOf(row.status)
+                }.getOrDefault(com.campus.network.core.model.EscrowOrderStatus.PENDING_PAYMENT),
+                rendezvousSpot = row.rendezvous_spot,
+                buyerNote = row.buyer_note,
+                createdAtEpochMs = row.created_at_epoch_ms,
+                fundedAtEpochMs = row.funded_at_epoch_ms,
+                releasedAtEpochMs = row.released_at_epoch_ms
+            )
+        }.sortedByDescending { it.createdAtEpochMs }
+
     suspend fun postMicroGig(
         title: String,
         description: String,
@@ -221,6 +433,9 @@ class CampusHubRepository(
         posterUserId: String,
         tag: String,
         urgency: GigUrgency,
+        spotsAvailable: Int = 1,
+        bannerUrl: String? = null,
+        posterTrustScore: Int = 0,
         posterDisplayName: String? = null,
         gigId: String = "gig_${java.util.UUID.randomUUID()}"
     ): MicroGig = withContext(ioDispatcher) {
@@ -242,10 +457,11 @@ class CampusHubRepository(
             estimatedDuration = estimatedDuration,
             posterName = resolvedPosterName,
             posterUserId = resolvedPosterId,
-            posterTrustScore = 95,
+            posterTrustScore = posterTrustScore,
             tag = tag,
             urgencyName = urgency.name,
-            spotsAvailable = 1,
+            spotsAvailable = spotsAvailable,
+            bannerUrl = bannerUrl,
             timestampMs = now,
             syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
             syncId = syncId
@@ -263,10 +479,11 @@ class CampusHubRepository(
                     estimated_duration = estimatedDuration,
                     poster_name = resolvedPosterName,
                     poster_id = resolvedPosterId,
-                    poster_trust_score = 95,
+                    poster_trust_score = posterTrustScore,
                     tag = tag,
                     urgency_name = urgency.name,
-                    spots_available = 1,
+                    spots_available = spotsAvailable,
+                    banner_url = bannerUrl,
                     timestamp_ms = now
                 )
             )
@@ -372,7 +589,8 @@ class CampusHubRepository(
                 pickupTiming = obj.pickup_timing,
                 payoutMethod = obj.payout_method,
                 requiresQrReleaseCode = obj.requires_qr_release_code,
-                qrReleaseCode = if (isOwner) ownerSecrets[itemId].orEmpty() else ""
+                qrReleaseCode = if (isOwner) ownerSecrets[itemId].orEmpty() else "",
+                status = obj.status.ifBlank { "ACTIVE" }
             )
         }
         if (entities.isNotEmpty()) {
@@ -455,15 +673,14 @@ class CampusHubRepository(
     /**
      * Verifies a buyer-scanned release code server-side so the secret never needs to live on buyer devices.
      */
-    suspend fun verifyReleaseCode(itemId: String, scannedCode: String): Boolean = withContext(ioDispatcher) {
-        val result = runCatching {
-            val res = supabase.postgrest.rpc(
-                "verify_market_release_code",
-                VerifyReleaseCodeParams(itemId, scannedCode.trim())
-            )
-            res.decodeAs<Boolean>()
-        }
-        result.getOrDefault(false)
+    /**
+     * Removed client-side release verification: `verify_market_release_code` is revoked from the
+     * app and release codes are only checked server-side inside the `mpesa` Edge Function's
+     * release action (bounded attempts, buyer-only). Kept for source-compat as always-false.
+     */
+    suspend fun verifyReleaseCode(itemId: String, scannedCode: String): Boolean {
+        itemId; scannedCode
+        return false
     }
 
     private fun MarketItemEntity.toDomain(): MarketItem {
@@ -496,6 +713,7 @@ class CampusHubRepository(
             payoutMethod = payoutMethod,
             requiresQrReleaseCode = requiresQrReleaseCode,
             qrReleaseCode = qrReleaseCode,
+            status = status,
             syncStatus = syncStatus,
             syncId = syncId
         )

@@ -7,9 +7,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
@@ -25,7 +27,6 @@ import com.campus.network.core.model.stableUserId
 import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.feature.channels.ChannelsScreen
 import com.campus.network.feature.channels.ChannelsViewModel
-import com.campus.network.feature.hub.HubScreen
 import com.campus.network.feature.hub.HubViewModel
 import com.campus.network.feature.hub.feed.CampusLiveFeedScreen
 import com.campus.network.feature.hub.golive.GoLiveScreen
@@ -73,6 +74,7 @@ fun CampusNavHost(
     val flashMeetRepository = container.flashMeetRepository
     val academicChannelsRepository = container.academicChannelsRepository
     val campusHubRepository = container.hubRepository
+    val rendezvousRepository = container.rendezvousRepository
     val serverRepository = container.serverRepository
     val liveStreamRepository = container.liveStreamRepository
 
@@ -120,7 +122,7 @@ fun CampusNavHost(
         }
     )
 
-    val hubViewModel: HubViewModel = viewModel(
+    val marketViewModel: HubViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -141,6 +143,16 @@ fun CampusNavHost(
     // Route guard: every navigation (including deep links) is checked against the session access tier.
     val currentProfile by remember { studentProfileRepository.getProfile() }
         .collectAsState(initial = null)
+    val campusStatsRepository = container.campusStatsRepository
+    var campusStats by remember { mutableStateOf(com.campus.network.core.data.CampusStatsRepository.CampusStats.Empty) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        campusStats = campusStatsRepository.fetchStats()
+            .getOrDefault(com.campus.network.core.data.CampusStatsRepository.CampusStats.Empty)
+    }
+    val escrowOrdersForProfile: suspend () -> List<com.campus.network.core.model.EscrowOrder> = {
+        val uid = currentProfile?.stableUserId().orEmpty()
+        if (uid.isBlank()) emptyList() else campusHubRepository.fetchEscrowOrdersForUser(uid)
+    }
     val isAuthenticated by studentProfileRepository.isAuthenticatedSession.collectAsState()
     val isGuest by studentProfileRepository.isGuestSession.collectAsState()
     val currentEntry by navController.currentBackStackEntryAsState()
@@ -385,6 +397,8 @@ fun CampusNavHost(
                 serverRepository = serverRepository,
                 studentProfileRepository = studentProfileRepository,
                 context = context,
+                escrowOrdersLoader = escrowOrdersForProfile,
+                campusStats = campusStats,
                 initialPage = 2
             )
         }
@@ -401,6 +415,8 @@ fun CampusNavHost(
                 serverRepository = serverRepository,
                 studentProfileRepository = studentProfileRepository,
                 context = context,
+                escrowOrdersLoader = escrowOrdersForProfile,
+                campusStats = campusStats,
                 initialPage = 1
             )
         }
@@ -417,6 +433,8 @@ fun CampusNavHost(
                 serverRepository = serverRepository,
                 studentProfileRepository = studentProfileRepository,
                 context = context,
+                escrowOrdersLoader = escrowOrdersForProfile,
+                campusStats = campusStats,
                 initialPage = 3
             )
         }
@@ -433,6 +451,8 @@ fun CampusNavHost(
                 serverRepository = serverRepository,
                 studentProfileRepository = studentProfileRepository,
                 context = context,
+                escrowOrdersLoader = escrowOrdersForProfile,
+                campusStats = campusStats,
                 initialPage = 0
             )
         }
@@ -495,10 +515,23 @@ fun CampusNavHost(
             )
         }
 
-        // Snack Ordering / Product UI Flow
-        composable(route = Screen.Snack.route) {
-            com.campus.network.feature.hub.snack.SnackOrderingScreen(
-                onNavigateBack = { navController.popBackStack() }
+        // Market: replaces the deleted snack store + dead HubScreen marketplace with the real campus marketplace.
+        composable(route = Screen.Market.route) {
+            com.campus.network.feature.hub.market.MarketScreen(
+                viewModel = marketViewModel,
+                rendezvousRepository = rendezvousRepository,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMySelling = { navController.navigate(Screen.MySelling.route) },
+                onOpenProduct = { /* Phase 3: product detail + checkout flow */ },
+                onOpenGig = { /* Phase 3: gig detail flow */ }
+            )
+        }
+
+        composable(route = Screen.MySelling.route) {
+            com.campus.network.feature.hub.market.MySellingScreen(
+                viewModel = marketViewModel,
+                repository = campusHubRepository,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -514,6 +547,8 @@ fun CampusNavHost(
                 serverRepository = serverRepository,
                 studentProfileRepository = studentProfileRepository,
                 context = context,
+                escrowOrdersLoader = escrowOrdersForProfile,
+                campusStats = campusStats,
                 initialPage = 4
             )
         }

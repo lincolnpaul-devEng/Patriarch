@@ -135,6 +135,18 @@ interface MarketItemDao {
 
     @Query("DELETE FROM market_items WHERE syncStatus != 'PENDING'")
     suspend fun clearSyncedItems()
+
+    @Query("SELECT * FROM market_items WHERE sellerUserId = :sellerId AND syncStatus != 'PENDING' ORDER BY timestampMs DESC")
+    suspend fun getItemsBySeller(sellerId: String): List<MarketItemEntity>
+
+    @Query("DELETE FROM market_items WHERE id = :itemId")
+    suspend fun deleteItemById(itemId: String)
+
+    @Query("UPDATE market_items SET status = :status WHERE id = :itemId")
+    suspend fun updateItemStatus(itemId: String, status: String)
+
+    @Query("SELECT * FROM market_items WHERE id = :itemId LIMIT 1")
+    suspend fun getItemById(itemId: String): MarketItemEntity?
 }
 
 @Dao
