@@ -171,14 +171,7 @@ DROP POLICY IF EXISTS "Rendezvous spots viewable by all authenticated users" ON 
 CREATE POLICY "Rendezvous spots viewable by all authenticated users"
     ON public.campus_rendezvous_points FOR SELECT TO authenticated USING (is_active = true);
 
--- Seed Initial Verified Rendezvous Zones
-INSERT INTO public.campus_rendezvous_points (university_name, spot_name, description, security_level, has_cctv, has_security_desk)
-VALUES 
-    ('Strathmore University', 'Library Ground Floor Lockers', 'Safe exchange lockers with 24/7 CCTV surveillance and security presence.', 'CCTV Monitored Safe Zone', true, true),
-    ('Strathmore University', 'Student Guild Center Foyer', 'Open cafeteria and student union commerce hub near campus security.', 'Campus Guard Station Adjacent', true, true),
-    ('Strathmore University', 'Phase 1 Science & Computing Labs Entrance', 'Foyer with electronic card access and security receptionist.', 'Biometric / Student ID Gated', true, true),
-    ('Strathmore University', 'Main Gate Visitors Lounge', 'Publicly accessible entry pavilion monitored by university security team.', '24/7 Manned Security Post', true, true)
-ON CONFLICT DO NOTHING;
+-- Note: Production tables start empty without seeded rendezvous zones.
 
 -- =============================================================================
 -- 4. Saved Listings & Watchlist Table

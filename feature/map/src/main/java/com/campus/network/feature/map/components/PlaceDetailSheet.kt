@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.campus.network.core.model.CampusPlace
 import com.campus.network.core.model.PlaceCategory
 import com.campus.network.core.model.SavedByUser
@@ -98,6 +99,8 @@ fun PlaceDetailSheet(
     place: CampusPlace,
     isSavedToTry: Boolean,
     hasBeen: Boolean,
+    currentUserName: String = "",
+    currentUserAvatarUrl: String? = null,
     onDismiss: () -> Unit,
     onToggleSavedToTry: () -> Unit,
     onToggleBeen: () -> Unit,
@@ -438,43 +441,45 @@ fun PlaceDetailSheet(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 3. Photography Carousel
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Row(
+                    // 3. Real Venue Media (uses place.imageUrl via Coil if available)
+                    if (!place.imageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = place.imageUrl,
+                            contentDescription = place.name,
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Image(
-                                painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_1),
-                                contentDescription = "Campus Facility",
-                                contentScale = ContentScale.Crop,
+                                .height(165.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Row(
                                 modifier = Modifier
-                                    .width(220.dp)
-                                    .height(150.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                            )
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_1),
+                                    contentDescription = place.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .width(220.dp)
+                                        .height(150.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                )
 
-                            Image(
-                                painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_2),
-                                contentDescription = "Study Area",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .width(180.dp)
-                                    .height(150.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                            )
-
-                            Image(
-                                painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_3),
-                                contentDescription = "Atmosphere",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .width(150.dp)
-                                    .height(150.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                            )
+                                Image(
+                                    painter = painterResource(com.campus.network.core.ui.R.drawable.place_photo_2),
+                                    contentDescription = "Study Area",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .width(180.dp)
+                                        .height(150.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                )
+                            }
                         }
                     }
 
@@ -539,12 +544,58 @@ fun PlaceDetailSheet(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             // Horizontal List of Avatars
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                place.savedByUsers.forEach { user ->
-                                    UserAvatarItem(user = user)
+                            if (place.savedByUsers.isEmpty()) {
+                                Text(
+                                    text = "Be the first peer to bookmark this campus hub.",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    place.savedByUsers.forEach { user ->
+                                        UserAvatarItem(user = user)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (place.reviews.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "PEER TIPS & REVIEWS (${place.reviews.size})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF475569)
+                            )
+                            place.reviews.take(5).forEach { review ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFF8FAFC),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text(
+                                            text = review.authorName,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = review.comment,
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFF334155),
+                                            lineHeight = 17.sp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -558,8 +609,8 @@ fun PlaceDetailSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CampusStudentAvatar(
-                            avatarUrl = null,
-                            fullName = "",
+                            avatarUrl = currentUserAvatarUrl,
+                            fullName = currentUserName,
                             modifier = Modifier.size(36.dp)
                         )
 

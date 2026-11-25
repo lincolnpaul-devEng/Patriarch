@@ -105,6 +105,18 @@ fun MarketScreen(
         rendezvousSpots = rendezvousRepository.getActiveSpots()
     }
 
+    // Open listing detail when arriving from a market push notification deep link.
+    LaunchedEffect(uiState.pendingOpenItemId, uiState.marketplaceItems) {
+        val pendingId = uiState.pendingOpenItemId?.trim().orEmpty()
+        if (pendingId.isBlank()) return@LaunchedEffect
+        val match = uiState.marketplaceItems.firstOrNull { it.id.equals(pendingId, ignoreCase = true) }
+        if (match != null) {
+            selectedItem = match
+            isBuyerSheetOpen = false
+            viewModel.onEvent(com.campus.network.feature.hub.HubEvent.ClearPendingOpenItem)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         HomescreenBackground {
             Column(

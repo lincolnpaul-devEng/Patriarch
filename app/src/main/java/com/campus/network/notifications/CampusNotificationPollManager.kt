@@ -184,15 +184,24 @@ object CampusNotificationPollManager {
             val recipientId = CampusSystemNotificationCenter.getActiveUserId(context)
                 ?: prefs.getString(KEY_RECIPIENT_USER_ID, null)?.takeIf { it.isNotBlank() }
             val recipientEmail = prefs.getString(KEY_RECIPIENT_USER_EMAIL, null)?.takeIf { it.isNotBlank() }
+            val authUserId = com.campus.network.core.network.SupabaseSessionStore.session()
+                ?.optString("user_id")
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
 
-            val recipientFilter = when {
-                !recipientId.isNullOrBlank() && !recipientEmail.isNullOrBlank() && !recipientId.equals(recipientEmail, ignoreCase = true) ->
-                    "&recipient_user_id=in.(${URLEncoder.encode(recipientId, "UTF-8")},${URLEncoder.encode(recipientEmail, "UTF-8")})"
-                !recipientId.isNullOrBlank() ->
-                    "&recipient_user_id=eq.${URLEncoder.encode(recipientId, "UTF-8")}"
-                !recipientEmail.isNullOrBlank() ->
-                    "&recipient_user_id=eq.${URLEncoder.encode(recipientEmail, "UTF-8")}"
-                else -> return false // Do not poll when not logged in
+            val candidateRecipientIds = listOfNotNull(
+                recipientId?.trim()?.takeIf { it.isNotBlank() },
+                recipientEmail?.trim()?.lowercase()?.takeIf { it.isNotBlank() },
+                authUserId
+            ).distinctBy { it.lowercase() }
+
+            val recipientFilter = when (candidateRecipientIds.size) {
+                0 -> return false // Do not poll when not logged in
+                1 -> "&recipient_user_id=eq.${URLEncoder.encode(candidateRecipientIds.first(), "UTF-8")}"
+                else -> {
+                    val joined = candidateRecipientIds.joinToString(",") { URLEncoder.encode(it, "UTF-8") }
+                    "&recipient_user_id=in.($joined)"
+                }
             }
 
             val deltaFilter = if (!lastCreatedAt.isNullOrBlank()) {
@@ -247,15 +256,68 @@ object CampusNotificationPollManager {
 
                     when (type) {
                         "FLASH_MEET" -> {
+                            val payload = newestObj.optJSONObject("payload_json")
                             CampusSystemNotificationCenter.showFlashMeetNotification(
                                 context = context,
-                                meetId = id,
+                                meetId = payload?.optString("meet_id")?.takeIf { it.isNotBlank() } ?: id,
                                 title = title,
-                                locationName = newestObj.optString("location", "Central Quad"),
-                                attendeeCount = newestObj.optInt("attendees", 12),
+                                locationName = payload?.optString("location")?.takeIf { it.isNotBlank() }
+                                    ?: newestObj.optString("location", "Campus Quad"),
+                                attendeeCount = payload?.optInt("attendees", 1)
+                                    ?: newestObj.optInt("attendees", 1),
                                 timeRemainingLabel = "Now",
-                                latitude = newestObj.optDouble("latitude", -1.3094),
-                                longitude = newestObj.optDouble("longitude", 36.8122)
+                                latitude = payload?.optDouble("latitude", -1.3094)
+                                    ?: newestObj.optDouble("latitude", -1.3094),
+                                longitude = payload?.optDouble("longitude", 36.8122)
+                                    ?: newestObj.optDouble("longitude", 36.8122)
+                            )
+                        }
+                        "LIVE_STREAM" -> {
+                            val payload = newestObj.optJSONObject("payload_json")
+                            val streamId = payload?.optString("stream_id")?.takeIf { it.isNotBlank() }
+                                ?: newestObj.optString("thread_id").takeIf { it.isNotBlank() }
+                                ?: id
+                            CampusSystemNotificationCenter.showLiveStreamNotification(
+                                context = context,
+                                streamId = streamId,
+                                hostName = actorName.ifBlank { title },
+                                streamTitle = payload?.optString("title")?.takeIf { it.isNotBlank() }
+                                    ?: message.ifBlank { "Campus Live Stream" },
+                                viewerCount = payload?.optInt("viewer_count", 1) ?: 1,
+                                categoryTag = payload?.optString("category")?.takeIf { it.isNotBlank() }
+                                    ?: "CAMPUS LIVE"
+                            )
+                        }
+                        "MARKET_LISTING", "SAFEPAY_ORDER" -> {
+                            val payload = newestObj.optJSONObject("payload_json")
+                            val itemId = payload?.optString("item_id")?.takeIf { it.isNotBlank() }
+                                ?: newestObj.optString("thread_id").takeIf { it.isNotBlank() }
+                                ?: id
+                            val currency = payload?.optString("currency")?.takeIf { it.isNotBlank() } ?: "KES"
+                            val price = payload?.optDouble("price", Double.NaN)
+                            val priceLabel = if (price != null && !price.isNaN()) {
+                                "$currency ${String.format("%.0f", price)}"
+                            } else {
+                                ""
+                            }
+                            CampusSystemNotificationCenter.showMarketListingNotification(
+                                context = context,
+                                itemId = itemId,
+                                title = payload?.optString("title")?.takeIf { it.isNotBlank() }
+                                    ?: message.ifBlank { "Campus listing" },
+                                sellerName = actorName,
+                                priceLabel = priceLabel,
+                                category = payload?.optString("category").orEmpty(),
+                                isUpdate = payload?.optBoolean("is_update", false) == true || type == "SAFEPAY_ORDER"
+                            )
+                        }
+                        "CHANNEL_MESSAGE", "CAMPUS_UPDATE" -> {
+                            CampusSystemNotificationCenter.showCampusUpdateNotification(
+                                context = context,
+                                updateId = newestObj.optString("thread_id").takeIf { it.isNotBlank() } ?: id,
+                                guildName = actorName.ifBlank { title },
+                                headline = title,
+                                digestLines = listOf(message.ifBlank { title })
                             )
                         }
                         "FRIEND_REQUEST" -> {

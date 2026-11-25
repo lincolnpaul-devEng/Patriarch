@@ -30,13 +30,13 @@ data class MarketItemRow(
     val title: String = "",
     val price: Double = 0.0,
     val currency: String = "KES",
-    val category: String = "",
-    val condition: String = "",
+    val category: String = "General",
+    val condition: String = "Good",
     val seller_name: String = "",
     val seller_id: String = "",
     val seller_rating: Double = 0.0,
     val is_campus_verified_seller: Boolean = false,
-    val campus_hall_location: String = "",
+    val campus_hall_location: String = "Main Campus",
     val image_url: String? = null,
     val timestamp_ms: Long = 0L,
     val description: String = "",
@@ -234,6 +234,21 @@ class CampusHubRepository(
         }
         val finalEntity = pendingEntity.copy(syncStatus = finalStatus.name)
         itemDao.insertItems(listOf(finalEntity))
+
+        if (remoteResult.isSuccess) {
+            runCatching {
+                CampusInboxNotifier(supabase).notifyMarketInterestMatches(
+                    itemId = itemId,
+                    title = title,
+                    category = category,
+                    price = price,
+                    currency = "KES",
+                    imageUrl = serializedImageField,
+                    isUpdate = false
+                )
+            }
+        }
+
         return@withContext finalEntity.toDomain()
     }
 
@@ -283,19 +298,24 @@ class CampusHubRepository(
         }
     }
 
-    /** Deletes a listing locally + remotely. RLS blocks non-owners on the remote write. */
+    /** Deletes a listing remotely first, then removes from local cache on success. */
     suspend fun deleteMarketItem(itemId: String): Result<Unit> = withContext(ioDispatcher) {
-        itemDao.deleteItemById(itemId)
         val remote = runCatching {
             supabase.from("campus_market_items").delete { filter { eq("id", itemId) } }
         }
-        if (remote.isSuccess) Result.success(Unit)
-        else Result.failure(remote.exceptionOrNull() ?: Exception("Unable to delete listing"))
+        if (remote.isSuccess) {
+            itemDao.deleteItemById(itemId)
+            Result.success(Unit)
+        } else {
+            Result.failure(
+                remote.exceptionOrNull() ?: Exception("Could not delete listing on the server. Please check your connection and try again.")
+            )
+        }
     }
 
-    /** Flips a listing to SOLD (local + remote). Server-side buyers also flip it on release. */
+    /** Flips a listing to SOLD remotely first, then updates local cache on success. */
     suspend fun markMarketItemSold(itemId: String): Result<Unit> = withContext(ioDispatcher) {
-        itemDao.updateItemStatus(itemId, "SOLD")
+        val existing = itemDao.getItemById(itemId)
         val remote = runCatching {
             supabase.from("campus_market_items").update(
                 {
@@ -303,9 +323,32 @@ class CampusHubRepository(
                 }
             ) { filter { eq("id", itemId) } }
         }
-        if (remote.isSuccess) Result.success(Unit)
-        else Result.failure(remote.exceptionOrNull() ?: Exception("Unable to mark listing sold"))
+        if (remote.isSuccess) {
+            itemDao.updateItemStatus(itemId, "SOLD")
+            existing?.let { item ->
+                runCatching {
+                    CampusInboxNotifier(supabase).notifyMarketInterestMatches(
+                        itemId = item.id,
+                        title = item.title,
+                        category = item.category,
+                        price = item.price,
+                        currency = item.currency,
+                        imageUrl = item.imageUrl,
+                        isUpdate = true
+                    )
+                }
+            }
+            Result.success(Unit)
+        } else {
+            Result.failure(
+                remote.exceptionOrNull() ?: Exception("Could not mark listing as sold on the server. Please check your connection and try again.")
+            )
+        }
     }
+
+    /** Records a market search so future listings can target this user's interests. */
+    suspend fun recordMarketSearchInterest(query: String, category: String? = null): Result<Unit> =
+        CampusInboxNotifier(supabase).recordMarketSearchInterest(query = query, category = category)
 
     suspend fun fetchEscrowOrdersAsSeller(sellerId: String): List<com.campus.network.core.model.EscrowOrder> =
         withContext(ioDispatcher) {

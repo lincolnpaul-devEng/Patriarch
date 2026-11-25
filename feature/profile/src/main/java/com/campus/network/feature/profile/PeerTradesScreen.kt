@@ -365,10 +365,7 @@ fun PeerTradesScreen(
 
                                     Button(
                                         onClick = {
-                                            orders = orders.map {
-                                                if (it.orderId == order.orderId) it.copy(isActive = false, status = "Settled & Completed") else it
-                                            }
-                                            onShowFeedback("Confirmed! SafePay released KES ${order.price} to ${order.peerName}.")
+                                            onShowFeedback("Release requires scanning the seller's SafePay QR code in Campus Market.")
                                         },
                                         modifier = Modifier.weight(1.6f),
                                         shape = RoundedCornerShape(10.dp),

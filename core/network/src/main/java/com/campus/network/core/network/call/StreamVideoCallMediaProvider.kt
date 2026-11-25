@@ -3,10 +3,6 @@ package com.campus.network.core.network.call
 import android.content.Context
 import android.util.Log
 import io.getstream.video.android.core.Call
-import io.getstream.video.android.core.GEO
-import io.getstream.video.android.core.StreamVideo
-import io.getstream.video.android.core.StreamVideoBuilder
-import io.getstream.video.android.model.User
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -31,9 +27,6 @@ class StreamVideoCallMediaProvider(
     private val mutex = Mutex()
 
     @Volatile
-    private var connectedUserId: String? = null
-
-    @Volatile
     var activeCall: Call? = null
         private set
 
@@ -50,7 +43,13 @@ class StreamVideoCallMediaProvider(
         }
         val callId = sanitizeCallId(sessionId)
         return runCatching {
-            val client = ensureClient(localUserId)
+            val client = StreamVideoClientHost.ensureClient(
+                appContext = appContext,
+                apiKey = apiKey,
+                userId = localUserId,
+                tokenFetcher = tokenFetcher,
+                displayNameResolver = displayNameResolver
+            )
             val call = client.call(CALL_TYPE, callId)
             val joinResult = call.join(create = true)
             if (joinResult.isFailure) {
@@ -90,33 +89,6 @@ class StreamVideoCallMediaProvider(
 
     override suspend fun setSpeakerphone(enabled: Boolean) {
         activeCall?.speaker?.setEnabled(enabled)
-    }
-
-    private suspend fun ensureClient(userId: String): StreamVideo {
-        val existingId = connectedUserId
-        if (StreamVideo.isInstalled && existingId == userId) {
-            return StreamVideo.instance()
-        }
-        if (StreamVideo.isInstalled) {
-            runCatching { StreamVideo.removeClient() }
-            connectedUserId = null
-        }
-        val token = tokenFetcher(userId).getOrThrow()
-        val name = displayNameResolver(userId).ifBlank { userId }
-        val user = User(
-            id = sanitizeUserId(userId),
-            name = name,
-            role = "user"
-        )
-        val client = StreamVideoBuilder(
-            context = appContext.applicationContext,
-            apiKey = apiKey,
-            geo = GEO.GlobalEdgeNetwork,
-            user = user,
-            token = token
-        ).build()
-        connectedUserId = userId
-        return client
     }
 
     companion object {

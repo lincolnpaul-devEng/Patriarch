@@ -43,7 +43,8 @@ data class HubUiState(
     val studentProfile: StudentProfile? = null,
     val isPaymentProviderReady: Boolean = false,
     val paymentProviderName: String = "Payment provider not connected",
-    val paymentMethods: List<PaymentMethodOption> = emptyList()
+    val paymentMethods: List<PaymentMethodOption> = emptyList(),
+    val pendingOpenItemId: String? = null
 )
 
 sealed interface HubEvent {
@@ -54,6 +55,8 @@ sealed interface HubEvent {
     data class SelectAiSuggestion(val suggestion: String) : HubEvent
     data object ClearSearch : HubEvent
     data object ClearFeedback : HubEvent
+    data class OpenMarketItem(val itemId: String) : HubEvent
+    data object ClearPendingOpenItem : HubEvent
     data class DeleteListing(val itemId: String) : HubEvent
     data class MarkListingSold(val itemId: String) : HubEvent
     data class PostItem(
@@ -102,8 +105,10 @@ class HubViewModel(
     private val _searchQuery = MutableStateFlow("")
     private val _aiSuggestions = MutableStateFlow<List<String>>(emptyList())
     private val _isAiLoading = MutableStateFlow(false)
+    private val _pendingOpenItemId = MutableStateFlow<String?>(null)
 
     private var aiSearchJob: Job? = null
+    private var marketSearchInterestJob: Job? = null
 
     /** Active escrow orders keyed by market item id (in-session). */
     private val escrowOrdersByItemId = mutableMapOf<String, EscrowOrder>()
@@ -257,8 +262,13 @@ class HubViewModel(
                 studentProfile = canonicalProfile,
                 isPaymentProviderReady = escrowService.isPaymentReady(),
                 paymentProviderName = escrowService.providerDisplayName(),
-                paymentMethods = escrowService.availablePaymentMethods()
+                paymentMethods = escrowService.availablePaymentMethods(),
+                pendingOpenItemId = _pendingOpenItemId.value
             )
+        }.let { hubStateFlow ->
+            combine(hubStateFlow, _pendingOpenItemId) { state, pendingId ->
+                state.copy(pendingOpenItemId = pendingId)
+            }
         }
     }.stateIn(
         scope = viewModelScope,
@@ -357,19 +367,36 @@ class HubViewModel(
     fun onEvent(event: HubEvent) {
         when (event) {
             is HubEvent.SwitchViewMode -> _viewMode.value = event.mode
-            is HubEvent.FilterCategory -> _filterCategory.value = event.category
+            is HubEvent.FilterCategory -> {
+                _filterCategory.value = event.category
+                val cat = event.category?.trim().orEmpty()
+                if (cat.isNotBlank() && !cat.equals("All", ignoreCase = true)) {
+                    scheduleMarketSearchInterest(
+                        query = _searchQuery.value.trim().ifBlank { cat },
+                        category = cat
+                    )
+                }
+            }
             is HubEvent.TogglePostDialog -> _isPostDialogOpen.value = event.open
             is HubEvent.UpdateSearchQuery -> {
                 _searchQuery.value = event.query
                 triggerAiSuggestions(event.query)
+                scheduleMarketSearchInterest(event.query, _filterCategory.value)
             }
             is HubEvent.SelectAiSuggestion -> {
                 _searchQuery.value = event.suggestion
                 _aiSuggestions.value = emptyList()
+                scheduleMarketSearchInterest(event.suggestion, _filterCategory.value)
             }
             is HubEvent.ClearSearch -> {
                 _searchQuery.value = ""
                 _aiSuggestions.value = emptyList()
+            }
+            is HubEvent.OpenMarketItem -> {
+                _pendingOpenItemId.value = event.itemId.trim().takeIf { it.isNotBlank() }
+            }
+            HubEvent.ClearPendingOpenItem -> {
+                _pendingOpenItemId.value = null
             }
             HubEvent.ClearFeedback -> _feedbackMessage.value = null
             is HubEvent.DeleteListing -> {
@@ -421,15 +448,15 @@ class HubViewModel(
                             itemId = event.itemId
                         )
                         _isPostDialogOpen.value = false
-                        _feedbackMessage.value = when (item.syncStatus) {
-                            "PENDING" -> "Listing saved on this device; upload pending."
-                            "FAILED" -> "Listing saved on this device but sync failed. Tap to Retry."
-                            else -> "Listing published."
+                        _feedbackMessage.value = if (item.syncStatus == "SYNCED") {
+                            "Listing published."
+                        } else {
+                            "Could not publish listing to the remote database. Please check your internet connection and tap to retry. Tap to Retry."
                         }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
-                        _feedbackMessage.value = error.message ?: "Unable to publish listing."
+                        _feedbackMessage.value = "Could not publish listing: ${error.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
@@ -456,15 +483,15 @@ class HubViewModel(
                             posterTrustScore = profile?.behavioralTrustScore ?: 0
                         )
                         _isPostDialogOpen.value = false
-                        _feedbackMessage.value = when (gig.syncStatus) {
-                            "PENDING" -> "Gig saved on this device; upload pending."
-                            "FAILED" -> "Gig saved on this device but sync failed. Tap to Retry."
-                            else -> "Gig published."
+                        _feedbackMessage.value = if (gig.syncStatus == "SYNCED") {
+                            "Gig published."
+                        } else {
+                            "Could not publish gig to the remote database. Please check your internet connection and tap to retry. Tap to Retry."
                         }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
-                        _feedbackMessage.value = error.message ?: "Unable to publish gig."
+                        _feedbackMessage.value = "Could not publish gig: ${error.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
@@ -490,6 +517,41 @@ class HubViewModel(
             } finally {
                 _isAiLoading.value = false
             }
+        }
+    }
+
+    private fun scheduleMarketSearchInterest(query: String, category: String?) {
+        marketSearchInterestJob?.cancel()
+        val clean = query.trim()
+        if (clean.length < 2) return
+        marketSearchInterestJob = viewModelScope.launch {
+            delay(900L)
+            // Re-check the query or category is still active before persisting.
+            val currentQ = _searchQuery.value.trim()
+            val currentCat = _filterCategory.value?.trim().orEmpty()
+            if (currentQ.equals(clean, ignoreCase = true) || currentCat.equals(clean, ignoreCase = true)) {
+                repository.recordMarketSearchInterest(
+                    query = clean,
+                    category = category?.takeIf { !it.equals("All", ignoreCase = true) }
+                )
+            }
+        }
+    }
+
+    /** Deep-link entry point used when a market push notification is tapped. */
+    fun openMarketItemFromNotification(itemId: String?) {
+        val clean = itemId?.trim().orEmpty()
+        _viewMode.value = HubViewMode.MARKETPLACE_GRID
+        _filterCategory.value = null
+        _searchQuery.value = ""
+        if (clean.isNotBlank()) {
+            onEvent(HubEvent.OpenMarketItem(clean))
+        }
+        viewModelScope.launch {
+            val viewerId = runCatching {
+                studentProfileRepository.getProfile().first().stableUserId()
+            }.getOrDefault("")
+            repository.syncRemoteMarketItems(currentUserId = viewerId.ifBlank { null })
         }
     }
 

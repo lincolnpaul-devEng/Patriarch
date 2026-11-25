@@ -16,6 +16,31 @@
       "api_key": [
         {
           "current_key": "AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78"
+        },
+        {
+          "current_key": "AIzaSyCyn8Phbs1JMRSKyNDYo-vrSDeroVvLt64"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:273384584177:android:6b0263fc9b625701e38a50",
+        "android_client_info": {
+          "package_name": "com.trading.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFtqziioHtmHYPOBj_4WwD3rfj7lEsP78"
+        },
+        {
+          "current_key": "AIzaSyCyn8Phbs1JMRSKyNDYo-vrSDeroVvLt64"
         }
       ],
       "services": {

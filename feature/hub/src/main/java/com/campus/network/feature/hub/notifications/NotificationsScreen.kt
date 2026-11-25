@@ -66,6 +66,10 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 
 @Serializable
 data class HubNotificationRow(
@@ -78,6 +82,7 @@ data class HubNotificationRow(
     val body: String = "",
     val thread_id: String? = null,
     val server_id: String? = null,
+    val payload_json: JsonObject? = null,
     val is_read: Boolean = false,
     val created_at_epoch_ms: Long = 0L
 )
@@ -88,6 +93,8 @@ sealed interface NotificationDestination {
     data class DirectChat(val peerId: String, val peerName: String) : NotificationDestination
     /** Pending inbound friend request — Accept / Decline inline (not a fake DM). */
     data class FriendRequest(val peerUserId: String, val peerName: String) : NotificationDestination
+    data class LiveStream(val streamId: String) : NotificationDestination
+    data class MarketListing(val itemId: String?) : NotificationDestination
     data object Marketplace : NotificationDestination
     data object GuildChannel : NotificationDestination
 }
@@ -119,6 +126,9 @@ fun NotificationsScreen(
     onNavigateToMapMeet: (latitude: Double, longitude: Double) -> Unit = { _, _ -> },
     onNavigateToMessages: (peerId: String?, peerName: String?) -> Unit = { _, _ -> },
     onNavigateToHub: () -> Unit = {},
+    onNavigateToLiveStream: (streamId: String) -> Unit = {},
+    onNavigateToMarket: (itemId: String?) -> Unit = {},
+    onNavigateToChannels: () -> Unit = {},
     currentUserId: String = "",
     currentUserEmail: String = "",
     serverRepository: com.campus.network.core.data.ServerRepository? = null,
@@ -181,7 +191,15 @@ fun NotificationsScreen(
             // 2. Load campus_notifications from Supabase
             runCatching {
                 val supabase = SupabaseSdkClientProvider.defaultClient
-                val targetRecipients = listOfNotNull(cleanUserId.takeIf { it.isNotBlank() }, cleanEmail.takeIf { it.isNotBlank() }).distinct()
+                val authUserId = com.campus.network.core.network.SupabaseSessionStore.session()
+                    ?.optString("user_id")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                val targetRecipients = listOfNotNull(
+                    cleanUserId.takeIf { it.isNotBlank() },
+                    cleanEmail.takeIf { it.isNotBlank() },
+                    authUserId
+                ).distinct()
                 if (targetRecipients.isNotEmpty()) {
                     val remoteRows = supabase.from("campus_notifications").select {
                         filter {
@@ -200,8 +218,12 @@ fun NotificationsScreen(
                         val body = obj.body
                         val isRead = obj.is_read
                         val actorUserId = obj.actor_user_id
-                        val actorName = profileNames[actorUserId.lowercase()].orEmpty()
+                        val actorName = profileNames[actorUserId.lowercase()]
+                            ?.takeIf { it.isRealProfileDisplayName() }
+                            ?: obj.actor_name.takeIf { it.isRealProfileDisplayName() }
+                            .orEmpty()
                         val threadId = obj.thread_id.orEmpty()
+                        val payload = obj.payload_json
                         val createdAtMs = if (obj.created_at_epoch_ms > 0L) obj.created_at_epoch_ms else System.currentTimeMillis()
 
                         if (type in setOf("FRIEND_REQUEST", "FRIEND_REQUEST_ACCEPTED", "DIRECT_MESSAGE") &&
@@ -209,7 +231,8 @@ fun NotificationsScreen(
                         ) {
                             continue
                         }
-                        val initial = actorName.trim().take(1).uppercase().ifBlank { "C" }
+                        val initial = actorName.trim().take(1).uppercase()
+                            .ifBlank { title.trim().take(1).uppercase().ifBlank { "C" } }
                         val dateStr = formatNotificationDate(createdAtMs)
                         val dest = when (type) {
                             "FRIEND_REQUEST" -> {
@@ -223,7 +246,24 @@ fun NotificationsScreen(
                                 threadId.ifBlank { actorUserId },
                                 actorName
                             )
-                            "FLASH_MEET" -> NotificationDestination.FlashMeet(-1.3094, 36.8122)
+                            "FLASH_MEET" -> {
+                                val lat = (payload?.get("latitude") as? JsonPrimitive)?.doubleOrNull ?: -1.3094
+                                val lng = (payload?.get("longitude") as? JsonPrimitive)?.doubleOrNull ?: 36.8122
+                                NotificationDestination.FlashMeet(lat, lng)
+                            }
+                            "LIVE_STREAM" -> {
+                                val streamId = (payload?.get("stream_id") as? JsonPrimitive)?.contentOrNull
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: threadId.ifBlank { "founders" }
+                                NotificationDestination.LiveStream(streamId)
+                            }
+                            "MARKET_LISTING", "SAFEPAY_ORDER" -> {
+                                val itemId = (payload?.get("item_id") as? JsonPrimitive)?.contentOrNull
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: threadId.takeIf { it.isNotBlank() }
+                                NotificationDestination.MarketListing(itemId)
+                            }
+                            "CHANNEL_MESSAGE", "CAMPUS_UPDATE" -> NotificationDestination.GuildChannel
                             else -> NotificationDestination.None
                         }
 
@@ -472,11 +512,17 @@ fun NotificationsScreen(
                                         onNavigateToMessages(dest.peerId, dest.peerName)
                                     }
                                     is NotificationDestination.FriendRequest -> Unit
+                                    is NotificationDestination.LiveStream -> {
+                                        onNavigateToLiveStream(dest.streamId)
+                                    }
+                                    is NotificationDestination.MarketListing -> {
+                                        onNavigateToMarket(dest.itemId)
+                                    }
                                     is NotificationDestination.Marketplace -> {
-                                        onNavigateToHub()
+                                        onNavigateToMarket(null)
                                     }
                                     is NotificationDestination.GuildChannel -> {
-                                        onNavigateToMessages(null, null)
+                                        onNavigateToChannels()
                                     }
                                     is NotificationDestination.None -> Unit
                                 }
@@ -488,18 +534,26 @@ fun NotificationsScreen(
                                         snackbarHostState.showSnackbar("Sign in to accept friend requests")
                                         return@launch
                                     }
-                                    val acceptedName = withContext(Dispatchers.IO) {
-                                        repo.acceptFriendRequest(
-                                            userId = cleanUserIdForActions,
-                                            friendUserId = peerUserId
+                                    val result = runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            repo.acceptFriendRequest(
+                                                userId = cleanUserIdForActions,
+                                                friendUserId = peerUserId
+                                            )
+                                        }
+                                    }
+                                    result.onSuccess { acceptedName ->
+                                        notifications.removeAll {
+                                            val dest = it.destination
+                                            dest is NotificationDestination.FriendRequest &&
+                                                dest.peerUserId.equals(peerUserId, ignoreCase = true)
+                                        }
+                                        snackbarHostState.showSnackbar("You are now friends with $acceptedName")
+                                    }.onFailure { err ->
+                                        snackbarHostState.showSnackbar(
+                                            "Could not accept friend request: ${err.localizedMessage ?: "Please check your connection and try again."}"
                                         )
                                     }
-                                    notifications.removeAll {
-                                        val dest = it.destination
-                                        dest is NotificationDestination.FriendRequest &&
-                                            dest.peerUserId.equals(peerUserId, ignoreCase = true)
-                                    }
-                                    snackbarHostState.showSnackbar("You are now friends with $acceptedName")
                                 }
                             },
                             onDeclineFriend = { peerUserId, peerName ->
@@ -509,18 +563,24 @@ fun NotificationsScreen(
                                         snackbarHostState.showSnackbar("Sign in to decline friend requests")
                                         return@launch
                                     }
-                                    withContext(Dispatchers.IO) {
+                                    val result = withContext(Dispatchers.IO) {
                                         repo.declineOrRemoveFriend(
                                             userId = cleanUserIdForActions,
                                             friendUserId = peerUserId
                                         )
                                     }
-                                    notifications.removeAll {
-                                        val dest = it.destination
-                                        dest is NotificationDestination.FriendRequest &&
-                                            dest.peerUserId.equals(peerUserId, ignoreCase = true)
+                                    result.onSuccess {
+                                        notifications.removeAll {
+                                            val dest = it.destination
+                                            dest is NotificationDestination.FriendRequest &&
+                                                dest.peerUserId.equals(peerUserId, ignoreCase = true)
+                                        }
+                                        snackbarHostState.showSnackbar("Declined request from $peerName")
+                                    }.onFailure { err ->
+                                        snackbarHostState.showSnackbar(
+                                            "Could not decline friend request: ${err.localizedMessage ?: "Please check your connection and try again."}"
+                                        )
                                     }
-                                    snackbarHostState.showSnackbar("Declined request from $peerName")
                                 }
                             }
                         )

@@ -1056,16 +1056,18 @@ class MessagesViewModel(
 
             is MessagesEvent.DeleteMessage -> {
                 val activeThread = _uiState.value.selectedThread ?: return
-                val currentList = threadMessagesMap[activeThread.id] ?: _uiState.value.messages
-                val updated = currentList.filter { it.id != event.messageId }
-                threadMessagesMap[activeThread.id] = updated
-                _uiState.update { it.copy(messages = updated) }
                 viewModelScope.launch {
-                    chatMessageDao?.deleteMessage(event.messageId)
-                    runCatching {
+                    val remoteResult = runCatching {
                         supabase.from("campus_chat_messages").delete {
                             filter { eq("id", event.messageId) }
                         }
+                    }
+                    if (remoteResult.isSuccess) {
+                        chatMessageDao?.deleteMessage(event.messageId)
+                        val currentList = threadMessagesMap[activeThread.id] ?: _uiState.value.messages
+                        val updated = currentList.filter { it.id != event.messageId }
+                        threadMessagesMap[activeThread.id] = updated
+                        _uiState.update { it.copy(messages = updated) }
                     }
                 }
             }
@@ -1073,37 +1075,38 @@ class MessagesViewModel(
             is MessagesEvent.ToggleMessageReaction -> {
                 val activeThread = _uiState.value.selectedThread ?: return
                 val currentList = threadMessagesMap[activeThread.id] ?: _uiState.value.messages
-                var chosenReaction: String? = null
-                val updated = currentList.map { msg ->
-                    if (msg.id == event.messageId) {
-                        val newReaction = if (msg.reaction == event.reaction) null else event.reaction
-                        chosenReaction = newReaction
-                        msg.copy(reaction = newReaction)
-                    } else msg
-                }
-                threadMessagesMap[activeThread.id] = updated
-                _uiState.update { it.copy(messages = updated) }
+                val existingMsg = currentList.find { it.id == event.messageId } ?: return
+                val chosenReaction = if (existingMsg.reaction == event.reaction) null else event.reaction
                 viewModelScope.launch {
-                    runCatching {
+                    val remoteResult = runCatching {
                         supabase.from("campus_chat_messages").update(
                             mapOf("reaction" to chosenReaction)
                         ) {
                             filter { eq("id", event.messageId) }
                         }
                     }
+                    if (remoteResult.isSuccess) {
+                        val updated = (threadMessagesMap[activeThread.id] ?: _uiState.value.messages).map { msg ->
+                            if (msg.id == event.messageId) msg.copy(reaction = chosenReaction) else msg
+                        }
+                        threadMessagesMap[activeThread.id] = updated
+                        _uiState.update { it.copy(messages = updated) }
+                    }
                 }
             }
 
             is MessagesEvent.ClearChat -> {
-                threadMessagesMap[event.threadId] = emptyList()
-                if (_uiState.value.selectedThread?.id == event.threadId) {
-                    _uiState.update { it.copy(messages = emptyList()) }
-                }
                 viewModelScope.launch {
-                    chatMessageDao?.clearChannelMessages(event.threadId)
-                    runCatching {
+                    val remoteResult = runCatching {
                         supabase.from("campus_chat_messages").delete {
                             filter { eq("channel_id", event.threadId) }
+                        }
+                    }
+                    if (remoteResult.isSuccess) {
+                        chatMessageDao?.clearChannelMessages(event.threadId)
+                        threadMessagesMap[event.threadId] = emptyList()
+                        if (_uiState.value.selectedThread?.id == event.threadId) {
+                            _uiState.update { it.copy(messages = emptyList()) }
                         }
                     }
                 }
@@ -1404,12 +1407,30 @@ class MessagesViewModel(
             }
 
             is MessagesEvent.SaveUserNote -> {
-                val cleanedNote = if (event.note.isNotBlank()) event.note.trim() else "Add note"
-                _uiState.update {
-                    it.copy(
-                        currentUserNote = cleanedNote,
-                        currentScreen = MessagesScreenMode.THREADS
-                    )
+                val rawNote = event.note.trim()
+                viewModelScope.launch {
+                    val result = if (rawNote.isNotBlank()) {
+                        studentProfileRepository.setStatusNote(rawNote, "Focus", "24h")
+                    } else {
+                        studentProfileRepository.clearStatusNote()
+                    }
+                    result.onSuccess {
+                        val cleanedNote = if (rawNote.isNotBlank()) rawNote else "Add note"
+                        _uiState.update {
+                            it.copy(
+                                currentUserNote = cleanedNote,
+                                currentScreen = MessagesScreenMode.THREADS
+                            )
+                        }
+                    }.onFailure { err ->
+                        appContext?.let { ctx ->
+                            android.widget.Toast.makeText(
+                                ctx,
+                                "Could not save status note: ${err.localizedMessage ?: "Please check your connection and try again."}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 }
             }
 

@@ -73,11 +73,11 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
             }
 
             CampusPushType.FLASH_MEET -> {
-                val meetId = data["meetId"] ?: "meet_1"
-                val locationName = data["locationName"] ?: "Central Quad Pod #4"
-                val attendees = data["attendeeCount"]?.toIntOrNull() ?: 14
-                val lat = data["latitude"]?.toDoubleOrNull() ?: -1.3094
-                val lng = data["longitude"]?.toDoubleOrNull() ?: 36.8122
+                val meetId = data["meetId"]?.takeIf { it.isNotBlank() } ?: return
+                val locationName = data["locationName"].orEmpty().ifBlank { "Campus Location" }
+                val attendees = data["attendeeCount"]?.toIntOrNull() ?: 1
+                val lat = data["latitude"]?.toDoubleOrNull() ?: return
+                val lng = data["longitude"]?.toDoubleOrNull() ?: return
 
                 CampusSystemNotificationCenter.showFlashMeetNotification(
                     context = applicationContext,
@@ -85,7 +85,7 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
                     title = title,
                     locationName = locationName,
                     attendeeCount = attendees,
-                    timeRemainingLabel = data["timeRemaining"] ?: "Starting in 5 min",
+                    timeRemainingLabel = data["timeRemaining"].orEmpty().ifBlank { "Starting soon" },
                     latitude = lat,
                     longitude = lng
                 )
@@ -93,14 +93,15 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
 
             CampusPushType.SAFEPAY_ORDER -> {
                 val sellerId = data["sellerId"] ?: data["sellerUserId"] ?: return
+                val orderRef = data["orderRef"]?.takeIf { it.isNotBlank() } ?: return
                 notificationScope.launch {
                     val sellerName = resolveProfileName(sellerId) ?: return@launch
                     CampusSystemNotificationCenter.showSafePayOrderNotification(
                         context = applicationContext,
-                        orderRef = data["orderRef"] ?: "ORD-4829",
+                        orderRef = orderRef,
                         itemTitle = data["itemTitle"] ?: title,
-                        amountFormatted = data["amount"] ?: "KES 2,500",
-                        pickupSpotName = data["pickupSpot"] ?: "North Quad SafeZone",
+                        amountFormatted = data["amount"].orEmpty(),
+                        pickupSpotName = data["pickupSpot"].orEmpty().ifBlank { "Designated SafeSpot" },
                         sellerName = sellerName,
                         statusHeadline = body
                     )
@@ -108,15 +109,53 @@ class CampusFirebaseMessagingService : FirebaseMessagingService() {
             }
 
             CampusPushType.LIVE_STREAM -> {
-                val hostId = data["hostId"] ?: data["broadcasterId"] ?: return
+                val streamId = data["streamId"] ?: data["stream_id"] ?: "live_1"
+                val streamTitle = data["streamTitle"] ?: data["title"] ?: body
+                val categoryTag = data["category"] ?: "CAMPUS LIVE"
+                val viewers = data["viewerCount"]?.toIntOrNull()
+                    ?: data["viewer_count"]?.toIntOrNull()
+                    ?: 1
+                val hostId = data["hostId"] ?: data["broadcasterId"] ?: data["actorUserId"]
                 notificationScope.launch {
-                    val hostName = resolveProfileName(hostId) ?: return@launch
+                    val hostName = if (!hostId.isNullOrBlank()) {
+                        resolveProfileName(hostId) ?: data["hostName"].orEmpty().ifBlank { title }
+                    } else {
+                        data["hostName"].orEmpty().ifBlank { title }
+                    }
                     CampusSystemNotificationCenter.showLiveStreamNotification(
                         context = applicationContext,
-                        streamId = data["streamId"] ?: "live_1",
+                        streamId = streamId,
                         hostName = hostName,
-                        streamTitle = body,
-                        viewerCount = data["viewerCount"]?.toIntOrNull() ?: 128
+                        streamTitle = streamTitle,
+                        viewerCount = viewers,
+                        categoryTag = categoryTag
+                    )
+                }
+            }
+
+            CampusPushType.MARKET_LISTING -> {
+                val itemId = data["itemId"] ?: data["item_id"] ?: return
+                val itemTitle = data["itemTitle"] ?: data["title"] ?: title
+                val priceLabel = data["priceLabel"] ?: data["price"].orEmpty()
+                val category = data["category"].orEmpty()
+                val isUpdate = data["isUpdate"]?.toBooleanStrictOrNull()
+                    ?: data["is_update"]?.toBooleanStrictOrNull()
+                    ?: false
+                val sellerId = data["sellerId"] ?: data["sellerUserId"] ?: data["actorUserId"]
+                notificationScope.launch {
+                    val sellerName = if (!sellerId.isNullOrBlank()) {
+                        resolveProfileName(sellerId) ?: data["sellerName"].orEmpty()
+                    } else {
+                        data["sellerName"].orEmpty()
+                    }
+                    CampusSystemNotificationCenter.showMarketListingNotification(
+                        context = applicationContext,
+                        itemId = itemId,
+                        title = itemTitle,
+                        sellerName = sellerName,
+                        priceLabel = priceLabel,
+                        category = category,
+                        isUpdate = isUpdate
                     )
                 }
             }

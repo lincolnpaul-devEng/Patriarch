@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun MessagesScreen(
     viewModel: MessagesViewModel,
     modifier: Modifier = Modifier,
+    isActivePage: Boolean = true,
     onNavigateBack: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToServer: ((String) -> Unit)? = null,
@@ -27,7 +28,7 @@ fun MessagesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = uiState.currentScreen != MessagesScreenMode.THREADS) {
+    BackHandler(enabled = isActivePage && uiState.currentScreen != MessagesScreenMode.THREADS) {
         when (uiState.currentScreen) {
             MessagesScreenMode.AUDIO_CALL, MessagesScreenMode.VIDEO_CALL -> {
                 viewModel.onEvent(MessagesEvent.EndCall)
@@ -98,6 +99,7 @@ fun MessagesScreen(
                             messages = uiState.messages,
                             isSettlementDialogOpen = uiState.isSettlementDialogOpen,
                             onEvent = viewModel::onEvent,
+                            isActivePage = isActivePage,
                             initialActivateVoice = uiState.activateVoiceInChat,
                             onConsumeVoiceActivation = {
                                 viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
@@ -194,6 +196,7 @@ fun MessagesScreen(
                                 messages = uiState.messages,
                                 isSettlementDialogOpen = uiState.isSettlementDialogOpen,
                                 onEvent = viewModel::onEvent,
+                                isActivePage = isActivePage,
                                 initialActivateVoice = uiState.activateVoiceInChat,
                                 onConsumeVoiceActivation = {
                                     viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)
@@ -229,6 +232,7 @@ fun MessagesScreen(
                                 messages = uiState.messages,
                                 isSettlementDialogOpen = uiState.isSettlementDialogOpen,
                                 onEvent = viewModel::onEvent,
+                                isActivePage = isActivePage,
                                 initialActivateVoice = uiState.activateVoiceInChat,
                                 onConsumeVoiceActivation = {
                                     viewModel.onEvent(MessagesEvent.ConsumeVoiceActivation)

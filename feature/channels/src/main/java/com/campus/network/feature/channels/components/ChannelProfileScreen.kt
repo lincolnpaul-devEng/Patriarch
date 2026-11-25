@@ -82,13 +82,14 @@ fun ChannelProfileScreen(
     uiState: ChannelsUiState,
     viewModel: ChannelsViewModel,
     onBackClick: () -> Unit,
+    isActivePage: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val activeChannel = uiState.activeChatChannel
     val channelName = activeChannel?.name ?: "game-music"
     var selectedTab by remember { mutableStateOf(uiState.activeChannelProfileTab) }
 
-    BackHandler {
+    BackHandler(enabled = isActivePage) {
         onBackClick()
     }
 

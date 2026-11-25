@@ -6,9 +6,12 @@ import com.campus.network.core.model.BadgeLevel
 import com.campus.network.core.model.ConsistencyQuest
 import com.campus.network.core.model.OnboardingPreferences
 import com.campus.network.core.model.QuestCategory
+import com.campus.network.core.model.AccountStorageUsage
+import com.campus.network.core.model.StorageCategoryUsage
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.UniversityDirectoryEntry
 import com.campus.network.core.model.VerifiedSkillBadge
+import android.content.Context
 import android.util.Log
 import com.campus.network.core.model.cleanDisplayName
 import com.campus.network.core.model.cleanProfileDisplayName
@@ -19,8 +22,10 @@ import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.SupabaseSessionStore
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +35,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
@@ -41,13 +55,13 @@ data class OnboardingPreferencesRow(
     val countryCode: String = "KE",
     val countryName: String = "Kenya",
     val currencyCode: String = "KES",
-    val regionName: String = "Nairobi",
-    val universityName: String = "Strathmore University",
-    val universityDomain: String = "strathmore.edu",
+    val regionName: String = "",
+    val universityName: String = "",
+    val universityDomain: String = "",
     val isCustomUniversity: Boolean = false,
     val isVerifiedStudentEmail: Boolean = false,
-    val faculty: String = "Computing & Informatics",
-    val yearOfStudy: String = "Year 3",
+    val faculty: String = "",
+    val yearOfStudy: String = "",
     val intents: List<String> = emptyList(),
     val favoriteCategories: List<String> = emptyList(),
     val priorities: List<String> = emptyList(),
@@ -126,9 +140,37 @@ data class CampusProfileRow(
     val location_privacy_scope: String = "CAMPUS_WIDE",
     val behavioral_trust_score: Int = 50,
     val campus_merit_points: Int = 0,
+    val storage_used_bytes: Long = 0L,
+    val storage_quota_bytes: Long = AccountStorageUsage.DEFAULT_QUOTA_BYTES,
     val onboarding_preferences: OnboardingPreferencesRow? = null,
     val created_at: String? = null,
     val updated_at: String? = null
+)
+
+@Serializable
+private data class RegisterMediaAssetParams(
+    val p_asset_url: String,
+    val p_bytes: Long = 0L,
+    val p_category: String = "other",
+    val p_public_id: String? = null
+)
+
+@Serializable
+private data class SetMediaAssetBytesParams(
+    val p_asset_url: String,
+    val p_bytes: Long
+)
+
+@Serializable
+private data class UpgradeStorageParams(
+    val p_additional_bytes: Long = AccountStorageUsage.DEFAULT_QUOTA_BYTES
+)
+
+@Serializable
+private data class StorageCategoryRow(
+    val category: String = "other",
+    val bytes: Long = 0L,
+    @SerialName("item_count") val itemCount: Int = 0
 )
 
 /**
@@ -153,6 +195,8 @@ data class CampusProfileWriteRow(
     val campus_residence: String? = null,
     val phone_number: String? = null,
     val preferred_rendezvous_point: String? = null,
+    val status_note: String? = null,
+    val status_note_emoji: String? = null,
     val notifications_enabled: Boolean = true,
     val escrow_alerts_enabled: Boolean = true,
     val quest_reminders_enabled: Boolean = true,
@@ -172,11 +216,16 @@ data class CampusProfileWriteRow(
 class StudentProfileRepository(
     private val database: CampusDatabase? = null,
     private val sdkClient: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
+    private val appContext: Context? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
         private const val TAG = "StudentProfileRepo"
+        private val storageJson = Json { ignoreUnknownKeys = true }
     }
+
+    private val _accountStorage = MutableStateFlow(AccountStorageUsage.Empty)
+    val accountStorage: StateFlow<AccountStorageUsage> = _accountStorage.asStateFlow()
 
     private val profileDao = database?.studentProfileDao()
     private val repositoryScope = CoroutineScope(ioDispatcher + SupervisorJob())
@@ -400,7 +449,9 @@ class StudentProfileRepository(
 
         val sessionUserId = SupabaseSessionStore.session()?.optString("user_id")?.takeIf(String::isNotBlank)
         if (sessionUserId == null) {
-            return Result.success(Unit)
+            return Result.failure(
+                IllegalStateException("Could not verify your cloud session. Please sign in and try again.")
+            )
         }
 
         val remoteResult = runCatching {
@@ -422,6 +473,8 @@ class StudentProfileRepository(
                     campus_residence = profile.campusResidence,
                     phone_number = profile.phoneNumber,
                     preferred_rendezvous_point = profile.preferredRendezvousPoint,
+                    status_note = profile.statusNote,
+                    status_note_emoji = profile.statusNoteEmoji,
                     notifications_enabled = profile.notificationsEnabled,
                     escrow_alerts_enabled = profile.escrowAlertsEnabled,
                     quest_reminders_enabled = profile.questRemindersEnabled,
@@ -444,10 +497,7 @@ class StudentProfileRepository(
             return Result.success(Unit)
         }
         val error = remoteResult.exceptionOrNull()
-            ?: IllegalStateException("Profile sync failed without an error")
-        if (status == com.campus.network.core.model.SyncStatus.PENDING) {
-            return Result.success(Unit)
-        }
+            ?: IllegalStateException("Could not sync changes to the remote database. Please check your connection and try again.")
         return Result.failure(error)
     }
 
@@ -524,11 +574,20 @@ class StudentProfileRepository(
                     behavioralTrustScore = remoteTrust,
                     universityName = remoteUni,
                     campusResidence = remoteResidence,
-                    onboardingPreferences = resolvedPrefs
+                    onboardingPreferences = resolvedPrefs,
+                    storageUsedBytes = row.storage_used_bytes.coerceAtLeast(0L),
+                    storageQuotaBytes = row.storage_quota_bytes
+                        .takeIf { it > 0L }
+                        ?: AccountStorageUsage.DEFAULT_QUOTA_BYTES
                 )
                 _studentProfile.value = updated
+                _accountStorage.value = _accountStorage.value.copy(
+                    usedBytes = updated.storageUsedBytes,
+                    quotaBytes = updated.storageQuotaBytes
+                )
                 profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
                 rememberProfile(updated)
+                repositoryScope.launch { refreshAccountStorage() }
                 return@runCatching updated.onboardingPreferences.hasCompletedSurvey
             } else {
                 val current = _studentProfile.value
@@ -800,7 +859,7 @@ class StudentProfileRepository(
         }
     }
 
-    suspend fun completeQuest(questId: String) = withContext(ioDispatcher) {
+    suspend fun completeQuest(questId: String): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
         val updatedQuests = current.privateQuestDeck.map { quest ->
             if (quest.id == questId) {
@@ -880,27 +939,26 @@ class StudentProfileRepository(
         persistToDatabase(_studentProfile.value)
     }
 
-    suspend fun setPreferredRendezvousPoint(spotName: String) = withContext(ioDispatcher) {
+    suspend fun setPreferredRendezvousPoint(spotName: String): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
         _studentProfile.value = current.copy(preferredRendezvousPoint = spotName.trim())
         persistToDatabase(_studentProfile.value)
     }
 
-    suspend fun addProfile(newProfile: StudentProfile) = withContext(ioDispatcher) {
+    suspend fun addProfile(newProfile: StudentProfile): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
         val updatedAlternates = current.alternateProfiles + newProfile
         _studentProfile.value = current.copy(alternateProfiles = updatedAlternates)
         persistToDatabase(_studentProfile.value)
     }
 
-    suspend fun switchProfile(targetStudentId: String) = withContext(ioDispatcher) {
+    suspend fun switchProfile(targetStudentId: String): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
         val target = current.alternateProfiles.find { it.studentId == targetStudentId }
-        if (target != null) {
-            val updatedAlternates = current.alternateProfiles.filterNot { it.studentId == targetStudentId } + current
-            _studentProfile.value = target.copy(alternateProfiles = updatedAlternates)
-            persistToDatabase(_studentProfile.value)
-        }
+            ?: return@withContext Result.failure(IllegalArgumentException("Target profile not found"))
+        val updatedAlternates = current.alternateProfiles.filterNot { it.studentId == targetStudentId } + current
+        _studentProfile.value = target.copy(alternateProfiles = updatedAlternates)
+        persistToDatabase(_studentProfile.value)
     }
 
     suspend fun updateNotificationSettings(
@@ -931,13 +989,13 @@ class StudentProfileRepository(
         persistToDatabase(updated)
     }
 
-    suspend fun updateLocationPrivacyScope(scope: com.campus.network.core.model.LocationPrivacyScope) {
+    suspend fun updateLocationPrivacyScope(scope: com.campus.network.core.model.LocationPrivacyScope): Result<Unit> {
         _locationPrivacyScope.value = scope
         val current = _studentProfile.value
-        persistToDatabase(current.copy(locationPrivacyScope = scope))
+        return persistToDatabase(current.copy(locationPrivacyScope = scope))
     }
 
-    suspend fun updateStatusNote(note: String?, emoji: String?, expiry: String? = null) = withContext(ioDispatcher) {
+    suspend fun updateStatusNote(note: String?, emoji: String?, expiry: String? = null): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
         val updated = current.copy(
             statusNote = note,
@@ -947,23 +1005,154 @@ class StudentProfileRepository(
         persistToDatabase(updated)
     }
 
-    suspend fun clearStatusNote() = withContext(ioDispatcher) {
+    suspend fun clearStatusNote(): Result<Unit> = withContext(ioDispatcher) {
         updateStatusNote(null, null, null)
     }
 
+    /**
+     * Clears local on-device caches only. Cloud quota usage is unchanged.
+     */
     suspend fun clearCache(): Long = withContext(ioDispatcher) {
-        val current = _studentProfile.value
-        val freedBytes = 38_500_000L
-        val newStorage = (current.storageUsedBytes - freedBytes).coerceAtLeast(0L)
-        _studentProfile.value = current.copy(storageUsedBytes = newStorage)
-        persistToDatabase(_studentProfile.value)
-        freedBytes
+        val context = appContext ?: return@withContext 0L
+        var freed = 0L
+        val dirs = listOfNotNull(context.cacheDir, context.codeCacheDir, context.externalCacheDir)
+        dirs.forEach { dir ->
+            freed += deleteRecursivelyCounting(dir)
+            dir.mkdirs()
+        }
+        freed
     }
 
-    suspend fun upgradeStorage(additionalBytes: Long = 1_073_741_824L) = withContext(ioDispatcher) {
+    private fun deleteRecursivelyCounting(file: java.io.File): Long {
+        var freed = 0L
+        if (file.isDirectory) {
+            file.listFiles()?.forEach { child ->
+                freed += deleteRecursivelyCounting(child)
+            }
+        }
+        val size = if (file.isFile) file.length().coerceAtLeast(0L) else 0L
+        if (file.delete()) freed += size
+        return freed
+    }
+
+    suspend fun upgradeStorage(additionalBytes: Long = AccountStorageUsage.DEFAULT_QUOTA_BYTES): Result<AccountStorageUsage> =
+        withContext(ioDispatcher) {
+            runCatching {
+                val result = sdkClient.postgrest.rpc(
+                    "upgrade_my_storage_quota",
+                    UpgradeStorageParams(p_additional_bytes = additionalBytes)
+                ).decodeAs<JsonObject>()
+                applyStorageSnapshot(parseStorageSnapshot(result))
+            }
+        }
+
+    suspend fun refreshAccountStorage(): Result<AccountStorageUsage> = withContext(ioDispatcher) {
+        runCatching {
+            val raw = sdkClient.postgrest.rpc("get_my_account_storage").decodeAs<JsonObject>()
+            var usage = parseStorageSnapshot(raw)
+
+            // Resolve Content-Length for reconciled assets that were discovered without byte sizes.
+            if (usage.pendingByteUrls.isNotEmpty()) {
+                usage.pendingByteUrls.take(25).forEach { url ->
+                    val length = probeContentLength(url)
+                    if (length > 0L) {
+                        runCatching {
+                            sdkClient.postgrest.rpc(
+                                "set_user_media_asset_bytes",
+                                SetMediaAssetBytesParams(p_asset_url = url, p_bytes = length)
+                            )
+                        }
+                    }
+                }
+                val refreshed = sdkClient.postgrest.rpc("get_my_account_storage").decodeAs<JsonObject>()
+                usage = parseStorageSnapshot(refreshed)
+            }
+
+            applyStorageSnapshot(usage)
+        }.onFailure { error ->
+            Log.e(TAG, "refreshAccountStorage failed: ${error.message}", error)
+        }
+    }
+
+    suspend fun registerUploadedMedia(
+        url: String,
+        bytes: Long,
+        category: String,
+        publicId: String? = null
+    ): Result<AccountStorageUsage> = withContext(ioDispatcher) {
+        runCatching {
+            val result = sdkClient.postgrest.rpc(
+                "register_user_media_asset",
+                RegisterMediaAssetParams(
+                    p_asset_url = url,
+                    p_bytes = bytes.coerceAtLeast(0L),
+                    p_category = category,
+                    p_public_id = publicId
+                )
+            ).decodeAs<JsonObject>()
+            applyStorageSnapshot(parseStorageSnapshot(result))
+        }
+    }
+
+    private fun applyStorageSnapshot(usage: AccountStorageUsage): AccountStorageUsage {
+        _accountStorage.value = usage
         val current = _studentProfile.value
-        _studentProfile.value = current.copy(storageQuotaBytes = current.storageQuotaBytes + additionalBytes)
-        persistToDatabase(_studentProfile.value)
+        val updated = current.copy(
+            storageUsedBytes = usage.usedBytes,
+            storageQuotaBytes = usage.quotaBytes
+        )
+        _studentProfile.value = updated
+        repositoryScope.launch {
+            runCatching {
+                profileDao?.insertOrUpdateProfile(StudentProfileEntity.fromDomain(updated))
+            }
+        }
+        return usage
+    }
+
+    private fun parseStorageSnapshot(obj: JsonObject): AccountStorageUsage {
+        val used = (obj["storage_used_bytes"] as? JsonPrimitive)?.longOrNull?.coerceAtLeast(0L) ?: 0L
+        val quota = (obj["storage_quota_bytes"] as? JsonPrimitive)?.longOrNull
+            ?.takeIf { it > 0L }
+            ?: AccountStorageUsage.DEFAULT_QUOTA_BYTES
+
+        val categories = runCatching {
+            obj["categories"]?.jsonArray?.mapNotNull { element ->
+                val row = storageJson.decodeFromJsonElement(StorageCategoryRow.serializer(), element)
+                StorageCategoryUsage(
+                    category = row.category,
+                    bytes = row.bytes.coerceAtLeast(0L),
+                    itemCount = row.itemCount.coerceAtLeast(0)
+                )
+            }.orEmpty()
+        }.getOrDefault(emptyList())
+
+        val pending = runCatching {
+            obj["pending_byte_urls"]?.jsonArray?.mapNotNull { element ->
+                element.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }
+            }.orEmpty()
+        }.getOrDefault(emptyList())
+
+        return AccountStorageUsage(
+            usedBytes = used,
+            quotaBytes = quota,
+            categories = categories,
+            pendingByteUrls = pending
+        )
+    }
+
+    private fun probeContentLength(url: String): Long {
+        return runCatching {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.requestMethod = "HEAD"
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            connection.instanceFollowRedirects = true
+            connection.connect()
+            val length = connection.getHeaderFieldLong("Content-Length", -1L)
+            connection.disconnect()
+            length.coerceAtLeast(0L)
+        }.getOrDefault(0L)
     }
 
     /**
@@ -1011,46 +1200,46 @@ class StudentProfileRepository(
         )
     }
 
-    suspend fun depositToWallet(amount: Double): Boolean = withContext(ioDispatcher) {
-        if (amount <= 0.0) return@withContext false
-        val current = _studentProfile.value
-        val updated = current.copy(walletBalance = current.walletBalance + amount)
-        _studentProfile.value = updated
-        persistToDatabase(updated)
-        true
-    }
-
-    suspend fun withdrawFromWallet(amount: Double): Boolean = withContext(ioDispatcher) {
-        val current = _studentProfile.value
-        if (amount <= 0.0 || amount > current.walletBalance) return@withContext false
-        val updated = current.copy(walletBalance = current.walletBalance - amount)
-        _studentProfile.value = updated
-        persistToDatabase(updated)
-        true
-    }
-
-    suspend fun lockVaultAmount(amount: Double): Boolean = withContext(ioDispatcher) {
-        val current = _studentProfile.value
-        if (amount <= 0.0 || amount > current.walletBalance) return@withContext false
-        val updated = current.copy(
-            walletBalance = current.walletBalance - amount,
-            vaultProtectedBalance = current.vaultProtectedBalance + amount
+    suspend fun depositToWallet(amount: Double): Result<Unit> = withContext(ioDispatcher) {
+        if (amount <= 0.0) {
+            return@withContext Result.failure(IllegalArgumentException("Please enter a valid deposit amount."))
+        }
+        Result.failure(
+            IllegalStateException("Direct wallet deposit could not be verified with the payment server. Please check your M-Pesa payment gateway connection.")
         )
-        _studentProfile.value = updated
-        persistToDatabase(updated)
-        true
     }
 
-    suspend fun releaseVaultAmount(amount: Double): Boolean = withContext(ioDispatcher) {
+    suspend fun withdrawFromWallet(amount: Double): Result<Unit> = withContext(ioDispatcher) {
         val current = _studentProfile.value
-        if (amount <= 0.0 || amount > current.vaultProtectedBalance) return@withContext false
-        val updated = current.copy(
-            vaultProtectedBalance = current.vaultProtectedBalance - amount,
-            walletBalance = current.walletBalance + amount
+        if (amount <= 0.0) {
+            return@withContext Result.failure(IllegalArgumentException("Please enter a valid withdrawal amount."))
+        }
+        if (amount > current.walletBalance) {
+            return@withContext Result.failure(IllegalArgumentException("Insufficient available wallet balance."))
+        }
+        Result.failure(
+            IllegalStateException("Wallet withdrawal could not be confirmed by the remote payment server. Please try again later.")
         )
-        _studentProfile.value = updated
-        persistToDatabase(updated)
-        true
+    }
+
+    suspend fun lockVaultAmount(amount: Double): Result<Unit> = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        if (amount <= 0.0 || amount > current.walletBalance) {
+            return@withContext Result.failure(IllegalArgumentException("Insufficient available wallet balance."))
+        }
+        Result.failure(
+            IllegalStateException("Vault lock could not be confirmed by the remote payment server.")
+        )
+    }
+
+    suspend fun releaseVaultAmount(amount: Double): Result<Unit> = withContext(ioDispatcher) {
+        val current = _studentProfile.value
+        if (amount <= 0.0 || amount > current.vaultProtectedBalance) {
+            return@withContext Result.failure(IllegalArgumentException("No locked SafePay vault funds available to release."))
+        }
+        Result.failure(
+            IllegalStateException("Vault release requires buyer QR verification through the remote SafePay server.")
+        )
     }
 }
 

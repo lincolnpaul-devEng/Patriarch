@@ -21,6 +21,18 @@ dependencyResolutionManagement {
         mavenCentral()
         maven { url = java.net.URI("https://stream-io-repo.com") }
         maven { url = java.net.URI("https://jitpack.io") }
+        maven {
+            url = java.net.URI("https://api.mapbox.com/downloads/v2/releases/maven")
+            authentication {
+                create<org.gradle.authentication.http.BasicAuthentication>("basic")
+            }
+            credentials {
+                username = "mapbox"
+                password = providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").orNull
+                    ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN")
+                    ?: ""
+            }
+        }
     }
 }
 

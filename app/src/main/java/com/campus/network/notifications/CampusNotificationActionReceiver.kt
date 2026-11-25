@@ -43,7 +43,8 @@ class CampusNotificationActionReceiver : BroadcastReceiver() {
                             .orEmpty()
 
                         if (replyText.isNotEmpty()) {
-                            val threadId = intent.getStringExtra(CampusSystemNotificationCenter.EXTRA_THREAD_ID) ?: "thread_mwangi"
+                            val threadId = intent.getStringExtra(CampusSystemNotificationCenter.EXTRA_THREAD_ID)
+                                ?.takeIf { it.isNotBlank() } ?: return@launch
                             val peerName = intent.getStringExtra(CampusSystemNotificationCenter.EXTRA_PEER_NAME).orEmpty()
                             val peerHandle = intent.getStringExtra(CampusSystemNotificationCenter.EXTRA_PEER_HANDLE) ?: ""
 

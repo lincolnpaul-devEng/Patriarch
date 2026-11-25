@@ -970,7 +970,7 @@ fun CustomizeServerContent(
                     var finalBanner = selectedBanner
 
                     if (selectedAvatarUri != null) {
-                        val upRes = CloudinaryUploader().uploadFromUri(context, selectedAvatarUri!!)
+                        val upRes = CloudinaryUploader().uploadFromUri(context, selectedAvatarUri!!, category = "server")
                         if (upRes.isSuccess) {
                             finalAvatar = upRes.getOrThrow()
                         } else {
@@ -981,7 +981,7 @@ fun CustomizeServerContent(
                     }
 
                     if (selectedBannerUri != null) {
-                        val upRes = CloudinaryUploader().uploadFromUri(context, selectedBannerUri!!)
+                        val upRes = CloudinaryUploader().uploadFromUri(context, selectedBannerUri!!, category = "server")
                         if (upRes.isSuccess) {
                             finalBanner = upRes.getOrThrow()
                         } else {

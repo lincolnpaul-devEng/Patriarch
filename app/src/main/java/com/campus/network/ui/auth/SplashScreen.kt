@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,6 +48,14 @@ fun SplashScreen(
 ) {
     val scale = remember { Animatable(0.88f) }
     val alpha = remember { Animatable(0f) }
+    var hasCompleted by remember { mutableStateOf(false) }
+
+    fun completeOnce() {
+        if (!hasCompleted) {
+            hasCompleted = true
+            onSplashComplete()
+        }
+    }
 
     LaunchedEffect(Unit) {
         alpha.animateTo(
@@ -56,7 +67,7 @@ fun SplashScreen(
             animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
         )
         delay(1400)
-        onSplashComplete()
+        completeOnce()
     }
 
     Box(
@@ -67,7 +78,7 @@ fun SplashScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                onSplashComplete()
+                completeOnce()
             },
         contentAlignment = Alignment.Center
     ) {

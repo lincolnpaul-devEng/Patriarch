@@ -6,6 +6,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import com.campus.network.core.database.entity.AcademicChannelEntity
+import com.campus.network.core.database.entity.CampusEventEntity
+import com.campus.network.core.database.entity.CampusPlaceEntity
 import com.campus.network.core.database.entity.ChatMessageEntity
 import com.campus.network.core.database.entity.FlashMeetEntity
 import com.campus.network.core.database.entity.MarketItemEntity
@@ -40,6 +42,12 @@ interface FlashMeetDao {
 
     @Query("DELETE FROM flash_meets WHERE syncStatus != 'PENDING'")
     suspend fun clearSyncedMeets()
+
+    @Query("UPDATE flash_meets SET attendeeCount = :count WHERE id = :meetId")
+    suspend fun updateAttendeeCount(meetId: String, count: Int)
+
+    @Query("DELETE FROM flash_meets WHERE id = :meetId")
+    suspend fun deleteMeetById(meetId: String)
 }
 
 @Dao
@@ -183,6 +191,9 @@ interface LiveStreamDao {
     @Query("SELECT * FROM live_streams WHERE id = :streamId LIMIT 1")
     fun getStreamById(streamId: String): Flow<LiveStreamEntity?>
 
+    @Query("SELECT * FROM live_streams WHERE id = :streamId LIMIT 1")
+    suspend fun getStreamByIdSync(streamId: String): LiveStreamEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStream(stream: LiveStreamEntity)
 
@@ -212,6 +223,12 @@ interface LiveStreamDao {
 
     @Query("UPDATE live_streams SET likeCount = likeCount + 1 WHERE id = :streamId")
     suspend fun incrementLikes(streamId: String)
+
+    @Query("UPDATE live_streams SET likeCount = :likes WHERE id = :streamId")
+    suspend fun updateLikeCount(streamId: String, likes: Int)
+
+    @Query("DELETE FROM live_streams WHERE id = :streamId")
+    suspend fun deleteStreamById(streamId: String)
 }
 
 @Dao
@@ -242,4 +259,58 @@ interface StreamCommentDao {
 
     @Query("SELECT * FROM stream_comments WHERE syncStatus = 'FAILED' ORDER BY timestampEpochMs ASC")
     suspend fun getFailedComments(): List<StreamCommentEntity>
+
+    @Query("DELETE FROM stream_comments WHERE id = :commentId")
+    suspend fun deleteCommentById(commentId: String)
+}
+
+@Dao
+interface CampusPlaceDao {
+    @Query("SELECT * FROM campus_places ORDER BY name ASC")
+    fun getAllPlaces(): Flow<List<CampusPlaceEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlaces(places: List<CampusPlaceEntity>)
+
+    @Query("DELETE FROM campus_places WHERE id NOT IN (:validIds)")
+    suspend fun deleteGhostPlaces(validIds: List<String>)
+
+    @Query("DELETE FROM campus_places")
+    suspend fun clearAllPlaces()
+}
+
+@Dao
+interface CampusEventDao {
+    @Query("SELECT * FROM campus_events ORDER BY startTimeEpochMs ASC")
+    fun getAllEvents(): Flow<List<CampusEventEntity>>
+
+    @Query("SELECT * FROM campus_events WHERE id = :eventId LIMIT 1")
+    suspend fun getEventByIdSync(eventId: String): CampusEventEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEvent(event: CampusEventEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEvents(events: List<CampusEventEntity>)
+
+    @Query("UPDATE campus_events SET attendeeCount = :count WHERE id = :eventId")
+    suspend fun updateAttendeeCount(eventId: String, count: Int)
+
+    @Query("UPDATE campus_events SET syncStatus = :status WHERE id = :eventId AND syncId = :syncId")
+    suspend fun updateSyncStatus(eventId: String, syncId: String?, status: String)
+
+    @Query("SELECT * FROM campus_events WHERE syncStatus = 'PENDING' ORDER BY startTimeEpochMs ASC")
+    suspend fun getPendingEvents(): List<CampusEventEntity>
+
+    @Query("SELECT * FROM campus_events WHERE syncStatus = 'FAILED' ORDER BY startTimeEpochMs ASC")
+    suspend fun getFailedEvents(): List<CampusEventEntity>
+
+    @Query("DELETE FROM campus_events WHERE id = :eventId")
+    suspend fun deleteEventById(eventId: String)
+
+    @Query("DELETE FROM campus_events WHERE id NOT IN (:validIds) AND syncStatus != 'PENDING'")
+    suspend fun deleteGhostEvents(validIds: List<String>)
+
+    @Query("DELETE FROM campus_events WHERE syncStatus != 'PENDING'")
+    suspend fun clearSyncedEvents()
 }

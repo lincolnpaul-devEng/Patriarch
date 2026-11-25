@@ -107,7 +107,7 @@ fun EditServerSettingsSheet(
             isUploadingAvatar = true
             avatarUploadError = null
             coroutineScope.launch {
-                val result = CloudinaryUploader().uploadFromUri(context, uri)
+                val result = CloudinaryUploader().uploadFromUri(context, uri, category = "server")
                 isUploadingAvatar = false
                 if (result.isSuccess) {
                     selectedAvatar = result.getOrThrow()
@@ -125,7 +125,7 @@ fun EditServerSettingsSheet(
             isUploadingBanner = true
             bannerUploadError = null
             coroutineScope.launch {
-                val result = CloudinaryUploader().uploadFromUri(context, uri)
+                val result = CloudinaryUploader().uploadFromUri(context, uri, category = "server")
                 isUploadingBanner = false
                 if (result.isSuccess) {
                     selectedBanner = result.getOrThrow()

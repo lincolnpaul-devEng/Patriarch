@@ -2,14 +2,22 @@ package com.campus.network.core.network
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+
+data class CloudinaryUploadResult(
+    val url: String,
+    val bytes: Long,
+    val publicId: String?
+)
 
 class CloudinaryUploader {
     private val client = OkHttpClient.Builder()
@@ -18,7 +26,21 @@ class CloudinaryUploader {
         .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
-    suspend fun uploadFromUri(context: Context, uri: Uri): Result<String> = withContext(Dispatchers.IO) {
+    /**
+     * Uploads an image and returns the Cloudinary secure URL.
+     * Also registers the asset against the signed-in user's Patriarch storage quota.
+     */
+    suspend fun uploadFromUri(
+        context: Context,
+        uri: Uri,
+        category: String = "other"
+    ): Result<String> = uploadDetailedFromUri(context, uri, category).map { it.url }
+
+    suspend fun uploadDetailedFromUri(
+        context: Context,
+        uri: Uri,
+        category: String = "other"
+    ): Result<CloudinaryUploadResult> = withContext(Dispatchers.IO) {
         val uploadData = runCatching {
             val contentResolver = context.contentResolver
             val inputStream = contentResolver.openInputStream(uri)
@@ -35,10 +57,11 @@ class CloudinaryUploader {
         }
         uploadData.fold(
             onSuccess = { (bytes, mimeType, extension) ->
-                uploadBytes(
+                uploadDetailedBytes(
                     bytes,
                     fileName = "device_upload_${System.currentTimeMillis()}.$extension",
-                    mimeType = mimeType
+                    mimeType = mimeType,
+                    category = category
                 )
             },
             onFailure = { Result.failure(it) }
@@ -48,11 +71,21 @@ class CloudinaryUploader {
     suspend fun uploadBytes(
         bytes: ByteArray,
         fileName: String = "image_${System.currentTimeMillis()}.jpg",
-        mimeType: String = "image/jpeg"
-    ): Result<String> = withContext(Dispatchers.IO) {
+        mimeType: String = "image/jpeg",
+        category: String = "other"
+    ): Result<String> = uploadDetailedBytes(bytes, fileName, mimeType, category).map { it.url }
+
+    suspend fun uploadDetailedBytes(
+        bytes: ByteArray,
+        fileName: String = "image_${System.currentTimeMillis()}.jpg",
+        mimeType: String = "image/jpeg",
+        category: String = "other"
+    ): Result<CloudinaryUploadResult> = withContext(Dispatchers.IO) {
         runCatching {
             require(bytes.size <= 10 * 1024 * 1024) { "Image exceeds 10 MB" }
-            require(mimeType in listOf("image/jpeg", "image/png", "image/webp", "image/gif")) { "Unsupported image type" }
+            require(mimeType in listOf("image/jpeg", "image/png", "image/webp", "image/gif")) {
+                "Unsupported image type"
+            }
             val signature = requestUploadSignature()
 
             val requestBody = MultipartBody.Builder()
@@ -69,7 +102,7 @@ class CloudinaryUploader {
                 .post(requestBody)
                 .build()
 
-            val response = client.newCall(request).execute().use { response ->
+            val uploaded = client.newCall(request).execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     val errorMsg = runCatching {
@@ -78,11 +111,57 @@ class CloudinaryUploader {
                     throw IllegalStateException("Cloudinary upload failed: $errorMsg")
                 }
                 val json = JSONObject(responseBody)
-                json.optString("secure_url").takeIf(String::isNotBlank)
-                    ?: json.optString("url").takeIf(String::isNotBlank)
+                val url = json.optString("secure_url").takeIf { it.isNotBlank() }
+                    ?: json.optString("url").takeIf { it.isNotBlank() }
                     ?: throw IllegalStateException("Cloudinary response missing secure_url")
+                CloudinaryUploadResult(
+                    url = url,
+                    bytes = json.optLong("bytes").takeIf { it > 0L } ?: bytes.size.toLong(),
+                    publicId = json.optString("public_id").takeIf { it.isNotBlank() }
+                )
             }
-            response
+
+            registerMediaAsset(
+                url = uploaded.url,
+                bytes = uploaded.bytes,
+                category = category,
+                publicId = uploaded.publicId
+            )
+            uploaded
+        }
+    }
+
+    private fun registerMediaAsset(
+        url: String,
+        bytes: Long,
+        category: String,
+        publicId: String?
+    ) {
+        runCatching {
+            val accessToken = SupabaseSessionStore.accessToken() ?: return
+            val payload = JSONObject().apply {
+                put("p_asset_url", url)
+                put("p_bytes", bytes)
+                put("p_category", category)
+                put("p_public_id", publicId)
+            }.toString()
+            val request = Request.Builder()
+                .url("${BuildConfig.SUPABASE_URL.trimEnd('/')}/rest/v1/rpc/register_user_media_asset")
+                .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .post(payload.toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(
+                        TAG,
+                        "register_user_media_asset failed HTTP ${response.code}: ${response.body?.string().orEmpty()}"
+                    )
+                }
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "register_user_media_asset error: ${error.message}")
         }
     }
 
@@ -121,4 +200,8 @@ class CloudinaryUploader {
         val timestamp: String,
         val signature: String
     )
+
+    companion object {
+        private const val TAG = "CloudinaryUploader"
+    }
 }

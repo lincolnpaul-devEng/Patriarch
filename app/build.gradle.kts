@@ -9,7 +9,10 @@ if (secretsPropertiesFile.exists()) {
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.appdistribution)
 }
 
 android {
@@ -35,13 +38,27 @@ android {
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${secretsProperties.getProperty("SUPABASE_ANON_KEY", "")}\"")
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${secretsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")}\"")
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = secretsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")
+        manifestPlaceholders["ARCORE_API_KEY"] = secretsProperties.getProperty("GOOGLE_MAPS_API_KEY", "")
+        val mapboxToken = secretsProperties.getProperty("MAPBOX_ACCESS_TOKEN", "")
+        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxToken\"")
+        resValue("string", "mapbox_access_token", mapboxToken)
         buildConfigField("String", "GOOGLE_CLIENT_ID_ANDROID", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_ANDROID", "")}\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID_WEB", "\"${secretsProperties.getProperty("GOOGLE_CLIENT_ID_WEB", "")}\"")
 
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release-key.jks")
+            storePassword = "campusnetwork"
+            keyAlias = "campus"
+            keyPassword = "campusnetwork"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
@@ -51,9 +68,25 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            firebaseAppDistribution {
+                appId = System.getenv("FIREBASE_APP_ID")
+                    ?: (secretsProperties.getProperty("FIREBASE_APP_ID").takeIf { !it.isNullOrBlank() }
+                        ?: "1:273384584177:android:bab0f98fc4c756cae38a50")
+                artifactType = "APK"
+                releaseNotesFile = "${rootProject.projectDir}/release-notes.txt"
+                groups = "testers"
+            }
         }
         debug {
             isMinifyEnabled = false
+            firebaseAppDistribution {
+                appId = System.getenv("FIREBASE_APP_ID")
+                    ?: (secretsProperties.getProperty("FIREBASE_APP_ID").takeIf { !it.isNullOrBlank() }
+                        ?: "1:273384584177:android:bab0f98fc4c756cae38a50")
+                artifactType = "APK"
+                releaseNotesFile = "${rootProject.projectDir}/release-notes.txt"
+                groups = "testers"
+            }
         }
     }
 
@@ -78,6 +111,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            pickFirsts += listOf("**/libc++_shared.so")
         }
     }
 }
@@ -117,5 +153,12 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.firebase.messaging)
 
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.mapbox.maps.android)
+    implementation(libs.mapbox.navigation.android)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
+    testImplementation("junit:junit:4.13.2")
 }

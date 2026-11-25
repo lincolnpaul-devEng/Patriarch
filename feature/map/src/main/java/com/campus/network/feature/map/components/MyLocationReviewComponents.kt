@@ -389,7 +389,7 @@ fun MyLocationBottomSheet(
 
             // Address Subtitle
             Text(
-                text = address.ifBlank { "Strathmore Academic Complex, Ole Sangale Rd, Nairobi, Kenya" },
+                text = address.ifBlank { "Resolving current GPS address..." },
                 fontSize = 13.sp,
                 color = Color(0xFF64748B),
                 lineHeight = 18.sp,
@@ -630,7 +630,7 @@ fun TriggerFlashMeetFriendsSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No campus peers discovered yet. As students join, they will appear here.",
+                            text = "No accepted campus friends yet — you can still publish directly to the live campus radar.",
                             fontSize = 13.sp,
                             color = Color(0xFF64748B),
                             fontWeight = FontWeight.Medium
@@ -742,7 +742,7 @@ fun TriggerFlashMeetFriendsSheet(
                     val selectedList = friends.filter { selectedFriendIds.contains(it.id) }
                     onShareFlashMeet(meetTitle, selectedCategory, durationMinutes, selectedList)
                 },
-                enabled = selectedFriendIds.isNotEmpty(),
+                enabled = meetTitle.isNotBlank(),
                 shape = RoundedCornerShape(26.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = BrandBluePrimary,
@@ -754,7 +754,11 @@ fun TriggerFlashMeetFriendsSheet(
                     .height(50.dp)
             ) {
                 Text(
-                    text = "Share Flash Meet (${selectedFriendIds.size} Friends)",
+                    text = if (selectedFriendIds.isEmpty()) {
+                        "Publish Flash Meet to Radar"
+                    } else {
+                        "Share Flash Meet (${selectedFriendIds.size} Friends)"
+                    },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White

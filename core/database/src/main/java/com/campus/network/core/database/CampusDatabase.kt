@@ -7,6 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.campus.network.core.database.dao.AcademicChannelDao
+import com.campus.network.core.database.dao.CampusEventDao
+import com.campus.network.core.database.dao.CampusPlaceDao
 import com.campus.network.core.database.dao.ChatMessageDao
 import com.campus.network.core.database.dao.FlashMeetDao
 import com.campus.network.core.database.dao.MarketItemDao
@@ -22,6 +24,8 @@ import com.campus.network.core.database.dao.ServerMemberDao
 import com.campus.network.core.database.dao.FriendDao
 import com.campus.network.core.database.dao.ServerInviteDao
 import com.campus.network.core.database.entity.AcademicChannelEntity
+import com.campus.network.core.database.entity.CampusEventEntity
+import com.campus.network.core.database.entity.CampusPlaceEntity
 import com.campus.network.core.database.entity.ChatMessageEntity
 import com.campus.network.core.database.entity.FlashMeetEntity
 import com.campus.network.core.database.entity.MarketItemEntity
@@ -56,13 +60,17 @@ import com.campus.network.core.database.entity.ServerInviteEntity
         ServerMemberEntity::class,
         FriendEntity::class,
         ServerInviteEntity::class,
-        StudentProfileEntity::class
+        StudentProfileEntity::class,
+        CampusPlaceEntity::class,
+        CampusEventEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 abstract class CampusDatabase : RoomDatabase() {
     abstract fun flashMeetDao(): FlashMeetDao
+    abstract fun campusPlaceDao(): CampusPlaceDao
+    abstract fun campusEventDao(): CampusEventDao
     abstract fun academicChannelDao(): AcademicChannelDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun marketItemDao(): MarketItemDao
@@ -120,6 +128,32 @@ abstract class CampusDatabase : RoomDatabase() {
         private val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE market_items ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'")
+            }
+        }
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `campus_places` (
+                        `id` TEXT NOT NULL, `name` TEXT NOT NULL, `subtitle` TEXT NOT NULL,
+                        `address` TEXT NOT NULL, `categoryName` TEXT NOT NULL, `neighborhood` TEXT NOT NULL,
+                        `campusRegion` TEXT NOT NULL, `description` TEXT NOT NULL,
+                        `latitude` REAL NOT NULL, `longitude` REAL NOT NULL,
+                        `savesCount` INTEGER NOT NULL, `rating` REAL NOT NULL, `reviewCount` INTEGER NOT NULL,
+                        `hoursText` TEXT NOT NULL, `isOpenNow` INTEGER NOT NULL,
+                        `securityLevel` TEXT NOT NULL, `isVerifiedSafeTrade` INTEGER NOT NULL,
+                        `hasWifi` INTEGER NOT NULL, `hasPowerOutlets` INTEGER NOT NULL,
+                        `imageUrl` TEXT, PRIMARY KEY(`id`))"""
+                )
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `campus_events` (
+                        `id` TEXT NOT NULL, `creatorId` TEXT NOT NULL, `title` TEXT NOT NULL,
+                        `hostName` TEXT NOT NULL, `description` TEXT NOT NULL, `locationName` TEXT NOT NULL,
+                        `fullAddress` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL,
+                        `startTimeIso` TEXT NOT NULL, `startTimeEpochMs` INTEGER NOT NULL,
+                        `category` TEXT NOT NULL, `priceLabel` TEXT, `maxCapacity` INTEGER NOT NULL,
+                        `attendeeCount` INTEGER NOT NULL, `artworkKey` TEXT NOT NULL,
+                        `bannerUrl` TEXT, `syncStatus` TEXT NOT NULL, `syncId` TEXT, PRIMARY KEY(`id`))"""
+                )
             }
         }
 
@@ -199,7 +233,7 @@ abstract class CampusDatabase : RoomDatabase() {
                     CampusDatabase::class.java,
                     "campus_network.db"
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                     .build()
                     .also { INSTANCE = it }
             }

@@ -36,6 +36,7 @@
 
     <!-- Hardware Feature Declarations -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -50,6 +51,15 @@
         </intent>
         <package android:name="com.google.android.googlequicksearchbox" />
         <package android:name="com.google.android.tts" />
+        <package android:name="com.google.android.apps.maps" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="google.navigation" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
     </queries>
 
     <application
@@ -65,10 +75,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Patriarch">
 
-        <!-- Google Maps API Key (UniHub) -->
+        <!-- Google Maps / ARCore Geospatial API Key (UniHub) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${GOOGLE_MAPS_API_KEY}" />
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="optional" />
+        <meta-data
+            android:name="com.google.android.ar.API_KEY"
+            android:value="${ARCORE_API_KEY}" />
 
         <activity
             android:name=".MainActivity"
@@ -81,6 +97,15 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="patriarch"
+                    android:host="map"
+                    android:pathPrefix="/share" />
             </intent-filter>
             <!-- Stream Video CallService notification actions (signaling still owned by Campus) -->
             <intent-filter android:priority="1">

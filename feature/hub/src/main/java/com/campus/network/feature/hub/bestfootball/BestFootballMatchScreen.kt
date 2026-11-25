@@ -1,5 +1,6 @@
 package com.campus.network.feature.hub.bestfootball
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -53,6 +54,7 @@ fun BestFootballMatchScreen(
     campusStats: com.campus.network.core.data.CampusStatsRepository.CampusStats =
         com.campus.network.core.data.CampusStatsRepository.CampusStats.Empty,
     unreadFriendMessages: List<UnreadFriendMessage> = emptyList(),
+    isActivePage: Boolean = true,
     onNavigateToProfile: () -> Unit = {},
     onNavigateToGoLive: () -> Unit = {},
     onNavigateToChannels: () -> Unit = {},
@@ -194,6 +196,10 @@ fun BestFootballMatchScreen(
                 }
             }
         }
+    }
+
+    BackHandler(enabled = isActivePage && viewState == "stats") {
+        closeStats()
     }
 
     var isDragging by remember { mutableStateOf(false) }
@@ -614,7 +620,7 @@ fun BestFootballMatchScreen(
             )
 
             // 5. Stat Cards Row (zIndex 15) — only friends with unread messages
-            if (prog > 0.01f && unreadFriendMessages.isNotEmpty()) {
+            if (prog > 0.01f) {
                 StatCardsRow(
                     stIn = stIn.map { it.value },
                     cards = unreadFriendMessages,

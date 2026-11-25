@@ -75,8 +75,19 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.campus.network.core.network.call.LiveMediaConnectionState
+import com.campus.network.core.network.call.LiveMediaState
+import com.campus.network.core.network.call.LiveStreamMediaRegistry
+import com.campus.network.core.network.call.StreamVideoCallMediaProvider
+import com.campus.network.feature.hub.liveroom.BroadcasterLiveVideoSurface
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -147,10 +158,7 @@ private fun rememberDraftState() = DraftState(
 
 /**
  * End-to-end Go Live flow: permissions -> details (with AI assist) -> 3-2-1 -> live host view -> summary.
- * One camera preview sits behind every phase so there is no flicker between steps.
- *
- * NOTE: there is no media backend wired up yet. Viewer counts, likes and comments in the
- * live phase are simulated until a broadcast service (RTMP/WebRTC) is connected.
+ * Uses CameraX preview during setup/countdown and hands off cleanly to Stream Video WebRTC during live broadcast.
  */
 @Composable
 fun GoLiveScreen(
@@ -164,6 +172,11 @@ fun GoLiveScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val ai = remember { OpenRouterAiClient() }
+    val mediaManager = remember { LiveStreamMediaRegistry.resolve() }
+    val mediaState by (
+        mediaManager?.state?.collectAsStateWithLifecycle()
+            ?: remember { mutableStateOf(LiveMediaState()) }
+        )
 
     val required = remember { arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO) }
     fun permissionsGranted() = required.all {
@@ -195,42 +208,119 @@ fun GoLiveScreen(
         onDispose { view.keepScreenOn = false }
     }
 
+    // Session dwell tracker for live broadcasting
+    com.campus.network.core.ui.components.MoodSessionTracker(
+        source = com.campus.network.core.ui.components.MoodSource.GO_LIVE
+    )
+
     val draft = rememberDraftState()
     var phase by rememberSaveable { mutableStateOf(Phase.SETUP) }
     var useFrontCamera by rememberSaveable { mutableStateOf(true) }
     var micOn by rememberSaveable { mutableStateOf(true) }
     var cameraUnavailable by remember { mutableStateOf(false) }
     var summary by remember { mutableStateOf<StreamSummary?>(null) }
+    var liveSeconds by remember { mutableIntStateOf(0) }
+    var livePeak by remember { mutableIntStateOf(1) }
+    var liveLikes by remember { mutableIntStateOf(0) }
     val activeProfile by (studentProfileRepository?.studentProfile?.collectAsState(initial = null) ?: remember { mutableStateOf<com.campus.network.core.model.StudentProfile?>(null) })
     val streamId = rememberSaveable { "stream_${java.util.UUID.randomUUID()}" }
 
-    LaunchedEffect(phase) {
-        if (phase == Phase.LIVE && liveStreamRepository != null) {
-            val profile = activeProfile
-            val broadcasterId = profile?.stableUserId().orEmpty()
-            if (broadcasterId.isBlank()) {
-                phase = Phase.SETUP
-                return@LaunchedEffect
+    val currentPhaseRef = rememberUpdatedState(phase)
+    val latestStatsRef = rememberUpdatedState(Triple(liveSeconds, livePeak, liveLikes))
+
+    suspend fun startMediaBroadcast() {
+        val profile = activeProfile ?: return
+        val broadcasterId = profile.stableUserId()
+        if (broadcasterId.isBlank()) return
+        mediaManager?.startBroadcast(
+            streamId = streamId,
+            localUserId = broadcasterId,
+            displayName = profile.fullName,
+            micEnabled = micOn,
+            cameraEnabled = true,
+            useFrontCamera = useFrontCamera
+        )
+    }
+
+    fun endActiveBroadcast(finalSeconds: Int, finalPeak: Int, finalLikes: Int) {
+        summary = StreamSummary(finalSeconds, finalPeak, finalLikes, newFollowers = 0)
+        phase = Phase.SUMMARY
+        scope.launch {
+            withContext(NonCancellable) {
+                runCatching { mediaManager?.endBroadcast(streamId) }
+                runCatching { liveStreamRepository?.endStream(streamId, finalSeconds, finalPeak, finalLikes) }
             }
-            liveStreamRepository.createLiveStream(
-                id = streamId,
-                broadcasterId = broadcasterId,
-                broadcasterHandle = profile?.universityEmail?.substringBefore("@").orEmpty(),
-                broadcasterAvatarRes = 0,
-                title = draft.title.ifBlank { "Campus Live Stream" },
-                description = draft.description,
-                category = draft.category,
-                audience = draft.audience.name,
-                broadcasterDisplayName = profile?.fullName
-            )
         }
     }
 
+    DisposableEffect(streamId) {
+        onDispose {
+            if (currentPhaseRef.value == Phase.LIVE) {
+                val (secs, pk, lks) = latestStatsRef.value
+                CoroutineScope(Dispatchers.IO + NonCancellable).launch {
+                    runCatching { mediaManager?.endBroadcast(streamId) }
+                    runCatching { liveStreamRepository?.endStream(streamId, secs, pk, lks) }
+                }
+            } else if (mediaManager != null) {
+                CoroutineScope(Dispatchers.IO + NonCancellable).launch {
+                    runCatching { mediaManager.leaveStream(streamId) }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(phase) {
+        if (phase == Phase.LIVE) {
+            val profile = activeProfile
+            val broadcasterId = profile?.stableUserId().orEmpty()
+            if (broadcasterId.isBlank() || profile == null) {
+                phase = Phase.SETUP
+                return@LaunchedEffect
+            }
+            val stream = runCatching {
+                liveStreamRepository?.createLiveStream(
+                    id = streamId,
+                    broadcasterId = broadcasterId,
+                    broadcasterHandle = profile.universityEmail.substringBefore("@").ifBlank { "broadcaster" },
+                    broadcasterAvatarRes = 0,
+                    title = draft.title.ifBlank { "Campus Live Stream" },
+                    description = draft.description,
+                    category = draft.category,
+                    audience = draft.audience.name,
+                    broadcasterDisplayName = profile.fullName,
+                    streamPlaybackUrl = "stream://default/${StreamVideoCallMediaProvider.sanitizeCallId(streamId)}",
+                    broadcasterAvatarUrl = profile.avatarUrl
+                )
+            }.getOrNull()
+            if (liveStreamRepository != null && (stream == null || stream.syncStatus != "SYNCED")) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Could not start live stream on the remote database. Please check your connection and try again.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                phase = Phase.SETUP
+                return@LaunchedEffect
+            }
+            startMediaBroadcast()
+        }
+    }
+
+    val showCameraXPreview = hasPermission && (
+        phase == Phase.SETUP ||
+            phase == Phase.COUNTDOWN ||
+            (phase == Phase.LIVE && mediaState.connectionState == LiveMediaConnectionState.FAILED)
+        )
+
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF08080B))) {
-        if (hasPermission && phase != Phase.SUMMARY) {
+        if (showCameraXPreview) {
             GoLiveCameraPreview(
                 useFront = useFrontCamera,
                 onUnavailable = { cameraUnavailable = true },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (hasPermission && phase == Phase.LIVE) {
+            BroadcasterLiveVideoSurface(
+                call = mediaState.activeCall,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -264,23 +354,50 @@ fun GoLiveScreen(
                 title = draft.title,
                 commentsEnabled = draft.commentsOn,
                 micOn = micOn,
-                onToggleMic = { micOn = !micOn },
-                onFlip = { useFrontCamera = !useFrontCamera },
+                mediaState = mediaState,
+                onToggleMic = {
+                    val next = !micOn
+                    micOn = next
+                    scope.launch { mediaManager?.setMicEnabled(next) }
+                },
+                onFlip = {
+                    useFrontCamera = !useFrontCamera
+                    scope.launch { mediaManager?.flipCamera() }
+                },
+                onRetryMedia = {
+                    scope.launch { startMediaBroadcast() }
+                },
                 liveStreamRepository = liveStreamRepository,
-                onEnded = {
-                    summary = it
-                    phase = Phase.SUMMARY
+                onStatsUpdated = { secs, pk, lks ->
+                    liveSeconds = secs
+                    livePeak = pk
+                    liveLikes = lks
+                },
+                onEndRequested = { secs, pk, lks ->
+                    endActiveBroadcast(secs, pk, lks)
                 }
             )
 
-            phase == Phase.SUMMARY -> summary?.let {
-                SummaryPhase(
-                    title = draft.title,
-                    saveReplay = draft.saveReplay,
-                    summary = it,
-                    onShare = { shareStream(context, draft.title) },
-                    onDone = onExit
-                )
+            phase == Phase.SUMMARY -> {
+                val resolvedSummary = summary
+                if (resolvedSummary != null) {
+                    SummaryPhase(
+                        title = draft.title,
+                        saveReplay = draft.saveReplay,
+                        summary = resolvedSummary,
+                        onShare = { shareStream(context, draft.title) },
+                        onDone = {
+                            com.campus.network.core.ui.components.MoodCheckIn.request(
+                                context,
+                                com.campus.network.core.ui.components.MoodSource.GO_LIVE,
+                                force = true
+                            )
+                            onExit()
+                        }
+                    )
+                } else {
+                    LaunchedEffect(Unit) { onExit() }
+                }
             }
         }
     }
@@ -311,6 +428,7 @@ private fun PermissionGate(
     onOpenSettings: () -> Unit,
     onClose: () -> Unit
 ) {
+    BackHandler(onBack = onClose)
     Box(modifier = Modifier.fillMaxSize().background(HomescreenPurple).statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
         GlassButton(Icons.Default.Close, "Close", onClose, Modifier.align(Alignment.TopStart))
         Column(
@@ -577,12 +695,14 @@ private fun LivePhase(
     title: String,
     commentsEnabled: Boolean,
     micOn: Boolean,
+    mediaState: LiveMediaState,
     onToggleMic: () -> Unit,
     onFlip: () -> Unit,
+    onRetryMedia: () -> Unit,
     liveStreamRepository: com.campus.network.core.data.LiveStreamRepository?,
-    onEnded: (StreamSummary) -> Unit
+    onStatsUpdated: (seconds: Int, peak: Int, likes: Int) -> Unit,
+    onEndRequested: (seconds: Int, peak: Int, likes: Int) -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
     var seconds by remember { mutableIntStateOf(0) }
     var viewers by remember { mutableIntStateOf(1) }
     var peak by remember { mutableIntStateOf(1) }
@@ -599,7 +719,14 @@ private fun LivePhase(
         }
     }
 
+    LaunchedEffect(seconds, peak, likes) {
+        onStatsUpdated(seconds, peak, likes)
+    }
+
     if (liveStreamRepository != null) {
+        LaunchedEffect(streamId) {
+            liveStreamRepository.syncRemoteCommentsForStream(streamId)
+        }
         LaunchedEffect(streamId) {
             liveStreamRepository.getStreamById(streamId).collect { stream ->
                 if (stream != null) {
@@ -631,7 +758,7 @@ private fun LivePhase(
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.7f))))
         )
 
-        // Top bar: LIVE + timer + viewers, title underneath
+        // Top bar: LIVE + timer + viewers + media status, title underneath
         Column(
             modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
@@ -643,6 +770,25 @@ private fun LivePhase(
                 StatPill(formatDuration(seconds))
                 StatPill(viewers.toString(), Icons.Default.Visibility)
             }
+            Spacer(Modifier.height(8.dp))
+            when (mediaState.connectionState) {
+                LiveMediaConnectionState.CONNECTING -> StatPill("Connecting video…")
+                LiveMediaConnectionState.LIVE -> StatPill("Live video active")
+                LiveMediaConnectionState.FAILED -> {
+                    Text(
+                        text = "${mediaState.errorMessage ?: "Video stream failed"} · Tap to retry",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color(0xCCE5252A))
+                            .clickable(onClick = onRetryMedia)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+                LiveMediaConnectionState.IDLE -> Unit
+            }
             Spacer(Modifier.height(10.dp))
             Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2)
         }
@@ -652,7 +798,7 @@ private fun LivePhase(
             modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth()
                 .navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp)
         ) {
-            if (commentsEnabled) {
+            if (commentsEnabled && comments.isNotEmpty()) {
                 val visible = comments.takeLast(5)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(0.78f)) {
                     visible.forEachIndexed { index, (name, text) ->
@@ -696,10 +842,7 @@ private fun LivePhase(
             confirmButton = {
                 TextButton(onClick = {
                     showEndDialog = false
-                    coroutineScope.launch {
-                        liveStreamRepository?.endStream(streamId, seconds, peak, likes)
-                    }
-                    onEnded(StreamSummary(seconds, peak, likes, newFollowers = 0))
+                    onEndRequested(seconds, peak, likes)
                 }) { Text("End stream", color = Color(0xFF7A1606), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {

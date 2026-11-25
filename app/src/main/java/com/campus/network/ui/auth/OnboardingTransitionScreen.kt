@@ -319,6 +319,15 @@ fun OnboardingTransitionScreen(
         label = "CloudDrift"
     )
 
+    var hasCompleted by remember { mutableStateOf(false) }
+
+    fun completeOnce() {
+        if (!hasCompleted) {
+            hasCompleted = true
+            onTransitionComplete()
+        }
+    }
+
     // Sequence Choreography strictly matching the 8 reference frames (>= 8 seconds duration)
     LaunchedEffect(Unit) {
         // --- Frames 0 & 1: Initial Ambient State (0ms to 2400ms = 2.4s) ---
@@ -377,7 +386,7 @@ fun OnboardingTransitionScreen(
 
         // Scene fully closed with soft photographic volumetric cloud banks - hold momentarily
         delay(300)
-        onTransitionComplete()
+        completeOnce()
     }
 
     BoxWithConstraints(
@@ -388,7 +397,7 @@ fun OnboardingTransitionScreen(
                 indication = null
             ) {
                 // Instant bypass tap
-                onTransitionComplete()
+                completeOnce()
             }
     ) {
         val screenWidthPx = with(LocalDensity.current) { maxWidth.toPx() }

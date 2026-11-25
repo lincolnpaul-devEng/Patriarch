@@ -346,6 +346,21 @@ class SupabaseGoogleAuthClient(
             ) {
                 return "Google sign-in was cancelled."
             }
+            if (message.contains("DEVELOPER_ERROR", ignoreCase = true) ||
+                Regex("""\b10:""").containsMatchIn(message)
+            ) {
+                return "Google Sign-In configuration error (code 10). Register this build's SHA-1 fingerprint in Google Cloud Console."
+            }
+            if (message.contains("SIGN_IN_FAILED", ignoreCase = true) ||
+                message.contains("12500", ignoreCase = true)
+            ) {
+                return "Google Sign-In failed (code 12500). Verify Google Play Services and OAuth consent settings, then try again."
+            }
+            if (message.contains("NETWORK_ERROR", ignoreCase = true) ||
+                Regex("""\b7:""").containsMatchIn(message)
+            ) {
+                return "Connection failed. Please check your internet and try again."
+            }
             return message.ifBlank { "Something went wrong. Please try again later." }
         }
     }

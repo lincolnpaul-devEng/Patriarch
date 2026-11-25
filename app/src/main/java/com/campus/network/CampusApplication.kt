@@ -22,16 +22,23 @@ import com.campus.network.core.network.StreamChatEngine
 import com.campus.network.core.network.SupabaseSdkClientProvider
 import com.campus.network.core.network.SupabaseSessionStore
 import com.campus.network.core.network.call.CallMediaProviderRegistry
+import com.campus.network.core.network.call.LiveStreamMediaManager
+import com.campus.network.core.network.call.LiveStreamMediaRegistry
 import com.campus.network.core.network.call.StreamVideoCallMediaProvider
 import com.campus.network.notifications.CampusDeltaSyncWorker
 import com.campus.network.notifications.CampusNotificationPollManager
 import com.campus.network.notifications.SyncRetryWorker
+import com.mapbox.common.MapboxOptions
+import com.mapbox.navigation.base.options.NavigationOptions
+import com.mapbox.navigation.core.lifecycle.MapboxNavigationApp
+import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
+@HiltAndroidApp
 class CampusApplication : Application(), ImageLoaderFactory {
 
     private val applicationScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -80,6 +87,19 @@ class CampusApplication : Application(), ImageLoaderFactory {
         // 2. Initialize AppContainer (owns Room Local Cache + app-scoped repositories)
         container = DefaultAppContainer(this)
 
+        // 2b. Initialize Mapbox runtime token & Navigation v3 lifecycle owner
+        if (BuildConfig.MAPBOX_ACCESS_TOKEN.isNotBlank()) {
+            runCatching {
+                MapboxOptions.accessToken = BuildConfig.MAPBOX_ACCESS_TOKEN
+                if (!MapboxNavigationApp.isSetup()) {
+                    MapboxNavigationApp.setup {
+                        NavigationOptions.Builder(this).build()
+                    }
+                }
+                MapboxNavigationApp.attachAllActivities(this)
+            }
+        }
+
         // 3. Initialize sync watermark store + schedule periodic delta sync worker
         SyncWatermarkStore.initialize(this)
         CampusDeltaSyncWorker.schedule(this)
@@ -103,10 +123,19 @@ class CampusApplication : Application(), ImageLoaderFactory {
             }
         }
 
-        // 7. Stream Video peer A/V — same API key + stream-token edge function as Chat
+        // 7. Stream Video peer A/V & Live Room broadcasts — same API key + stream-token edge function as Chat
         if (BuildConfig.STREAM_API_KEY.isNotBlank()) {
             CallMediaProviderRegistry.install(
                 StreamVideoCallMediaProvider(
+                    appContext = this,
+                    apiKey = BuildConfig.STREAM_API_KEY,
+                    tokenFetcher = { userId ->
+                        SupabaseSdkClientProvider.fetchStreamToken(userId = userId)
+                    }
+                )
+            )
+            LiveStreamMediaRegistry.install(
+                LiveStreamMediaManager(
                     appContext = this,
                     apiKey = BuildConfig.STREAM_API_KEY,
                     tokenFetcher = { userId ->
@@ -126,12 +155,13 @@ class CampusApplication : Application(), ImageLoaderFactory {
                 if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                     caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
                 ) {
-                    // Device came back online — trigger immediate delta sync of all tables
+                    // Device came back online — trigger immediate delta sync of all tables + live realtime reconnect
                     applicationScope.launch {
                         runCatching {
                             DeltaSyncManager.get(context).syncAll()
                         }
                     }
+                    container.liveStreamRealtimeCoordinator.reconnectIfActive()
                     SyncRetryWorker.runNow(context)
                 }
             }

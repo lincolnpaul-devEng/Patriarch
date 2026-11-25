@@ -36,7 +36,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.campus.network.core.data.RendezvousRepository
 import com.campus.network.core.model.StudentProfile
 
 data class RendezvousSpot(
@@ -58,42 +63,43 @@ data class RendezvousSpot(
 @Composable
 fun RendezvousPointsScreen(
     profile: StudentProfile? = null,
+    rendezvousRepository: RendezvousRepository = remember { RendezvousRepository() },
     onBackClick: () -> Unit,
     onSelectSpot: (String) -> Unit = {},
     onShowFeedback: (String) -> Unit = {}
 ) {
-    val residence = profile?.campusResidence?.takeIf { it.isNotBlank() } ?: "Campus Residence (Not set)"
-    val university = profile?.universityName?.takeIf { it.isNotBlank() } ?: "Campus"
-    val preferred = profile?.preferredRendezvousPoint?.takeIf { it.isNotBlank() }
+    val residence = profile?.campusResidence?.trim()?.takeIf { it.isNotBlank() }
+    val preferred = profile?.preferredRendezvousPoint?.trim()?.takeIf { it.isNotBlank() }
+    var remoteSpots by remember { mutableStateOf<List<RendezvousSpot>>(emptyList()) }
 
-    val spots = remember(residence, university) {
-        listOf(
+    LaunchedEffect(rendezvousRepository) {
+        val fetched = rendezvousRepository.getActiveSpots()
+        remoteSpots = fetched.map { spot ->
             RendezvousSpot(
-                id = "spot-dorm",
-                name = residence,
-                description = "Your primary campus residential dorm hall for item deliveries and study meetups.",
-                securityLevel = "Hall Security Desk Verified",
-                isPrimaryDorm = true
-            ),
-            RendezvousSpot(
-                id = "spot-lib",
-                name = "$university Library Ground Floor Lockers",
-                description = "High-traffic safe exchange zone with automated lockers and 24/7 CCTV surveillance.",
-                securityLevel = "CCTV Monitored Safe Zone"
-            ),
-            RendezvousSpot(
-                id = "spot-guild",
-                name = "$university Student Guild Center Foyer",
-                description = "Open cafeteria and peer commerce hub near the student union offices.",
-                securityLevel = "Campus Guard Station Adjacent"
-            ),
-            RendezvousSpot(
-                id = "spot-gate",
-                name = "$university Main Gate Security Pavilion",
-                description = "24/7 manned security check post for external deliveries and verified handoffs.",
-                securityLevel = "24/7 Manned Security Post"
+                id = spot.id.ifBlank { spot.name },
+                name = spot.name,
+                description = spot.description,
+                securityLevel = spot.securityLevel.ifBlank { "Verified Campus Exchange Zone" },
+                isPrimaryDorm = false
             )
-        )
+        }
+    }
+
+    val spots = remember(residence, remoteSpots) {
+        buildList {
+            if (residence != null) {
+                add(
+                    RendezvousSpot(
+                        id = "spot-dorm",
+                        name = residence,
+                        description = "Your campus residence set on your profile for item deliveries and study meetups.",
+                        securityLevel = "Residence Pickup Point",
+                        isPrimaryDorm = true
+                    )
+                )
+            }
+            addAll(remoteSpots)
+        }
     }
 
     Column(
@@ -186,6 +192,38 @@ fun RendezvousPointsScreen(
                                 fontSize = 11.5.sp,
                                 color = Color(0xFF3B82F6),
                                 lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (spots.isEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "No rendezvous points available yet",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Add your campus residence in Profile details or check back once your campus registers official SafeTrade exchange spots.",
+                                fontSize = 12.5.sp,
+                                color = Color(0xFF64748B),
+                                lineHeight = 17.sp
                             )
                         }
                     }
@@ -292,7 +330,6 @@ fun RendezvousPointsScreen(
                             Button(
                                 onClick = {
                                     onSelectSpot(spot.name)
-                                    onShowFeedback("Selected ${spot.name} as preferred rendezvous point")
                                 },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(

@@ -4,6 +4,7 @@ import android.content.Context
 import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.*
 import com.campus.network.core.model.SyncStatus
+import com.campus.network.core.model.stableUserId
 import com.campus.network.core.network.SupabaseSdkClientProvider
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -20,6 +21,8 @@ class DeltaSyncManager private constructor(
     private val flashMeetRepository: FlashMeetRepository,
     private val liveStreamRepository: LiveStreamRepository,
     private val profileRepository: StudentProfileRepository,
+    private val placesRepository: PlacesRepository,
+    private val campusEventsRepository: CampusEventsRepository,
     private val database: CampusDatabase,
     private val supabase: SupabaseClient = SupabaseSdkClientProvider.defaultClient,
     private val watermarkStore: SyncWatermarkStore,
@@ -39,6 +42,8 @@ class DeltaSyncManager private constructor(
                     flashMeetRepository = FlashMeetRepository(database, supabase),
                     liveStreamRepository = LiveStreamRepository(database, supabase),
                     profileRepository = StudentProfileRepository(database, supabase),
+                    placesRepository = PlacesRepository(database, supabase),
+                    campusEventsRepository = CampusEventsRepository(database, supabase),
                     database = database,
                     supabase = supabase,
                     watermarkStore = SyncWatermarkStore.apply { initialize(appContext) }
@@ -55,6 +60,8 @@ class DeltaSyncManager private constructor(
             "campus_market_items" to syncMarketItems(),
             "campus_micro_gigs" to syncMicroGigs(),
             "campus_flash_meets" to syncFlashMeets(),
+            "campus_events" to syncCampusEvents(),
+            "campus_places" to syncCampusPlaces(),
             "campus_live_streams" to syncLiveStreams()
         )
     }
@@ -145,6 +152,20 @@ class DeltaSyncManager private constructor(
         flashMeetRepository.syncRemoteFlashMeets(it)
     }
 
+    private suspend fun syncCampusEvents(): Long = runDelta("campus_events") {
+        val currentId = profileRepository.getProfile().value.stableUserId()
+            .ifBlank { com.campus.network.core.network.SupabaseSessionStore.session()?.optString("user_id").orEmpty() }
+            .ifBlank { null }
+        campusEventsRepository.syncRemoteEvents(currentId)
+    }
+
+    private suspend fun syncCampusPlaces(): Long = runDelta("campus_places") {
+        val currentId = profileRepository.getProfile().value.stableUserId()
+            .ifBlank { com.campus.network.core.network.SupabaseSessionStore.session()?.optString("user_id").orEmpty() }
+            .ifBlank { null }
+        placesRepository.syncPlaces(currentUserId = currentId)
+    }
+
     private suspend fun syncLiveStreams(): Long = runDelta("campus_live_streams") {
         liveStreamRepository.syncRemoteLiveStreams(it)
     }
@@ -213,6 +234,8 @@ class DeltaSyncManager private constructor(
                         campus_residence = row.campusResidence,
                         phone_number = row.phoneNumber,
                         preferred_rendezvous_point = row.preferredRendezvousPoint,
+                        status_note = row.statusNote,
+                        status_note_emoji = row.statusNoteEmoji,
                         notifications_enabled = row.notificationsEnabled,
                         escrow_alerts_enabled = row.escrowAlertsEnabled,
                         quest_reminders_enabled = row.questRemindersEnabled,

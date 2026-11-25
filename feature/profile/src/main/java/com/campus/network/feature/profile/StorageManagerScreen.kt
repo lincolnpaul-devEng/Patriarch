@@ -1,5 +1,7 @@
 package com.campus.network.feature.profile
 
+import com.campus.network.core.model.AccountStorageUsage
+import com.campus.network.core.model.StorageCategoryUsage
 import com.campus.network.core.ui.components.HomescreenPurple
 import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.compose.foundation.BorderStroke
@@ -23,27 +25,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,17 +58,26 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun StorageManagerScreen(
-    initialUsedBytes: Long = 270_000_000L,
-    initialQuotaBytes: Long = 1_073_741_824L,
+    storage: AccountStorageUsage,
+    isLoading: Boolean = false,
     onBackClick: () -> Unit,
+    onRefresh: () -> Unit = {},
+    onClearCache: () -> Unit = {},
+    onUpgradeStorage: () -> Unit = {},
     onShowFeedback: (String) -> Unit = {}
 ) {
-    var usedBytes by remember { mutableLongStateOf(initialUsedBytes) }
-    var quotaBytes by remember { mutableLongStateOf(initialQuotaBytes) }
+    LaunchedEffect(Unit) {
+        onRefresh()
+    }
 
-    val usedMb = usedBytes.toFloat() / (1024f * 1024f)
-    val quotaMb = quotaBytes.toFloat() / (1024f * 1024f)
-    val percentage = (usedBytes.toFloat() / quotaBytes.toFloat()).coerceIn(0f, 1f)
+    val usedBytes = storage.usedBytes
+    val quotaBytes = storage.quotaBytes.takeIf { it > 0L } ?: AccountStorageUsage.DEFAULT_QUOTA_BYTES
+    val quotaGb = quotaBytes.toFloat() / (1024f * 1024f * 1024f)
+    val percentage = if (quotaBytes > 0L) {
+        (usedBytes.toFloat() / quotaBytes.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
 
     val progressColor = when {
         percentage < 0.60f -> Color(0xFF22C55E)
@@ -81,13 +91,21 @@ fun StorageManagerScreen(
         else -> "Storage Critical"
     }
 
+    val categories = storage.categories.ifEmpty {
+        listOf(
+            StorageCategoryUsage("avatar", 0L, 0),
+            StorageCategoryUsage("market", 0L, 0),
+            StorageCategoryUsage("chat_media", 0L, 0),
+            StorageCategoryUsage("server", 0L, 0)
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .background(HomescreenPurple).homescreenDotGrid()
     ) {
-        // Top App Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -119,9 +137,17 @@ fun StorageManagerScreen(
                     color = Color(0xFF0F172A)
                 )
                 Text(
-                    text = "Dedicated 1.0 GB Student Database Tier",
+                    text = "Live usage from your Patriarch account",
                     fontSize = 12.sp,
                     color = Color(0xFF64748B)
+                )
+            }
+
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = Color(0xFF007AFF)
                 )
             }
         }
@@ -131,7 +157,6 @@ fun StorageManagerScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main Storage Gauge Card
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp),
@@ -147,13 +172,13 @@ fun StorageManagerScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "${String.format("%.1f", usedMb)} MB used",
+                                    text = formatStorageSize(usedBytes) + " used",
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFF0F172A)
                                 )
                                 Text(
-                                    text = "Total Quota: ${String.format("%.1f", quotaMb / 1024f)} GB (${(percentage * 100).toInt()}%)",
+                                    text = "Quota: ${String.format("%.1f", quotaGb)} GB (${(percentage * 100).toInt()}%)",
                                     fontSize = 12.5.sp,
                                     color = Color(0xFF64748B)
                                 )
@@ -194,11 +219,7 @@ fun StorageManagerScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Button(
-                                onClick = {
-                                    val freed = 38_500_000L
-                                    usedBytes = (usedBytes - freed).coerceAtLeast(80_000_000L)
-                                    onShowFeedback("Freed 38.5 MB! Offline image & GIF buffers wiped.")
-                                },
+                                onClick = onClearCache,
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
@@ -217,10 +238,7 @@ fun StorageManagerScreen(
                             }
 
                             Button(
-                                onClick = {
-                                    quotaBytes += 1_073_741_824L
-                                    onShowFeedback("Upgraded! Added +1.0 GB to your dedicated quota.")
-                                },
+                                onClick = onUpgradeStorage,
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
@@ -242,7 +260,6 @@ fun StorageManagerScreen(
                 }
             }
 
-            // Category Breakdown
             item {
                 Text(
                     text = "Storage Allocation by Category",
@@ -260,35 +277,18 @@ fun StorageManagerScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        StorageCategoryRow(
-                            icon = Icons.Default.Description,
-                            title = "Lecture Notes & Course PDFs",
-                            subtitle = "48 documents across enrolled units",
-                            sizeText = "142.0 MB"
-                        )
-                        StorageCategoryRow(
-                            icon = Icons.Default.Videocam,
-                            title = "Lab Recordings & Assignments",
-                            subtitle = "6 project presentation videos",
-                            sizeText = "78.4 MB"
-                        )
-                        StorageCategoryRow(
-                            icon = Icons.Default.Image,
-                            title = "Chat Media & High-Res GIFs",
-                            subtitle = "Cached visual stickers and attachments",
-                            sizeText = "38.0 MB"
-                        )
-                        StorageCategoryRow(
-                            icon = Icons.Default.Folder,
-                            title = "Local App Cache & State",
-                            subtitle = "Offline database index buffers",
-                            sizeText = "11.6 MB"
-                        )
+                        categories.forEach { category ->
+                            StorageCategoryRow(
+                                icon = iconForCategory(category.category),
+                                title = category.displayTitle,
+                                subtitle = category.displaySubtitle,
+                                sizeText = formatStorageSize(category.bytes)
+                            )
+                        }
                     }
                 }
             }
 
-            // Data Portability & Archive
             item {
                 Text(
                     text = "Data Sovereignty & Archiving",
@@ -341,6 +341,26 @@ fun StorageManagerScreen(
                 }
             }
         }
+    }
+}
+
+private fun iconForCategory(category: String): ImageVector = when (category) {
+    "avatar" -> Icons.Default.Person
+    "market" -> Icons.Default.Storefront
+    "chat_media" -> Icons.Default.Image
+    "server" -> Icons.Default.Folder
+    "stream" -> Icons.Default.Videocam
+    "document" -> Icons.Default.Description
+    else -> Icons.Default.Folder
+}
+
+internal fun formatStorageSize(bytes: Long): String {
+    val safe = bytes.coerceAtLeast(0L)
+    return when {
+        safe < 1024L -> "$safe B"
+        safe < 1024L * 1024L -> String.format("%.1f KB", safe / 1024.0)
+        safe < 1024L * 1024L * 1024L -> String.format("%.1f MB", safe / (1024.0 * 1024.0))
+        else -> String.format("%.2f GB", safe / (1024.0 * 1024.0 * 1024.0))
     }
 }
 

@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.campus.network.core.ui.theme.AlertRed
 import com.campus.network.core.ui.theme.BrandBlueLight
 import com.campus.network.core.ui.theme.BrandBluePrimary
@@ -84,11 +83,8 @@ fun CampusBottomNavBar(
                             .clickable {
                                 if (currentRoute != screen.route) {
                                     navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
+                                        popUpTo(0) { inclusive = true }
                                         launchSingleTop = true
-                                        restoreState = true
                                     }
                                 }
                             },

@@ -133,6 +133,7 @@ data class MicroGigEntity(
     val syncStatus: String = SyncStatus.SYNCED.name,
     val syncId: String? = null
 )
+
 @Entity(tableName = "live_streams")
 data class LiveStreamEntity(
     @PrimaryKey val id: String,
@@ -183,6 +184,53 @@ data class StreamCommentEntity(
     val senderAvatarRes: Int = 0,
     val commentText: String,
     val timestampEpochMs: Long = System.currentTimeMillis(),
+    val syncStatus: String = SyncStatus.SYNCED.name,
+    val syncId: String? = null
+)
+
+@Entity(tableName = "campus_places")
+data class CampusPlaceEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val subtitle: String,
+    val address: String,
+    val categoryName: String,
+    val neighborhood: String,
+    val campusRegion: String,
+    val description: String,
+    val latitude: Double,
+    val longitude: Double,
+    val savesCount: Int,
+    val rating: Float,
+    val reviewCount: Int,
+    val hoursText: String,
+    val isOpenNow: Boolean,
+    val securityLevel: String,
+    val isVerifiedSafeTrade: Boolean,
+    val hasWifi: Boolean,
+    val hasPowerOutlets: Boolean,
+    val imageUrl: String?
+)
+
+@Entity(tableName = "campus_events")
+data class CampusEventEntity(
+    @PrimaryKey val id: String,
+    val creatorId: String,
+    val title: String,
+    val hostName: String,
+    val description: String,
+    val locationName: String,
+    val fullAddress: String,
+    val latitude: Double,
+    val longitude: Double,
+    val startTimeIso: String,
+    val startTimeEpochMs: Long,
+    val category: String,
+    val priceLabel: String?,
+    val maxCapacity: Int,
+    val attendeeCount: Int,
+    val artworkKey: String,
+    val bannerUrl: String?,
     val syncStatus: String = SyncStatus.SYNCED.name,
     val syncId: String? = null
 )

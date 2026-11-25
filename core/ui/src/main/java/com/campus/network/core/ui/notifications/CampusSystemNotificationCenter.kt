@@ -36,6 +36,7 @@ enum class CampusPushType {
     FLASH_MEET,
     SAFEPAY_ORDER,
     LIVE_STREAM,
+    MARKET_LISTING,
     CAMPUS_UPDATE,
     FRIEND_REQUEST
 }
@@ -60,6 +61,7 @@ sealed interface CampusNotificationDeepLink {
         val callSessionId: String? = null
     ) : CampusNotificationDeepLink
     data class OpenFlashMeetOnMap(val latitude: Double, val longitude: Double, val title: String) : CampusNotificationDeepLink
+    data class OpenSharedLocation(val token: String) : CampusNotificationDeepLink
     data class OpenSafePayMarketplace(val itemId: String?, val orderRef: String?) : CampusNotificationDeepLink
     data class OpenLiveStream(val streamId: String?) : CampusNotificationDeepLink
     data class OpenGuildChannels(val channelId: String?) : CampusNotificationDeepLink
@@ -134,6 +136,13 @@ object CampusSystemNotificationCenter {
      */
     @Volatile
     var activeVisibleThreadId: String? = null
+
+    /**
+     * Tracks the streamId of the Live Stream Watch Room currently open and visible on screen.
+     * When non-null, duplicate notifications for that active stream are suppressed.
+     */
+    @Volatile
+    var activeVisibleStreamId: String? = null
 
     private val threadHistories = ConcurrentHashMap<String, MutableList<QueuedNotificationBubble>>()
     private val threadSenderNames = ConcurrentHashMap<String, String>()
@@ -748,8 +757,8 @@ object CampusSystemNotificationCenter {
         )
 
         val chatSellerIntent = createMainActivityIntent(context).apply {
-            putExtra(EXTRA_PUSH_TYPE, CampusPushType.DIRECT_MESSAGE.name)
-            putExtra(EXTRA_THREAD_ID, "thread_brian")
+            putExtra(EXTRA_PUSH_TYPE, CampusPushType.SAFEPAY_ORDER.name)
+            putExtra(EXTRA_ORDER_REF, orderRef)
             putExtra(EXTRA_PEER_NAME, sellerName)
         }
         val chatSellerPendingIntent = PendingIntent.getActivity(
@@ -801,6 +810,7 @@ object CampusSystemNotificationCenter {
         categoryTag: String = "CAMPUS LIVE"
     ) {
         if (!canPostNotifications(context)) return
+        if (streamId.isNotBlank() && activeVisibleStreamId.equals(streamId, ignoreCase = true)) return
         ensureChannelsCreated(context)
 
         val notificationId = 5000 + (streamId.hashCode().let { if (it < 0) -it else it } % 900)
@@ -840,10 +850,78 @@ object CampusSystemNotificationCenter {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(watchPendingIntent)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
             .addAction(
                 android.R.drawable.ic_media_play,
                 "Watch Live",
                 watchPendingIntent
+            )
+
+        notifySafely(context, notificationId, builder.build())
+    }
+
+    /**
+     * 5b. MARKETPLACE LISTING MATCHED TO SEARCH INTERESTS (`BigTextStyle`)
+     * Tap opens Campus Market focused on the listed item.
+     */
+    fun showMarketListingNotification(
+        context: Context,
+        itemId: String,
+        title: String,
+        sellerName: String,
+        priceLabel: String,
+        category: String = "",
+        isUpdate: Boolean = false
+    ) {
+        if (!canPostNotifications(context)) return
+        ensureChannelsCreated(context)
+
+        val notificationId = 4500 + (itemId.hashCode().let { if (it < 0) -it else it } % 900)
+        val avatar = createCircularAvatarBitmap(
+            sellerName.takeIf { it.isNotBlank() } ?: "M",
+            0xFF007AFF.toInt()
+        )
+        val headline = if (isUpdate) "Market update for you" else "New listing matches your searches"
+        val body = buildString {
+            append(title)
+            if (priceLabel.isNotBlank()) append(" · ").append(priceLabel)
+            if (category.isNotBlank()) append(" · ").append(category)
+            if (sellerName.isNotBlank()) append(" · by ").append(sellerName)
+        }
+
+        val openIntent = createMainActivityIntent(context).apply {
+            putExtra(EXTRA_PUSH_TYPE, CampusPushType.MARKET_LISTING.name)
+            putExtra(EXTRA_ITEM_ID, itemId)
+            putExtra(EXTRA_PEER_NAME, sellerName)
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_SAFEPAY_MARKET)
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setLargeIcon(avatar)
+            .setColor(0xFF007AFF.toInt())
+            .setSubText(if (isUpdate) "Market update" else "Campus Market")
+            .setContentTitle(headline)
+            .setContentText(body)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(body)
+                    .setBigContentTitle(headline)
+                    .setSummaryText(if (category.isNotBlank()) category else "Tap to browse listing")
+            )
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(openPendingIntent)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .addAction(
+                android.R.drawable.ic_menu_view,
+                "View listing",
+                openPendingIntent
             )
 
         notifySafely(context, notificationId, builder.build())
@@ -948,18 +1026,30 @@ object CampusSystemNotificationCenter {
     }
 
     fun emitDeepLinkFromIntent(intent: Intent?) {
+        val dataUri = intent?.data
+        if (dataUri != null &&
+            dataUri.scheme.equals("patriarch", ignoreCase = true) &&
+            dataUri.host.equals("map", ignoreCase = true) &&
+            dataUri.path?.startsWith("/share") == true
+        ) {
+            val token = dataUri.getQueryParameter("tok")?.trim().orEmpty()
+            if (token.isNotBlank()) {
+                _deepLinkFlow.tryEmit(CampusNotificationDeepLink.OpenSharedLocation(token))
+                return
+            }
+        }
         val typeStr = intent?.getStringExtra(EXTRA_PUSH_TYPE) ?: return
         val type = runCatching { CampusPushType.valueOf(typeStr) }.getOrNull() ?: return
 
         val deepLink = when (type) {
             CampusPushType.DIRECT_MESSAGE -> {
-                val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: "thread_mwangi"
-                val peerName = intent.getStringExtra(EXTRA_PEER_NAME) ?: "Prof. Mwangi"
+                val threadId = intent.getStringExtra(EXTRA_THREAD_ID)?.takeIf { it.isNotBlank() } ?: return
+                val peerName = intent.getStringExtra(EXTRA_PEER_NAME).orEmpty()
                 CampusNotificationDeepLink.OpenDirectChat(threadId = threadId, peerName = peerName)
             }
             CampusPushType.INCOMING_CALL -> {
-                val peerId = intent.getStringExtra(EXTRA_THREAD_ID) ?: "thread_faith"
-                val peerName = intent.getStringExtra(EXTRA_PEER_NAME) ?: "Faith Wangari"
+                val peerId = intent.getStringExtra(EXTRA_THREAD_ID)?.takeIf { it.isNotBlank() } ?: return
+                val peerName = intent.getStringExtra(EXTRA_PEER_NAME).orEmpty()
                 val isVideo = intent.getBooleanExtra(EXTRA_IS_VIDEO_CALL, true)
                 val sessionId = intent.getStringExtra(EXTRA_CALL_SESSION_ID)
                 CampusNotificationDeepLink.OpenIncomingCall(
@@ -970,9 +1060,10 @@ object CampusSystemNotificationCenter {
                 )
             }
             CampusPushType.FLASH_MEET -> {
-                val lat = intent.getDoubleExtra(EXTRA_LATITUDE, -1.3094)
-                val lng = intent.getDoubleExtra(EXTRA_LONGITUDE, 36.8122)
-                val title = intent.getStringExtra(EXTRA_MEET_TITLE) ?: "CS Finals Study Sprint"
+                if (!intent.hasExtra(EXTRA_LATITUDE) || !intent.hasExtra(EXTRA_LONGITUDE)) return
+                val lat = intent.getDoubleExtra(EXTRA_LATITUDE, 0.0)
+                val lng = intent.getDoubleExtra(EXTRA_LONGITUDE, 0.0)
+                val title = intent.getStringExtra(EXTRA_MEET_TITLE).orEmpty().ifBlank { "Flash Meet" }
                 CampusNotificationDeepLink.OpenFlashMeetOnMap(latitude = lat, longitude = lng, title = title)
             }
             CampusPushType.SAFEPAY_ORDER -> {
@@ -983,6 +1074,10 @@ object CampusSystemNotificationCenter {
             CampusPushType.LIVE_STREAM -> {
                 val streamId = intent.getStringExtra(EXTRA_STREAM_ID)
                 CampusNotificationDeepLink.OpenLiveStream(streamId = streamId)
+            }
+            CampusPushType.MARKET_LISTING -> {
+                val itemId = intent.getStringExtra(EXTRA_ITEM_ID)
+                CampusNotificationDeepLink.OpenSafePayMarketplace(itemId = itemId, orderRef = null)
             }
             CampusPushType.CAMPUS_UPDATE -> {
                 val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)

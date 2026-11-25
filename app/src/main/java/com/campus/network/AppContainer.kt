@@ -2,11 +2,17 @@ package com.campus.network
 
 import android.content.Context
 import com.campus.network.core.data.AcademicChannelsRepository
+import com.campus.network.core.data.CampusEventsRepository
 import com.campus.network.core.data.CampusHubRepository
+import com.campus.network.core.data.CampusInboxNotifier
 import com.campus.network.core.data.CampusStatsRepository
 import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.FlashMeetRepository
+import com.campus.network.core.data.LiveLocationRepository
+import com.campus.network.core.data.LiveStreamRealtimeCoordinator
 import com.campus.network.core.data.LiveStreamRepository
+import com.campus.network.core.data.MapRealtimeCoordinator
+import com.campus.network.core.data.PlacesRepository
 import com.campus.network.core.data.ServerChannelChatRepository
 import com.campus.network.core.data.ServerRepository
 import com.campus.network.core.data.RendezvousRepository
@@ -29,7 +35,13 @@ interface AppContainer {
     val academicChannelsRepository: AcademicChannelsRepository
     val serverChannelChatRepository: ServerChannelChatRepository
     val flashMeetRepository: FlashMeetRepository
+    val placesRepository: PlacesRepository
+    val campusEventsRepository: CampusEventsRepository
+    val liveLocationRepository: LiveLocationRepository
+    val campusInboxNotifier: CampusInboxNotifier
+    val mapRealtimeCoordinator: MapRealtimeCoordinator
     val liveStreamRepository: LiveStreamRepository
+    val liveStreamRealtimeCoordinator: LiveStreamRealtimeCoordinator
     val deltaSyncManager: DeltaSyncManager
 }
 
@@ -44,7 +56,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override val studentProfileRepository: StudentProfileRepository by lazy {
         StudentProfileRepository(
             database = database,
-            sdkClient = supabaseClient
+            sdkClient = supabaseClient,
+            appContext = context.applicationContext
         )
     }
 
@@ -89,10 +102,52 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         )
     }
 
+    override val placesRepository: PlacesRepository by lazy {
+        PlacesRepository(
+            database = database,
+            supabase = supabaseClient
+        )
+    }
+
+    override val campusEventsRepository: CampusEventsRepository by lazy {
+        CampusEventsRepository(
+            database = database,
+            supabase = supabaseClient
+        )
+    }
+
+    override val liveLocationRepository: LiveLocationRepository by lazy {
+        LiveLocationRepository(
+            supabase = supabaseClient,
+            studentProfileRepository = studentProfileRepository
+        )
+    }
+
+    override val campusInboxNotifier: CampusInboxNotifier by lazy {
+        CampusInboxNotifier(
+            supabase = supabaseClient
+        )
+    }
+
+    override val mapRealtimeCoordinator: MapRealtimeCoordinator by lazy {
+        MapRealtimeCoordinator(
+            liveLocationRepository = liveLocationRepository,
+            flashMeetRepository = flashMeetRepository,
+            campusEventsRepository = campusEventsRepository,
+            placesRepository = placesRepository
+        )
+    }
+
     override val liveStreamRepository: LiveStreamRepository by lazy {
         LiveStreamRepository(
             database = database,
             supabase = supabaseClient
+        )
+    }
+
+    override val liveStreamRealtimeCoordinator: LiveStreamRealtimeCoordinator by lazy {
+        LiveStreamRealtimeCoordinator(
+            liveStreamRepository = liveStreamRepository
         )
     }
 

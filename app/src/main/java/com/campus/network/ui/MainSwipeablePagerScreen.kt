@@ -1,6 +1,7 @@
 package com.campus.network.ui
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
@@ -67,6 +68,10 @@ fun MainSwipeablePagerScreen(
         }
         .toList()
 
+    BackHandler(enabled = pagerState.currentPage != 0) {
+        coroutineScope.launch { pagerState.animateScrollToPage(0) }
+    }
+
     HorizontalPager(
         state = pagerState,
         modifier = modifier.fillMaxSize(),
@@ -82,11 +87,12 @@ fun MainSwipeablePagerScreen(
                     userAvatarUrl = currentProfile?.avatarUrl,
                     campusStats = campusStats,
                     unreadFriendMessages = unreadFriendMessages,
+                    isActivePage = pagerState.currentPage == 0,
                     onNavigateToProfile = {
                         coroutineScope.launch { pagerState.animateScrollToPage(4) }
                     },
                     onNavigateToGoLive = {
-                        navController.navigate(Screen.GoLive.route) {
+                        navController.navigate(Screen.LiveRoom.route) {
                             launchSingleTop = true
                         }
                     },
@@ -100,7 +106,7 @@ fun MainSwipeablePagerScreen(
                         coroutineScope.launch { pagerState.animateScrollToPage(3) }
                     },
                     onNavigateToMarket = {
-                        navController.navigate(Screen.Market.route) {
+                        navController.navigate(Screen.Market.createRoute()) {
                             launchSingleTop = true
                         }
                     }
@@ -112,6 +118,7 @@ fun MainSwipeablePagerScreen(
                 HomescreenBackground {
                     ChannelsScreen(
                         viewModel = channelsViewModel,
+                        isActivePage = pagerState.currentPage == 1,
                         onNavigateToChannelChat = {
                             coroutineScope.launch { pagerState.animateScrollToPage(3) }
                         },
@@ -153,7 +160,21 @@ fun MainSwipeablePagerScreen(
                 HomescreenBackground {
                     MapScreen(
                         viewModel = mapViewModel,
+                        isActivePage = pagerState.currentPage == 2,
+                        hasUnreadNotifications = unreadFriendMessages.isNotEmpty(),
                         onNavigateToMessages = {
+                            coroutineScope.launch { pagerState.animateScrollToPage(3) }
+                        },
+                        onOpenDirectChat = { peerId, peerName ->
+                            if (peerId.isNotBlank()) {
+                                messagesViewModel.onEvent(
+                                    com.campus.network.feature.messages.MessagesEvent.OpenOrCreateDirectChat(
+                                        peerId = peerId,
+                                        peerName = peerName,
+                                        peerHandle = "@${peerId.trim()}"
+                                    )
+                                )
+                            }
                             coroutineScope.launch { pagerState.animateScrollToPage(3) }
                         },
                         onNavigateToProfile = {
@@ -185,6 +206,7 @@ fun MainSwipeablePagerScreen(
                 HomescreenBackground {
                     MessagesScreen(
                         viewModel = messagesViewModel,
+                        isActivePage = pagerState.currentPage == 3,
                         onNavigateBack = {
                             coroutineScope.launch { pagerState.animateScrollToPage(0) }
                         },
@@ -223,6 +245,7 @@ fun MainSwipeablePagerScreen(
                     ProfileScreen(
                         viewModel = profileViewModel,
                         escrowOrdersLoader = escrowOrdersLoader,
+                        isActivePage = pagerState.currentPage == 4,
                         onBackClick = {
                             coroutineScope.launch { pagerState.animateScrollToPage(0) }
                         },

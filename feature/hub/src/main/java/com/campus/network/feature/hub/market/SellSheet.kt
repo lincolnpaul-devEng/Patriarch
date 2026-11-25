@@ -511,7 +511,7 @@ private fun SellItemTab(
             scope.launch {
                 val uploadedUrls = mutableListOf<String>()
                 photoUris.forEach { uri ->
-                    CloudinaryUploader().uploadFromUri(context, uri)
+                    CloudinaryUploader().uploadFromUri(context, uri, category = "market")
                         .onSuccess { uploadedUrls.add(it) }
                         .onFailure { error ->
                             isPublishing = false
@@ -691,7 +691,7 @@ private fun SellGigTab(
             scope.launch {
                 var bannerUrl: String? = null
                 bannerUri?.let { uri ->
-                    CloudinaryUploader().uploadFromUri(context, uri)
+                    CloudinaryUploader().uploadFromUri(context, uri, category = "market")
                         .onSuccess { bannerUrl = it }
                         .onFailure { error ->
                             isPublishing = false

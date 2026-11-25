@@ -73,100 +73,29 @@ import androidx.compose.ui.window.DialogProperties
 import com.campus.network.core.model.CampusPlace
 import com.campus.network.core.model.MeetCategory
 import com.campus.network.core.ui.theme.BrandBluePrimary
+import com.campus.network.feature.map.LiveLocationClient
 import com.campus.network.feature.map.R
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
-import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.rememberCameraPositionState
+import com.campus.network.feature.map.domain.GeoCoordinate
+import com.campus.network.feature.map.ui.mapbox.MapboxVenuePickerMap
+import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
+import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
+import com.mapbox.maps.plugin.animation.MapAnimationOptions
+import com.mapbox.maps.plugin.animation.flyTo
+import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 import java.util.UUID
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
-
-/**
- * Key Campus Landmark Venues for instant pinpoint centering
- */
-data class CampusEventVenuePreset(
-    val id: String,
-    val name: String,
-    val address: String,
-    val latitude: Double,
-    val longitude: Double
-)
-
-private val defaultCampusEventVenues = listOf(
-    CampusEventVenuePreset(
-        id = "venue-hub",
-        name = "Innovation Hub Auditorium",
-        address = "Ground Floor, Innovation Complex, Strathmore",
-        latitude = -1.3078,
-        longitude = 36.8121
-    ),
-    CampusEventVenuePreset(
-        id = "venue-quad",
-        name = "Main Quad Pavilion",
-        address = "Central Campus Spine & Quad Grounds",
-        latitude = -1.3094,
-        longitude = 36.8122
-    ),
-    CampusEventVenuePreset(
-        id = "venue-guild",
-        name = "Student Guild Hub",
-        address = "Guild Pavilion & Student Center",
-        latitude = -1.3082,
-        longitude = 36.8118
-    ),
-    CampusEventVenuePreset(
-        id = "venue-science",
-        name = "Phase 1 Science & Robotics Labs",
-        address = "South Quad Science Complex, Nairobi",
-        latitude = -1.3105,
-        longitude = 36.8115
-    ),
-    CampusEventVenuePreset(
-        id = "venue-library",
-        name = "University Main Library (Level 3)",
-        address = "Central Library Silent Zone & Pods",
-        latitude = -1.3087,
-        longitude = 36.8129
-    ),
-    CampusEventVenuePreset(
-        id = "venue-sports",
-        name = "Sports Complex & Field Pavilion",
-        address = "West Athletic Arena & Sports Field",
-        latitude = -1.3098,
-        longitude = 36.8135
-    )
-)
-
-private fun calculateDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val r = 6371000.0
-    val dLat = Math.toRadians(lat2 - lat1)
-    val dLon = Math.toRadians(lon2 - lon1)
-    val a = sin(dLat / 2) * sin(dLat / 2) +
-            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
-            sin(dLon / 2) * sin(dLon / 2)
-    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return r * c
-}
 
 /**
  * Modern Campus Event & Flash Meet Creation Drawer Sheet:
- * Features an interactive live Google Map review where users can tap anywhere on the campus
- * map to place the exact pin location instead of manually typing location names.
+ * Uses real device GPS coordinates and live reverse-geocoding / tap-to-pin on the Mapbox map.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateEventDrawerSheet(
     prefilledPlace: CampusPlace?,
-    userLocation: LatLng?,
+    userLocation: GeoCoordinate?,
+    locationClient: LiveLocationClient? = null,
     onDismiss: () -> Unit,
     onPublish: (CampusEvent, Boolean, MeetCategory, Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -182,23 +111,57 @@ fun CreateEventDrawerSheet(
     var hostName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
-    // Live Map Selected Coordinates & Resolved Names
+    // Live Map Selected Coordinates & Resolved Names from real GPS / map tap
+    var hasUserPinnedManually by remember { mutableStateOf(prefilledPlace != null) }
     var selectedLat by remember {
-        mutableDoubleStateOf(prefilledPlace?.latitude ?: userLocation?.latitude ?: -1.3078)
+        mutableDoubleStateOf(prefilledPlace?.latitude ?: userLocation?.latitude ?: 0.0)
     }
     var selectedLng by remember {
-        mutableDoubleStateOf(prefilledPlace?.longitude ?: userLocation?.longitude ?: 36.8121)
+        mutableDoubleStateOf(prefilledPlace?.longitude ?: userLocation?.longitude ?: 0.0)
     }
     var locationName by remember {
-        mutableStateOf(prefilledPlace?.name ?: defaultCampusEventVenues[0].name)
+        mutableStateOf(
+            prefilledPlace?.name
+                ?: if (userLocation != null) "Current GPS Location" else "Tap map to select location"
+        )
     }
     var fullAddress by remember {
-        mutableStateOf(prefilledPlace?.address ?: defaultCampusEventVenues[0].address)
+        mutableStateOf(
+            prefilledPlace?.address
+                ?: userLocation?.let { formatCoordinateHemisphere(it.latitude, it.longitude) }
+                ?: "Waiting for GPS or map tap"
+        )
     }
     var isMapFullscreenOpen by remember { mutableStateOf(false) }
 
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(selectedLat, selectedLng), 16.5f)
+    val mapViewportState = rememberMapViewportState {
+        setCameraOptions {
+            center(Point.fromLngLat(selectedLng, selectedLat))
+            zoom(if (selectedLat != 0.0 || selectedLng != 0.0) 16.5 else 2.2)
+        }
+    }
+
+    LaunchedEffect(userLocation?.latitude, userLocation?.longitude) {
+        val loc = userLocation ?: return@LaunchedEffect
+        if (!hasUserPinnedManually) {
+            selectedLat = loc.latitude
+            selectedLng = loc.longitude
+            mapViewportState.flyTo(
+                cameraOptions = CameraOptions.Builder()
+                    .center(Point.fromLngLat(loc.longitude, loc.latitude))
+                    .zoom(16.5)
+                    .build(),
+                animationOptions = MapAnimationOptions.Builder().duration(500L).build()
+            )
+            val geocoded = locationClient?.reverseGeocode(loc.latitude, loc.longitude)
+            if (!geocoded.isNullOrBlank()) {
+                locationName = geocoded.substringBefore(",").trim().ifBlank { "Current Location" }
+                fullAddress = geocoded
+            } else {
+                locationName = "Current GPS Location"
+                fullAddress = formatCoordinateHemisphere(loc.latitude, loc.longitude)
+            }
+        }
     }
 
     // Category Selector
@@ -575,50 +538,9 @@ fun CreateEventDrawerSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Preset Venue Chips for instant centering
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        defaultCampusEventVenues.forEach { preset ->
-                            val isSelected = locationName == preset.name
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) BrandBluePrimary else Color(0xFFF1F5F9),
-                                border = BorderStroke(1.dp, if (isSelected) BrandBluePrimary else Color(0xFFE2E8F0)),
-                                modifier = Modifier.clickable {
-                                    locationName = preset.name
-                                    fullAddress = preset.address
-                                    selectedLat = preset.latitude
-                                    selectedLng = preset.longitude
-                                    scope.launch {
-                                        cameraPositionState.animate(
-                                            CameraUpdateFactory.newLatLngZoom(
-                                                LatLng(preset.latitude, preset.longitude),
-                                                17.2f
-                                            )
-                                        )
-                                    }
-                                }
-                            ) {
-                                Text(
-                                    text = preset.name,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else Color(0xFF334155),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Interactive Google Map Card with Live Tap-to-Pin
+                    // Interactive Mapbox Card with Live Tap-to-Pin & Reverse Geocoding
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.5.dp, BrandBluePrimary),
@@ -627,57 +549,29 @@ fun CreateEventDrawerSheet(
                             .height(220.dp)
                     ) {
                         Box(modifier = Modifier.fillMaxSize()) {
-                            GoogleMap(
-                                modifier = Modifier.fillMaxSize(),
-                                cameraPositionState = cameraPositionState,
-                                properties = MapProperties(isMyLocationEnabled = false),
-                                uiSettings = MapUiSettings(
-                                    zoomControlsEnabled = false,
-                                    compassEnabled = true,
-                                    mapToolbarEnabled = false
-                                ),
-                                onMapClick = { latLng ->
-                                    selectedLat = latLng.latitude
-                                    selectedLng = latLng.longitude
-
-                                    // Automatic nearest campus landmark resolution
-                                    val nearest = defaultCampusEventVenues.minByOrNull {
-                                        calculateDistanceMeters(latLng.latitude, latLng.longitude, it.latitude, it.longitude)
+                            MapboxVenuePickerMap(
+                                selectedLat = selectedLat,
+                                selectedLng = selectedLng,
+                                selectedTitle = locationName,
+                                presetVenues = emptyList(),
+                                viewportState = mapViewportState,
+                                onMapClick = { tapLat, tapLng ->
+                                    hasUserPinnedManually = true
+                                    selectedLat = tapLat
+                                    selectedLng = tapLng
+                                    locationName = "Location (%.4f, %.4f)".format(tapLat, tapLng)
+                                    fullAddress = formatCoordinateHemisphere(tapLat, tapLng)
+                                    scope.launch {
+                                        val geocoded = locationClient?.reverseGeocode(tapLat, tapLng)
+                                        if (!geocoded.isNullOrBlank()) {
+                                            locationName = geocoded.substringBefore(",").trim().ifBlank { locationName }
+                                            fullAddress = geocoded
+                                        }
                                     }
-                                    if (nearest != null && calculateDistanceMeters(latLng.latitude, latLng.longitude, nearest.latitude, nearest.longitude) < 80) {
-                                        locationName = nearest.name
-                                        fullAddress = nearest.address
-                                    } else {
-                                        locationName = "Campus Spot (%.4f, %.4f)".format(latLng.latitude, latLng.longitude)
-                                        fullAddress = "Pinned Coordinates on Campus Grounds"
-                                    }
-                                }
-                            ) {
-                                // Pinned Event Location Marker
-                                Marker(
-                                    state = MarkerState(position = LatLng(selectedLat, selectedLng)),
-                                    title = locationName,
-                                    snippet = "Event Venue (Tap map to move pin)"
-                                )
-
-                                // Other landmark guide points
-                                defaultCampusEventVenues.forEach { preset ->
-                                    if (preset.latitude != selectedLat || preset.longitude != selectedLng) {
-                                        Marker(
-                                            state = MarkerState(position = LatLng(preset.latitude, preset.longitude)),
-                                            title = preset.name,
-                                            alpha = 0.65f,
-                                            onClick = {
-                                                locationName = preset.name
-                                                fullAddress = preset.address
-                                                selectedLat = preset.latitude
-                                                selectedLng = preset.longitude
-                                                true
-                                            }
-                                        )
-                                    }
-                                }
-                            }
+                                },
+                                onPresetPinClick = { _, _, _ -> },
+                                modifier = Modifier.fillMaxSize()
+                            )
 
                             // Top Map Badge (Coordinates & Fullscreen Expand button)
                             Row(
@@ -693,7 +587,7 @@ fun CreateEventDrawerSheet(
                                     color = Color.Black.copy(alpha = 0.75f)
                                 ) {
                                     Text(
-                                        text = "%.4f° S, %.4f° E".format(selectedLat, selectedLng),
+                                        text = formatCoordinateHemisphere(selectedLat, selectedLng),
                                         fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
@@ -922,21 +816,34 @@ fun CreateEventDrawerSheet(
                 Button(
                     onClick = {
                         if (title.isNotBlank()) {
-                            val resolvedLocName = if (locationName.isNotBlank()) locationName else "Campus Quad Grounds"
-                            val resolvedAddress = if (fullAddress.isNotBlank()) fullAddress else "Central Campus Spine, Strathmore"
-                            val resolvedTimingText = if (isQuickFlashMeet) "Live Now (${durationMinutes}m left)" else selectedTiming
+                            val resolvedLocName = if (locationName.isNotBlank()) locationName else "Campus Hub"
+                            val resolvedAddress = if (fullAddress.isNotBlank()) fullAddress else formatCoordinateHemisphere(selectedLat, selectedLng)
+                            val computedStartIso = if (isQuickFlashMeet) {
+                                java.time.Instant.now().toString()
+                            } else {
+                                computePresetStartTimeIso(selectedTiming)
+                            }
+                            val resolvedTimingText = if (isQuickFlashMeet) {
+                                "Live Now (${durationMinutes}m left)"
+                            } else {
+                                formatEventDateTime(computedStartIso)
+                            }
+                            val artworkKey = artworkKeyForRes(selectedArtworkRes)
 
                             val newEvent = CampusEvent(
                                 id = "evt_${UUID.randomUUID()}",
                                 title = title.trim(),
-                                hostName = hostName,
+                                hostName = hostName.trim(),
                                 hostAvatarRes = 0,
                                 artworkRes = selectedArtworkRes,
+                                artworkKey = artworkKey,
                                 dateTimeFormatted = resolvedTimingText,
+                                startTimeIso = computedStartIso,
                                 locationName = resolvedLocName,
                                 fullAddress = resolvedAddress,
                                 statusBadge = EventBadgeType.GOING,
                                 priceLabel = selectedPrice,
+                                maxCapacity = selectedCapacity,
                                 isFeatured = false,
                                 featuredLabel = null,
                                 description = description.ifBlank { "Live student event organized on Campus Network. Check in with peers upon arrival." },
@@ -1000,55 +907,36 @@ fun CreateEventDrawerSheet(
                 color = Color.White
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    val fullCameraPositionState = rememberCameraPositionState {
-                        position = CameraPosition.fromLatLngZoom(LatLng(selectedLat, selectedLng), 17.5f)
+                    val fullViewportState = rememberMapViewportState {
+                        setCameraOptions {
+                            center(Point.fromLngLat(selectedLng, selectedLat))
+                            zoom(17.5)
+                        }
                     }
 
-                    GoogleMap(
-                        modifier = Modifier.fillMaxSize(),
-                        cameraPositionState = fullCameraPositionState,
-                        properties = MapProperties(isMyLocationEnabled = false),
-                        uiSettings = MapUiSettings(
-                            zoomControlsEnabled = true,
-                            compassEnabled = true,
-                            myLocationButtonEnabled = false
-                        ),
-                        onMapClick = { latLng ->
-                            selectedLat = latLng.latitude
-                            selectedLng = latLng.longitude
-                            val nearest = defaultCampusEventVenues.minByOrNull {
-                                calculateDistanceMeters(latLng.latitude, latLng.longitude, it.latitude, it.longitude)
-                            }
-                            if (nearest != null && calculateDistanceMeters(latLng.latitude, latLng.longitude, nearest.latitude, nearest.longitude) < 80) {
-                                locationName = nearest.name
-                                fullAddress = nearest.address
-                            } else {
-                                locationName = "Campus Spot (%.4f, %.4f)".format(latLng.latitude, latLng.longitude)
-                                fullAddress = "Pinned Coordinates on Campus Grounds"
-                            }
-                        }
-                    ) {
-                        Marker(
-                            state = MarkerState(position = LatLng(selectedLat, selectedLng)),
-                            title = locationName,
-                            snippet = "Event Venue (Tap to move pin)"
-                        )
-
-                        defaultCampusEventVenues.forEach { preset ->
-                            Marker(
-                                state = MarkerState(position = LatLng(preset.latitude, preset.longitude)),
-                                title = preset.name,
-                                alpha = 0.7f,
-                                onClick = {
-                                    locationName = preset.name
-                                    fullAddress = preset.address
-                                    selectedLat = preset.latitude
-                                    selectedLng = preset.longitude
-                                    true
+                    MapboxVenuePickerMap(
+                        selectedLat = selectedLat,
+                        selectedLng = selectedLng,
+                        selectedTitle = locationName,
+                        presetVenues = emptyList(),
+                        viewportState = fullViewportState,
+                        onMapClick = { tapLat, tapLng ->
+                            hasUserPinnedManually = true
+                            selectedLat = tapLat
+                            selectedLng = tapLng
+                            locationName = "Location (%.4f, %.4f)".format(tapLat, tapLng)
+                            fullAddress = formatCoordinateHemisphere(tapLat, tapLng)
+                            scope.launch {
+                                val geocoded = locationClient?.reverseGeocode(tapLat, tapLng)
+                                if (!geocoded.isNullOrBlank()) {
+                                    locationName = geocoded.substringBefore(",").trim().ifBlank { locationName }
+                                    fullAddress = geocoded
                                 }
-                            )
-                        }
-                    }
+                            }
+                        },
+                        onPresetPinClick = { _, _, _ -> },
+                        modifier = Modifier.fillMaxSize()
+                    )
 
                     // Top Bar for Fullscreen Map
                     Surface(

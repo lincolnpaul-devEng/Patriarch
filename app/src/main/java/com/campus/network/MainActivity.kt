@@ -14,16 +14,12 @@ import com.campus.network.core.ui.notifications.CampusSystemNotificationCenter
 import com.campus.network.core.ui.theme.CampusNetworkTheme
 import com.campus.network.notifications.CampusNotificationPollManager
 import com.campus.network.ui.MainAppScreen
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!BuildConfig.DEBUG) {
-            window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE
-            )
-        }
         enableEdgeToEdge()
 
         CampusSystemNotificationCenter.ensureChannelsCreated(this)
@@ -51,11 +47,17 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         CampusNotificationPollManager.resumeForegroundPolling(this)
+        val container = (application as CampusApplication).container
+        container.liveStreamRealtimeCoordinator.resumeIfStarted()
+        container.mapRealtimeCoordinator.resumeIfStarted()
     }
 
     override fun onStop() {
         super.onStop()
         CampusNotificationPollManager.pauseForegroundPolling()
+        val container = (application as CampusApplication).container
+        container.liveStreamRealtimeCoordinator.pause()
+        container.mapRealtimeCoordinator.pause()
     }
 
     override fun onNewIntent(intent: Intent) {

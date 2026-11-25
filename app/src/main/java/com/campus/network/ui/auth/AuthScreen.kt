@@ -223,7 +223,10 @@ fun AuthScreen(
             handleGoogleAccountAuthenticated(account)
         } catch (e: ApiException) {
             isLoading = false
-            if (e.statusCode != 12501 && result.resultCode != Activity.RESULT_CANCELED) {
+            val isUserCancelled = e.statusCode == 12501 ||
+                e.statusCode == 16 ||
+                (result.data == null && result.resultCode == Activity.RESULT_CANCELED)
+            if (!isUserCancelled) {
                 showFeedback(SupabaseGoogleAuthClient.getFriendlyErrorMessage(e), isError = true)
             }
         }

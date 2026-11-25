@@ -538,8 +538,28 @@ class ServerRepository(
         role: ServerMemberRole,
         roleTitle: String,
         roleColorHex: Long
-    ) = withContext(ioDispatcher) {
-        memberDao.updateMemberRole(serverId, userId, role.name, roleTitle, roleColorHex)
+    ): Result<Unit> = withContext(ioDispatcher) {
+        val cleanMemberId = userId.trim().removePrefix("mem_").removeSuffix("_$serverId")
+        val remoteId = "${serverId}:${cleanMemberId}"
+        val remoteResult = runCatching {
+            supabase.from("server_members").update(
+                mapOf(
+                    "role" to role.name,
+                    "role_title" to roleTitle,
+                    "role_color_hex" to roleColorHex
+                )
+            ) {
+                filter { eq("id", remoteId) }
+            }
+        }
+        if (remoteResult.isSuccess) {
+            memberDao.updateMemberRole(serverId, cleanMemberId, role.name, roleTitle, roleColorHex)
+            Result.success(Unit)
+        } else {
+            Result.failure(
+                remoteResult.exceptionOrNull() ?: IllegalStateException("Could not update member role on the remote database.")
+            )
+        }
     }
 
     // ==========================================
@@ -865,13 +885,50 @@ class ServerRepository(
         Result.success(if (newWatermark > sinceMs) newWatermark else System.currentTimeMillis())
     }
 
-    suspend fun removeMember(serverId: String, userId: String) = withContext(ioDispatcher) {
-        memberDao.removeMember(serverId, userId)
-        runCatching {
-            val memberId = "${serverId}:${userId}"
+    suspend fun removeMember(serverId: String, userId: String): Result<Unit> = withContext(ioDispatcher) {
+        val memberId = "${serverId}:${userId.trim()}"
+        val remoteResult = runCatching {
             supabase.from("server_members").delete {
                 filter { eq("id", memberId) }
             }
+        }
+        if (remoteResult.isSuccess) {
+            memberDao.removeMember(serverId, userId)
+            Result.success(Unit)
+        } else {
+            Result.failure(
+                remoteResult.exceptionOrNull() ?: IllegalStateException("Could not leave server on the remote database.")
+            )
+        }
+    }
+
+    suspend fun savePerServerProfile(
+        serverId: String,
+        userId: String,
+        nickname: String,
+        tag: String,
+        tagColorHex: Long,
+        roleTitle: String = "Member"
+    ): Result<Unit> = withContext(ioDispatcher) {
+        val cleanServerId = serverId.trim()
+        val cleanUserId = userId.trim()
+        if (cleanServerId.isBlank() || cleanUserId.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Sign in to update your server profile."))
+        }
+        runCatching {
+            supabase.from("per_server_profiles").upsert(
+                mapOf(
+                    "id" to "${cleanServerId}:${cleanUserId}",
+                    "server_id" to cleanServerId,
+                    "user_id" to cleanUserId,
+                    "nickname" to nickname.trim(),
+                    "tag" to tag.trim(),
+                    "tag_color_hex" to tagColorHex,
+                    "role_title" to roleTitle
+                ),
+                onConflict = "id"
+            )
+            Unit
         }
     }
 
@@ -1141,6 +1198,36 @@ class ServerRepository(
         val existing = friendDao.getFriendRelationshipSync(cleanSender, cleanFriend)
         val now = System.currentTimeMillis()
 
+        // Mirror both sides to Supabase first before confirming locally
+        val outbound = FriendRow(
+            id = id,
+            user_id = cleanSender,
+            friend_user_id = cleanFriend,
+            friend_display_name = friendDisplayName,
+            friend_handle = "",
+            friend_avatar_res_name = "",
+            status = FriendStatus.PENDING_SENT.name,
+            last_interaction_epoch_ms = now
+        )
+        val inbound = FriendRow(
+            id = reverseId,
+            user_id = cleanFriend,
+            friend_user_id = cleanSender,
+            friend_display_name = senderDisplayName,
+            friend_handle = "",
+            friend_avatar_res_name = "",
+            status = FriendStatus.PENDING_RECEIVED.name,
+            last_interaction_epoch_ms = now
+        )
+
+        val resOut = runCatching { supabase.from("campus_friends").upsert(outbound) }
+        val resIn = runCatching { supabase.from("campus_friends").upsert(inbound) }
+        if (resOut.isFailure || resIn.isFailure) {
+            val err = resOut.exceptionOrNull() ?: resIn.exceptionOrNull()
+            android.util.Log.e("ServerRepository", "campus_friends upsert failed: ${err?.message}")
+            throw err ?: IllegalStateException("Could not send friend request to the remote database.")
+        }
+
         if (existing == null) {
             val relationship = FriendRelationship(
                 id = id,
@@ -1164,35 +1251,7 @@ class ServerRepository(
             )
         }
 
-        // Mirror both sides to Supabase so the recipient device can see PENDING_RECEIVED
         runCatching {
-            val outbound = FriendRow(
-                id = id,
-                user_id = cleanSender,
-                friend_user_id = cleanFriend,
-                friend_display_name = friendDisplayName,
-                friend_handle = "",
-                friend_avatar_res_name = "",
-                status = FriendStatus.PENDING_SENT.name,
-                last_interaction_epoch_ms = now
-            )
-            val inbound = FriendRow(
-                id = reverseId,
-                user_id = cleanFriend,
-                friend_user_id = cleanSender,
-                friend_display_name = senderDisplayName,
-                friend_handle = "",
-                friend_avatar_res_name = "",
-                status = FriendStatus.PENDING_RECEIVED.name,
-                last_interaction_epoch_ms = now
-            )
-
-            val resOut = runCatching { supabase.from("campus_friends").upsert(outbound) }
-            val resIn = runCatching { supabase.from("campus_friends").upsert(inbound) }
-            if (resOut.isFailure || resIn.isFailure) {
-                android.util.Log.e("ServerRepository", "campus_friends upsert failed: out=${resOut.exceptionOrNull()?.message}, in=${resIn.exceptionOrNull()?.message}")
-            }
-
             CampusInboxNotifier(supabase).notifyFriendRequest(
                 recipientUserId = cleanFriend,
                 senderUserId = cleanSender,
@@ -1222,6 +1281,33 @@ class ServerRepository(
         val now = System.currentTimeMillis()
         val dmId = "dm_${minOf(cleanUser, cleanFriend)}_${maxOf(cleanUser, cleanFriend)}"
 
+        val remoteResult = runCatching {
+            supabase.from("campus_friends").update(
+                mapOf(
+                    "status" to FriendStatus.FRIENDS.name,
+                    "dm_channel_id" to dmId,
+                    "last_interaction_epoch_ms" to now,
+                    "friend_display_name" to friendDisplayName
+                )
+            ) {
+                filter { eq("id", id) }
+            }
+            supabase.from("campus_friends").update(
+                mapOf(
+                    "status" to FriendStatus.FRIENDS.name,
+                    "dm_channel_id" to dmId,
+                    "last_interaction_epoch_ms" to now,
+                    "friend_display_name" to userDisplayName
+                )
+            ) {
+                filter { eq("id", reverseId) }
+            }
+        }
+        if (remoteResult.isFailure) {
+            throw remoteResult.exceptionOrNull()
+                ?: IllegalStateException("Could not confirm friendship on the remote database.")
+        }
+
         val existing = friendDao.getFriendRelationshipSync(cleanUser, cleanFriend)
         if (existing != null) {
             friendDao.insertFriend(
@@ -1249,26 +1335,6 @@ class ServerRepository(
         }
 
         runCatching {
-            supabase.from("campus_friends").update(
-                mapOf(
-                    "status" to FriendStatus.FRIENDS.name,
-                    "dm_channel_id" to dmId,
-                    "last_interaction_epoch_ms" to now,
-                    "friend_display_name" to friendDisplayName
-                )
-            ) {
-                filter { eq("id", id) }
-            }
-            supabase.from("campus_friends").update(
-                mapOf(
-                    "status" to FriendStatus.FRIENDS.name,
-                    "dm_channel_id" to dmId,
-                    "last_interaction_epoch_ms" to now,
-                    "friend_display_name" to userDisplayName
-                )
-            ) {
-                filter { eq("id", reverseId) }
-            }
             CampusInboxNotifier(supabase).notifyFriendRequestAccepted(
                 recipientUserId = cleanFriend,
                 actorUserId = cleanUser
@@ -1280,16 +1346,16 @@ class ServerRepository(
     suspend fun declineOrRemoveFriend(
         userId: String,
         friendUserId: String
-    ) = withContext(ioDispatcher) {
+    ): Result<Unit> = withContext(ioDispatcher) {
         val cleanUser = userId.trim()
         val cleanFriend = friendUserId.trim()
-        if (cleanUser.isBlank() || cleanFriend.isBlank()) return@withContext
+        if (cleanUser.isBlank() || cleanFriend.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Invalid user IDs"))
+        }
 
         val id = "$cleanUser:$cleanFriend"
         val reverseId = "$cleanFriend:$cleanUser"
-        friendDao.deleteFriendRelationship(id)
-        friendDao.deleteFriendRelationship(reverseId)
-        runCatching {
+        val remoteResult = runCatching {
             supabase.from("campus_friends").delete {
                 filter { eq("id", id) }
             }
@@ -1297,6 +1363,15 @@ class ServerRepository(
                 filter { eq("id", reverseId) }
             }
         }
+        if (remoteResult.isFailure) {
+            return@withContext Result.failure(
+                remoteResult.exceptionOrNull()
+                    ?: IllegalStateException("Could not remove friend request on the remote database.")
+            )
+        }
+        friendDao.deleteFriendRelationship(id)
+        friendDao.deleteFriendRelationship(reverseId)
+        Result.success(Unit)
     }
 
     suspend fun getOrCreateDmChannelId(

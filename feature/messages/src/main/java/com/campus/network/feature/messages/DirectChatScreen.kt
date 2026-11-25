@@ -146,6 +146,7 @@ fun DirectChatScreen(
     messages: List<DirectMessageItem>,
     isSettlementDialogOpen: Boolean,
     onEvent: (MessagesEvent) -> Unit,
+    isActivePage: Boolean = true,
     initialActivateVoice: Boolean = false,
     onConsumeVoiceActivation: () -> Unit = {},
     /** Real unread across other threads — shown on back only when > 0. */
@@ -197,7 +198,7 @@ fun DirectChatScreen(
         }
     }
 
-    BackHandler(enabled = isEmojiDrawerOpen || isVoiceRecordingActive) {
+    BackHandler(enabled = isActivePage && (isEmojiDrawerOpen || isVoiceRecordingActive)) {
         if (isVoiceRecordingActive) {
             transcriber.cancel()
             isVoiceRecordingActive = false

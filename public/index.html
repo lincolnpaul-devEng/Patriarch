@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Campus Network APK</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F6F4FB;
+      --card-bg: #FFFFFF;
+      --ink: #17171A;
+      --purple: #A969FE;
+      --purple-dark: #8247D8;
+      --accent: #ECE56B;
+      --muted: #64748B;
+      --border: #E2E8F0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 28px;
+      padding: 36px 28px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(169, 105, 254, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--border);
+    }
+    .app-icon {
+      width: 88px;
+      height: 88px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 10px 20px rgba(169, 105, 254, 0.3);
+      color: white;
+      font-size: 38px;
+      font-weight: 800;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .badges {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+    .badge {
+      background: #F1F5F9;
+      color: #334155;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: var(--ink);
+      color: white;
+      text-decoration: none;
+      padding: 16px 24px;
+      border-radius: 20px;
+      font-size: 16px;
+      font-weight: 700;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 18px rgba(23, 23, 26, 0.2);
+      width: 100%;
+    }
+    .btn-download:hover {
+      background: #2D2D32;
+      transform: translateY(-1px);
+    }
+    .btn-download svg {
+      width: 22px;
+      height: 22px;
+    }
+    .qr-section {
+      margin-top: 28px;
+      padding-top: 24px;
+      border-top: 1px dashed var(--border);
+    }
+    .qr-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .qr-code {
+      width: 130px;
+      height: 130px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 8px;
+      background: white;
+      margin: 0 auto;
+    }
+    .instructions {
+      margin-top: 24px;
+      text-align: left;
+      background: #FAF8FE;
+      border: 1px solid #EBE4FB;
+      border-radius: 16px;
+      padding: 16px;
+      font-size: 12px;
+      color: #475569;
+    }
+    .instructions strong {
+      color: var(--ink);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .instructions ol {
+      padding-left: 18px;
+      line-height: 1.6;
+    }
+    footer {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="app-icon">C</div>
+    <h1>Campus Network</h1>
+    <p class="subtitle">Peer-to-peer campus marketplace, safe escrow ordering &amp; real-time community channels.</p>
+    
+    <div class="badges">
+      <span class="badge">v1.0.0</span>
+      <span class="badge">Android 8.0+</span>
+      <span class="badge">~108 MB</span>
+    </div>
+
+    <a href="/campus.apk" class="btn-download" download="campus.apk">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Download Campus APK
+    </a>
+
+    <div class="qr-section">
+      <div class="qr-label">Scan to download directly on phone</div>
+      <img id="qr-img" class="qr-code" alt="Scan to download" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://modified-silo-476908-b3.web.app/campus.apk">
+    </div>
+
+    <div class="instructions">
+      <strong>Installation Instructions:</strong>
+      <ol>
+        <li>Tap <b>Download Campus APK</b> above.</li>
+        <li>If Android prompts <em>"File might be harmful"</em>, tap <b>Download anyway</b>.</li>
+        <li>Open the downloaded file and tap <b>Install</b> (enable <em>"Install unknown apps"</em> if requested).</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>Campus Network &bull; Verified Build</footer>
+
+  <script>
+    // Auto-update QR code URL to point to current host
+    const currentHost = window.location.origin;
+    const downloadUrl = currentHost + '/campus.apk';
+    const qrImg = document.getElementById('qr-img');
+    if (qrImg) {
+      qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(downloadUrl);
+    }
+  </script>
+</body>
+</html>

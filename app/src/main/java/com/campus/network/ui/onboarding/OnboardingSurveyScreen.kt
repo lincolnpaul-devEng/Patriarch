@@ -155,9 +155,9 @@ fun OnboardingSurveyScreen(
     var selectedCountryCode by remember { mutableStateOf(initialPrefs.countryCode.ifBlank { "KE" }) }
     var selectedCountryName by remember { mutableStateOf(initialPrefs.countryName.ifBlank { "Kenya" }) }
     var selectedCurrencyCode by remember { mutableStateOf(initialPrefs.currencyCode.ifBlank { "KES" }) }
-    var selectedRegion by remember { mutableStateOf(initialPrefs.regionName.ifBlank { "Nairobi" }) }
-    var selectedUniversityName by remember { mutableStateOf(initialPrefs.universityName.ifBlank { "Strathmore University" }) }
-    var selectedUniversityDomain by remember { mutableStateOf(initialPrefs.universityDomain.ifBlank { "strathmore.edu" }) }
+    var selectedRegion by remember { mutableStateOf(initialPrefs.regionName) }
+    var selectedUniversityName by remember { mutableStateOf(initialPrefs.universityName) }
+    var selectedUniversityDomain by remember { mutableStateOf(initialPrefs.universityDomain) }
     var isCustomUniversity by remember { mutableStateOf(initialPrefs.isCustomUniversity) }
     var isVerifiedStudentEmail by remember { mutableStateOf(initialPrefs.isVerifiedStudentEmail) }
 
@@ -246,19 +246,17 @@ fun OnboardingSurveyScreen(
             val result = studentProfileRepository.saveOnboardingPreferences(completedPrefs)
             result.fold(
                 onSuccess = {
-                    if (studentProfileRepository.getProfileSync()?.syncStatus == "PENDING") {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Survey saved on this device. Upload is pending.",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
+                    val synced = studentProfileRepository.getProfileSync()?.syncStatus == "SYNCED"
+                    if (synced) {
+                        onSurveyCompleted()
+                    } else {
+                        saveError = "Your survey could not be synchronized to the remote database. Please check your internet connection and tap Continue to retry."
+                        isSaving = false
                     }
-                    com.campus.network.notifications.SyncRetryWorker.runNow(context)
-                    onSurveyCompleted()
                 },
                 onFailure = { error ->
                     saveError = error.localizedMessage
-                        ?: "Your survey could not be synchronized. Select Continue to retry."
+                        ?: "Your survey could not be synchronized to the remote database. Please check your internet connection and tap Continue to retry."
                     isSaving = false
                 }
             )

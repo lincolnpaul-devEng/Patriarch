@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Event
@@ -34,8 +35,8 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.ShareLocation
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,10 +82,13 @@ val AmberPinDot = Color(0xFFF59E0B)
  */
 @Composable
 fun MapTopControls(
-    onAddFriendClick: () -> Unit,
+    onFlashMeetClick: () -> Unit,
+    onShareLocationClick: () -> Unit,
     onMessagesClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onEventsClick: () -> Unit = {},
+    isSharingLocation: Boolean = false,
+    hasUnreadNotifications: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -95,7 +99,7 @@ fun MapTopControls(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left: Profile / Add Friend Frosted Pill
+        // Left: Host Flash Meet / Radar Pin trigger
         Surface(
             modifier = Modifier.size(46.dp),
             shape = CircleShape,
@@ -103,10 +107,10 @@ fun MapTopControls(
             shadowElevation = 6.dp,
             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f))
         ) {
-            IconButton(onClick = onAddFriendClick) {
+            IconButton(onClick = onFlashMeetClick) {
                 Icon(
-                    imageVector = Icons.Default.PersonAdd,
-                    contentDescription = "Add Friends",
+                    imageVector = Icons.Default.AddLocationAlt,
+                    contentDescription = "Host Flash Meet",
                     tint = Color(0xFF0F172A),
                     modifier = Modifier.size(20.dp)
                 )
@@ -143,7 +147,7 @@ fun MapTopControls(
             }
         }
 
-        // Right: Dual Pill (Send + Bell with unread dot)
+        // Right: Live Share Location + Direct Messages + Bell
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White.copy(alpha = 0.95f),
@@ -154,11 +158,11 @@ fun MapTopControls(
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onMessagesClick, modifier = Modifier.size(38.dp)) {
+                IconButton(onClick = onShareLocationClick, modifier = Modifier.size(36.dp)) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Direct Messages",
-                        tint = Color(0xFF0F172A),
+                        imageVector = Icons.Default.ShareLocation,
+                        contentDescription = "Share Live Location",
+                        tint = if (isSharingLocation) EmeraldLiveGreen else Color(0xFF0F172A),
                         modifier = Modifier.size(19.dp)
                     )
                 }
@@ -170,25 +174,42 @@ fun MapTopControls(
                         .background(Color(0xFFE2E8F0))
                 )
 
-                Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                    IconButton(onClick = onNotificationsClick, modifier = Modifier.size(38.dp)) {
+                IconButton(onClick = onMessagesClick, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Direct Messages",
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(18.dp)
+                        .background(Color(0xFFE2E8F0))
+                )
+
+                Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = onNotificationsClick, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Notifications,
                             contentDescription = "Notifications",
                             tint = Color(0xFF0F172A),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
-                    // Active Green/Red Dot Indicator
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 8.dp, end = 9.dp)
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF22C55E))
-                    )
+                    if (hasUnreadNotifications) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 7.dp, end = 8.dp)
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF22C55E))
+                        )
+                    }
                 }
             }
         }
@@ -204,6 +225,7 @@ fun MapFilterRow(
     audienceFilter: AudienceFilter,
     isOpenNowOnly: Boolean,
     selectedRegion: String = "All Hubs",
+    availableRegions: List<String> = listOf("All Hubs"),
     onAudienceSelected: (AudienceFilter) -> Unit,
     onToggleOpenNow: () -> Unit,
     onRegionSelected: (String) -> Unit = {},
@@ -266,7 +288,7 @@ fun MapFilterRow(
                     expanded = isRegionMenuOpen,
                     onDismissRequest = { isRegionMenuOpen = false }
                 ) {
-                    listOf("All Hubs", "Nairobi", "Mombasa", "Kisumu").forEach { region ->
+                    availableRegions.forEach { region ->
                         DropdownMenuItem(
                             text = { Text(region, fontWeight = FontWeight.Medium, fontSize = 13.sp) },
                             onClick = {

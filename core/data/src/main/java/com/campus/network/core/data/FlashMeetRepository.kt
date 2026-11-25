@@ -4,19 +4,38 @@ import com.campus.network.core.database.CampusDatabase
 import com.campus.network.core.database.entity.FlashMeetEntity
 import com.campus.network.core.model.FlashMeet
 import com.campus.network.core.model.MeetCategory
+import com.campus.network.core.model.SyncStatus
 import com.campus.network.core.model.isRealProfileDisplayName
+import com.campus.network.core.network.RealtimeEventType
+import com.campus.network.core.network.SupabaseRealtimeChange
 import com.campus.network.core.network.SupabaseSdkClientProvider
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 
 @Serializable
 data class FlashMeetRow(
@@ -50,9 +69,32 @@ data class EventRow(
     val attendee_count: Int = 0
 )
 
+@Serializable
+data class FlashMeetAttendeeRow(
+    val meet_id: String = "",
+    val user_id: String = "",
+    val joined_at_epoch_ms: Long = 0L
+)
+
+@Serializable
+private data class ToggleFlashMeetAttendanceParams(
+    val p_meet_id: String
+)
+
+@Serializable
+private data class EndFlashMeetParams(
+    val p_meet_id: String
+)
+
+private val flashMeetRealtimeJson = Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+    isLenient = true
+}
+
 /**
  * Repository for Tab 1: Map (Flash-Meet and Campus Events Interface).
- * Enforces online-first remote persistence with Room local caching.
+ * Enforces online-first remote persistence with Room local caching and Supabase Realtime.
  */
 class FlashMeetRepository(
     private val database: CampusDatabase,
@@ -62,13 +104,27 @@ class FlashMeetRepository(
     private val dao = database.flashMeetDao()
     private val profileNameResolver = SupabaseProfileNameResolver(supabase)
 
+    private val _joinedMeetIds = MutableStateFlow<Set<String>>(emptySet())
+    val joinedMeetIds: StateFlow<Set<String>> = _joinedMeetIds.asStateFlow()
+
     /**
-     * Emits live meets continuously on the IO thread.
+     * Emits live non-expired meets continuously on the IO thread, re-evaluating expiry every 15s.
      */
     fun getActiveFlashMeets(): Flow<List<FlashMeet>> {
-        return dao.getLiveMeets(System.currentTimeMillis())
-            .map { entities -> entities.map { it.toDomain() } }
-            .flowOn(ioDispatcher)
+        val expiryTickerFlow = flow {
+            emit(System.currentTimeMillis())
+            while (currentCoroutineContext().isActive) {
+                delay(EXPIRY_TICK_MS)
+                val now = System.currentTimeMillis()
+                runCatching { dao.purgeExpired(now) }
+                emit(now)
+            }
+        }
+        return combine(dao.getLiveMeets(0L), expiryTickerFlow) { entities, now ->
+            entities
+                .filter { it.expiresAtEpochMs > now }
+                .map { it.toDomain() }
+        }.flowOn(ioDispatcher)
     }
 
     /**
@@ -110,7 +166,7 @@ class FlashMeetRepository(
             expiresAtEpochMs = expiry,
             attendeeCount = 1,
             maxAttendees = 6,
-            syncStatus = com.campus.network.core.model.SyncStatus.PENDING.name,
+            syncStatus = SyncStatus.PENDING.name,
             syncId = syncId
         )
         dao.insertMeets(listOf(pendingEntity))
@@ -137,15 +193,129 @@ class FlashMeetRepository(
         }
 
         val syncStatus = if (remoteResult.isSuccess) {
-            com.campus.network.core.model.SyncStatus.SYNCED
+            SyncStatus.SYNCED
         } else {
-            com.campus.network.core.model.SyncStatus.FAILED
+            SyncStatus.FAILED
         }
         val finalEntity = pendingEntity.copy(syncStatus = syncStatus.name)
         dao.insertMeets(listOf(finalEntity))
         dao.purgeExpired(now)
 
         return@withContext finalEntity.toDomain()
+    }
+
+    suspend fun toggleAttendance(meetId: String): Result<Pair<Boolean, Int>> = withContext(ioDispatcher) {
+        runCatching {
+            val resultObj = supabase.postgrest.rpc(
+                "toggle_flash_meet_attendance",
+                ToggleFlashMeetAttendanceParams(p_meet_id = meetId)
+            ).decodeAs<JsonObject>()
+
+            val isJoined = (resultObj["is_joined"] as? JsonPrimitive)?.booleanOrNull ?: false
+            val attendeeCount = (resultObj["attendee_count"] as? JsonPrimitive)?.intOrNull ?: 1
+
+            _joinedMeetIds.update { current ->
+                if (isJoined) current + meetId else current - meetId
+            }
+            dao.updateAttendeeCount(meetId, attendeeCount)
+            isJoined to attendeeCount
+        }
+    }
+
+    suspend fun syncJoinedMeetIds(currentUserId: String?): Result<Set<String>> = withContext(ioDispatcher) {
+        val cleanId = currentUserId?.trim().orEmpty()
+        if (cleanId.isBlank()) {
+            return@withContext Result.success(emptySet())
+        }
+        runCatching {
+            val rows: List<FlashMeetAttendeeRow> = supabase.from("campus_flash_meet_attendees")
+                .select(columns = Columns.ALL) {
+                    filter { eq("user_id", cleanId) }
+                    limit(100)
+                }
+                .decodeList()
+            val joined = rows.map { it.meet_id }.toSet()
+            _joinedMeetIds.value = joined
+            joined
+        }
+    }
+
+    suspend fun endFlashMeet(meetId: String): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            supabase.postgrest.rpc(
+                "end_flash_meet",
+                EndFlashMeetParams(p_meet_id = meetId)
+            )
+            dao.deleteMeetById(meetId)
+            _joinedMeetIds.update { it - meetId }
+            Unit
+        }
+    }
+
+    suspend fun applyRealtimeChange(
+        change: SupabaseRealtimeChange,
+        currentUserId: String? = null
+    ): Unit = withContext(ioDispatcher) {
+        when (change.table.lowercase()) {
+            "campus_flash_meets" -> handleFlashMeetChange(change)
+            "campus_flash_meet_attendees" -> {
+                syncJoinedMeetIds(currentUserId)
+                Unit
+            }
+            else -> Unit
+        }
+    }
+
+    private suspend fun handleFlashMeetChange(change: SupabaseRealtimeChange) {
+        if (change.eventType == RealtimeEventType.DELETE) {
+            val deletedId = extractJsonField(change.oldRecordJson, "id") ?: return
+            dao.deleteMeetById(deletedId)
+            return
+        }
+        val jsonStr = change.recordJson ?: return
+        val row = runCatching {
+            flashMeetRealtimeJson.decodeFromString<FlashMeetRow>(jsonStr)
+        }.getOrNull() ?: return
+        if (row.id.isBlank()) return
+
+        val now = System.currentTimeMillis()
+        if (row.expires_at_epoch_ms <= now) {
+            dao.deleteMeetById(row.id)
+            return
+        }
+
+        val resolvedName = runCatching {
+            profileNameResolver.resolve(listOf(row.creator_id))[row.creator_id.lowercase()]
+        }.getOrNull().orEmpty().ifBlank { row.creator_name }
+
+        dao.insertMeets(
+            listOf(
+                FlashMeetEntity(
+                    id = row.id,
+                    title = row.title,
+                    description = row.description,
+                    categoryName = row.category_name.ifBlank { MeetCategory.STUDY_JAM.name },
+                    latitude = row.latitude,
+                    longitude = row.longitude,
+                    locationName = row.location_name,
+                    creatorUserId = row.creator_id,
+                    creatorName = resolvedName,
+                    creatorAvatar = row.creator_avatar,
+                    createdAtEpochMs = row.created_at_epoch_ms,
+                    expiresAtEpochMs = row.expires_at_epoch_ms,
+                    attendeeCount = row.attendee_count,
+                    maxAttendees = row.max_attendees
+                )
+            )
+        )
+    }
+
+    private fun extractJsonField(jsonStr: String?, key: String): String? {
+        if (jsonStr.isNullOrBlank()) return null
+        val obj = runCatching {
+            flashMeetRealtimeJson.parseToJsonElement(jsonStr) as? JsonObject
+        }.getOrNull() ?: return null
+        return (obj[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
     }
 
     /**
@@ -206,7 +376,7 @@ class FlashMeetRepository(
             var newWatermark = sinceMs
             val creatorNames = try {
                 profileNameResolver.resolve(rows.map { it.creator_id })
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 emptyMap<String, String>()
             }
 
@@ -233,6 +403,7 @@ class FlashMeetRepository(
             if (entities.isNotEmpty()) {
                 dao.insertMeets(entities)
             }
+            dao.purgeExpired(now)
             if (sinceMs == 0L) {
                 val remoteIds = entities.map { it.id }
                 if (remoteIds.isNotEmpty()) {
@@ -243,5 +414,9 @@ class FlashMeetRepository(
             }
             newWatermark
         }
+    }
+
+    companion object {
+        private const val EXPIRY_TICK_MS = 15_000L
     }
 }

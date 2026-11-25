@@ -2,6 +2,7 @@ package com.campus.network.feature.channels
 
 import com.campus.network.core.ui.components.HomescreenBackground
 import com.campus.network.core.ui.components.HomescreenPurple
+import com.campus.network.core.ui.components.homescreenDotGrid
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
@@ -136,6 +137,7 @@ private val SectionDividerBg = SurfaceSubtle
 @Composable
 fun ChannelsScreen(
     viewModel: ChannelsViewModel,
+    isActivePage: Boolean = true,
     onNavigateToChannelChat: (String) -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
@@ -149,11 +151,21 @@ fun ChannelsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Android back navigation per view mode
-    BackHandler(enabled = uiState.viewMode != ChannelViewMode.CHANNELS_HUB) {
-        viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
+    BackHandler(
+        enabled = isActivePage && (
+            uiState.viewMode != ChannelViewMode.CHANNELS_HUB ||
+                uiState.isServerProfileDrawerOpen ||
+                uiState.selectedMemberForProfile != null
+            )
+    ) {
+        if (uiState.selectedMemberForProfile != null) {
+            viewModel.onEvent(ChannelsEvent.CloseMemberProfile)
+        } else {
+            viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
+        }
     }
 
-    BackHandler(enabled = uiState.previewServer != null) {
+    BackHandler(enabled = isActivePage && uiState.previewServer != null) {
         viewModel.onEvent(ChannelsEvent.ExitServerPreview)
     }
 
@@ -168,7 +180,7 @@ fun ChannelsScreen(
         }
     }
 
-    HomescreenBackground(modifier = modifier) {
+    Box(modifier = modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = uiState.viewMode,
             transitionSpec = {
@@ -192,6 +204,7 @@ fun ChannelsScreen(
                     ChannelChatScreen(
                         uiState = uiState,
                         viewModel = viewModel,
+                        isActivePage = isActivePage,
                         onBackClick = {
                             viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
                         },
@@ -205,6 +218,7 @@ fun ChannelsScreen(
                     ChannelProfileScreen(
                         uiState = uiState,
                         viewModel = viewModel,
+                        isActivePage = isActivePage,
                         onBackClick = {
                             viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
                         }
@@ -229,7 +243,8 @@ fun ChannelsScreen(
                 }
 
                 ChannelViewMode.STUDENT_PROFILE -> {
-                    uiState.selectedStudentForProfile?.let { student ->
+                    val student = uiState.selectedStudentForProfile
+                    if (student != null) {
                         IndividualStudentProfileScreen(
                             student = student,
                             isLiked = uiState.likedStudentIds.contains(student.id),
@@ -244,6 +259,10 @@ fun ChannelsScreen(
                                 onNavigateToChannelChat(channelId)
                             }
                         )
+                    } else {
+                        LaunchedEffect(Unit) {
+                            viewModel.onEvent(ChannelsEvent.BackToPreviousMode)
+                        }
                     }
                 }
             }
@@ -940,7 +959,12 @@ private fun ServerDetailsPanel(
     }
     val isBannerUrl = server.bannerResName?.startsWith("http") == true
 
-    HomescreenBackground(modifier = modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(HomescreenPurple)
+            .homescreenDotGrid()
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

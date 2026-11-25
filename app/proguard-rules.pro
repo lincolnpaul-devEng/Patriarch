@@ -1,8 +1,6 @@
 # ---- Aggressive R8 hardening (release) ----
 -allowaccessmodification
 -repackageclasses ''
--overloadaggressively
--optimizationpasses 5
 -renamesourcefileattribute ''
 # Drop source/line metadata so stack traces and decompiled output carry no file names.
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions

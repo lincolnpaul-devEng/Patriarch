@@ -279,7 +279,34 @@ fun StatCardsRow(
     onCardClick: ((UnreadFriendMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    if (cards.isEmpty()) return
+    if (cards.isEmpty()) {
+        Box(
+            modifier = modifier
+                .offset(x = 0.dp, y = 574.dp)
+                .size(width = 393.dp, height = 206.dp)
+                .padding(horizontal = 12.dp, vertical = 24.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(White),
+                contentAlignment = Alignment.Center
+            ) {
+                DText(
+                    text = "NO NEW MESSAGES YET",
+                    size = 16f,
+                    color = Ink.copy(alpha = 0.45f),
+                    strokeEm = 0.02f,
+                    lineHeight = 16f,
+                    align = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            }
+        }
+        return
+    }
+
     val scrollState = rememberScrollState()
 
     Row(

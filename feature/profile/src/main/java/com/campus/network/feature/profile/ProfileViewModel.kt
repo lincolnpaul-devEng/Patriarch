@@ -5,13 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.campus.network.core.data.DeltaSyncManager
 import com.campus.network.core.data.StudentProfileRepository
+import com.campus.network.core.model.AccountStorageUsage
 import com.campus.network.core.model.StudentProfile
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -19,7 +19,9 @@ import kotlinx.coroutines.launch
 
 data class ProfileUiState(
     val profile: StudentProfile? = null,
+    val storage: AccountStorageUsage = AccountStorageUsage.Empty,
     val isLoading: Boolean = false,
+    val isStorageLoading: Boolean = false,
     val isDeletingAccount: Boolean = false,
     val isAccountDeleted: Boolean = false,
     val deletionProgress: Float = 0f,
@@ -42,6 +44,7 @@ sealed interface ProfileEvent {
         val avatarUrl: String? = null
     ) : ProfileEvent
     data class UpdateAvatar(val avatarUrl: String) : ProfileEvent
+    data class SelectRendezvousPoint(val spotName: String) : ProfileEvent
     data class AddProfile(val profile: StudentProfile) : ProfileEvent
     data class SwitchProfile(val studentId: String) : ProfileEvent
     data class UpdateNotifications(
@@ -56,6 +59,7 @@ sealed interface ProfileEvent {
     ) : ProfileEvent
     data object ClearCache : ProfileEvent
     data object UpgradeStorage : ProfileEvent
+    data object RefreshStorage : ProfileEvent
     data class DeleteAccount(val reason: String) : ProfileEvent
     data class DepositWallet(val amount: Double) : ProfileEvent
     data class WithdrawWallet(val amount: Double) : ProfileEvent
@@ -77,17 +81,39 @@ class ProfileViewModel(
     private val _isAccountDeleted = MutableStateFlow(false)
     private val _deletionProgress = MutableStateFlow(0f)
     private val _deletionStageText = MutableStateFlow("")
+    private val _isStorageLoading = MutableStateFlow(false)
 
     val uiState: StateFlow<ProfileUiState> = combine(
         repository.getProfile(),
+        repository.accountStorage,
+        _isStorageLoading,
         _isDeletingAccount,
         _isAccountDeleted,
         _deletionProgress,
         _deletionStageText
-    ) { profile, isDeleting, isDeleted, progress, stageText ->
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val profile = values[0] as StudentProfile
+        val storage = values[1] as AccountStorageUsage
+        val isStorageLoading = values[2] as Boolean
+        val isDeleting = values[3] as Boolean
+        val isDeleted = values[4] as Boolean
+        val progress = values[5] as Float
+        val stageText = values[6] as String
+        val resolvedStorage = if (storage.quotaBytes > 0L || storage.usedBytes > 0L || storage.categories.isNotEmpty()) {
+            storage
+        } else {
+            AccountStorageUsage(
+                usedBytes = profile.storageUsedBytes,
+                quotaBytes = profile.storageQuotaBytes.takeIf { it > 0L }
+                    ?: AccountStorageUsage.DEFAULT_QUOTA_BYTES
+            )
+        }
         ProfileUiState(
             profile = profile,
+            storage = resolvedStorage,
             isLoading = false,
+            isStorageLoading = isStorageLoading,
             isDeletingAccount = isDeleting,
             isAccountDeleted = isDeleted,
             deletionProgress = progress,
@@ -99,29 +125,31 @@ class ProfileViewModel(
         initialValue = ProfileUiState(isLoading = true)
     )
 
+    init {
+        viewModelScope.launch {
+            refreshStorageInternal()
+        }
+    }
+
     fun onEvent(event: ProfileEvent) {
         viewModelScope.launch {
             when (event) {
                 is ProfileEvent.ClaimQuest -> {
-                    repository.completeQuest(event.questId)
-                    _userMessage.emit("Quest rewards claimed!")
+                    val result = repository.completeQuest(event.questId)
+                    _userMessage.emit(
+                        saveFeedback(result, "Quest rewards claimed!", "Could not claim quest rewards")
+                    )
                 }
                 is ProfileEvent.SetStatusNote -> {
                     val result = repository.setStatusNote(event.note, event.emoji, event.expiry)
-                    result.fold(
-                        onSuccess = { _userMessage.emit("Status note updated") },
-                        onFailure = { error ->
-                            _userMessage.emit("Failed to update status note: ${error.localizedMessage ?: "Network error"}")
-                        }
+                    _userMessage.emit(
+                        saveFeedback(result, "Status note updated", "Could not update status note")
                     )
                 }
                 is ProfileEvent.ClearStatusNote -> {
                     val result = repository.clearStatusNote()
-                    result.fold(
-                        onSuccess = { _userMessage.emit("Status note cleared") },
-                        onFailure = { error ->
-                            _userMessage.emit("Failed to clear status note: ${error.localizedMessage ?: "Network error"}")
-                        }
+                    _userMessage.emit(
+                        saveFeedback(result, "Status note cleared", "Could not clear status note")
                     )
                 }
                 is ProfileEvent.UpdateProfile -> {
@@ -136,19 +164,37 @@ class ProfileViewModel(
                         interests = event.interests,
                         avatarUrl = event.avatarUrl
                     )
-                    _userMessage.emit(saveFeedback(result, "Profile details and image saved successfully"))
+                    _userMessage.emit(saveFeedback(result, "Profile details and image saved successfully", "Could not save profile changes"))
                 }
                 is ProfileEvent.UpdateAvatar -> {
                     val res = repository.updateAvatar(event.avatarUrl)
-                    _userMessage.emit(saveFeedback(res, "Profile avatar updated successfully", "Failed to save avatar"))
+                    _userMessage.emit(saveFeedback(res, "Profile avatar updated successfully", "Could not save avatar"))
+                }
+                is ProfileEvent.SelectRendezvousPoint -> {
+                    val res = repository.setPreferredRendezvousPoint(event.spotName)
+                    _userMessage.emit(
+                        saveFeedback(
+                            res,
+                            "Selected ${event.spotName} as preferred rendezvous point",
+                            "Could not update preferred rendezvous point"
+                        )
+                    )
                 }
                 is ProfileEvent.AddProfile -> {
-                    repository.addProfile(event.profile)
-                    _userMessage.emit("Added secondary student persona: ${event.profile.personaRole}")
+                    val res = repository.addProfile(event.profile)
+                    _userMessage.emit(
+                        saveFeedback(
+                            res,
+                            "Added secondary student persona: ${event.profile.personaRole}",
+                            "Could not save secondary student persona"
+                        )
+                    )
                 }
                 is ProfileEvent.SwitchProfile -> {
-                    repository.switchProfile(event.studentId)
-                    _userMessage.emit("Switched active persona")
+                    val res = repository.switchProfile(event.studentId)
+                    _userMessage.emit(
+                        saveFeedback(res, "Switched active persona", "Could not switch active persona")
+                    )
                 }
                 is ProfileEvent.UpdateNotifications -> {
                     val result = repository.updateNotificationSettings(
@@ -169,11 +215,30 @@ class ProfileViewModel(
                 is ProfileEvent.ClearCache -> {
                     val freed = repository.clearCache()
                     val freedMb = String.format("%.1f", freed / (1024f * 1024f))
-                    _userMessage.emit("Freed $freedMb MB of local temporary cached media")
+                    if (freed > 0L) {
+                        _userMessage.emit("Cleared ${freedMb} MB of on-device cache. Cloud storage usage is unchanged.")
+                    } else {
+                        _userMessage.emit("No local cache to clear. Cloud storage usage is unchanged.")
+                    }
                 }
                 is ProfileEvent.UpgradeStorage -> {
-                    repository.upgradeStorage()
-                    _userMessage.emit("Upgraded storage by +1 GB! New Quota: 2 GB")
+                    val result = repository.upgradeStorage()
+                    result.fold(
+                        onSuccess = { usage ->
+                            val quotaGb = usage.quotaBytes.toFloat() / (1024f * 1024f * 1024f)
+                            _userMessage.emit(
+                                "Upgraded storage by +1 GB. New quota: ${String.format("%.1f", quotaGb)} GB"
+                            )
+                        },
+                        onFailure = { error ->
+                            _userMessage.emit(
+                                "Storage upgrade failed: ${error.localizedMessage ?: "try again later"}"
+                            )
+                        }
+                    )
+                }
+                is ProfileEvent.RefreshStorage -> {
+                    refreshStorageInternal()
                 }
                 is ProfileEvent.DeleteAccount -> {
                     _isDeletingAccount.value = true
@@ -216,28 +281,37 @@ class ProfileViewModel(
                     }
                 }
                 is ProfileEvent.DepositWallet -> {
-                    val success = repository.depositToWallet(event.amount)
-                    if (success) {
-                        _userMessage.emit("Successfully deposited KES ${String.format("%.2f", event.amount)} to wallet")
-                    } else {
-                        _userMessage.emit("Deposit failed: invalid amount")
-                    }
+                    val result = repository.depositToWallet(event.amount)
+                    result.fold(
+                        onSuccess = {
+                            _userMessage.emit("Successfully deposited KES ${String.format("%.2f", event.amount)} to wallet")
+                        },
+                        onFailure = { err ->
+                            _userMessage.emit(err.localizedMessage ?: "Deposit could not be confirmed with the server.")
+                        }
+                    )
                 }
                 is ProfileEvent.WithdrawWallet -> {
-                    val success = repository.withdrawFromWallet(event.amount)
-                    if (success) {
-                        _userMessage.emit("Successfully withdrawn KES ${String.format("%.2f", event.amount)} to M-Pesa")
-                    } else {
-                        _userMessage.emit("Withdrawal failed: insufficient available balance")
-                    }
+                    val result = repository.withdrawFromWallet(event.amount)
+                    result.fold(
+                        onSuccess = {
+                            _userMessage.emit("Successfully withdrawn KES ${String.format("%.2f", event.amount)} to M-Pesa")
+                        },
+                        onFailure = { err ->
+                            _userMessage.emit(err.localizedMessage ?: "Withdrawal could not be confirmed with the server.")
+                        }
+                    )
                 }
                 is ProfileEvent.ReleaseVault -> {
-                    val success = repository.releaseVaultAmount(event.amount)
-                    if (success) {
-                        _userMessage.emit("Released KES ${String.format("%.2f", event.amount)} from SafePay Vault to wallet")
-                    } else {
-                        _userMessage.emit("Failed to release vault funds")
-                    }
+                    val result = repository.releaseVaultAmount(event.amount)
+                    result.fold(
+                        onSuccess = {
+                            _userMessage.emit("Released KES ${String.format("%.2f", event.amount)} from SafePay Vault to wallet")
+                        },
+                        onFailure = { err ->
+                            _userMessage.emit(err.localizedMessage ?: "Could not release vault funds.")
+                        }
+                    )
                 }
                 is ProfileEvent.SignOut -> {
                     _isDeletingAccount.value = false
@@ -258,6 +332,17 @@ class ProfileViewModel(
         _deletionStageText.value = ""
     }
 
+    private suspend fun refreshStorageInternal() {
+        _isStorageLoading.value = true
+        val result = repository.refreshAccountStorage()
+        _isStorageLoading.value = false
+        result.onFailure { error ->
+            _userMessage.emit(
+                "Could not refresh storage usage: ${error.localizedMessage ?: "network error"}"
+            )
+        }
+    }
+
     suspend fun retryFailedUploads() {
         repository.markFailedWritesPending()
         _userMessage.emit("Retry queued. Profile upload will resume when connected.")
@@ -266,18 +351,18 @@ class ProfileViewModel(
     private suspend fun saveFeedback(
         result: Result<Unit>,
         successMessage: String,
-        failureMessage: String = "Save failed"
+        failureMessage: String = "Could not save changes"
     ): String {
         val profile = repository.getProfileSync()
-        return when (profile?.syncStatus) {
-            "PENDING" -> "Saved on this device; upload pending."
-            "FAILED" -> "Saved on this device but sync failed. Tap to Retry."
-            else -> result.fold(
-                onSuccess = { successMessage },
-                onFailure = { error ->
-                    "$failureMessage: ${error.localizedMessage ?: "Please try again."}"
-                }
-            )
+        val syncStatus = profile?.syncStatus
+        if (result.isSuccess && syncStatus == "SYNCED") {
+            return successMessage
+        }
+        val errText = result.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
+        return when (syncStatus) {
+            "PENDING" -> "$failureMessage: Could not reach the remote database. Please check your internet connection and tap to retry. Tap to Retry."
+            "FAILED" -> "$failureMessage: ${errText ?: "The server rejected the update."} Tap to Retry."
+            else -> "$failureMessage: ${errText ?: "Please check your connection and try again."}"
         }
     }
 

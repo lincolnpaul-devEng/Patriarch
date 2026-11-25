@@ -123,6 +123,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.campus.network.core.model.AccountStorageUsage
 import com.campus.network.core.model.ConsistencyQuest
 import com.campus.network.core.model.StudentProfile
 import com.campus.network.core.model.isRealProfileDisplayName
@@ -163,6 +164,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit = {},
     onRetrySync: () -> Unit = {},
     escrowOrdersLoader: suspend () -> List<com.campus.network.core.model.EscrowOrder> = { emptyList() },
+    isActivePage: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -200,7 +202,7 @@ fun ProfileScreen(
         }
     }
 
-    BackHandler(enabled = activeSubScreen != ProfileSubScreen.NONE) {
+    BackHandler(enabled = isActivePage && activeSubScreen != ProfileSubScreen.NONE) {
         activeSubScreen = ProfileSubScreen.NONE
     }
 
@@ -266,14 +268,25 @@ fun ProfileScreen(
             return
         }
         ProfileSubScreen.STORAGE_MANAGER -> {
-            StorageManagerScreen(
-                initialUsedBytes = profile?.storageUsedBytes ?: 0L,
-                initialQuotaBytes = profile?.storageQuotaBytes ?: 1_073_741_824L,
-                onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
-                onShowFeedback = { msg ->
-                    scope.launch { snackbarHostState.showSnackbar(msg) }
-                }
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                StorageManagerScreen(
+                    storage = uiState.storage,
+                    isLoading = uiState.isStorageLoading,
+                    onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
+                    onRefresh = { viewModel.onEvent(ProfileEvent.RefreshStorage) },
+                    onClearCache = { viewModel.onEvent(ProfileEvent.ClearCache) },
+                    onUpgradeStorage = { viewModel.onEvent(ProfileEvent.UpgradeStorage) },
+                    onShowFeedback = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    }
+                )
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                )
+            }
             return
         }
         ProfileSubScreen.ACADEMIC_PORTFOLIO -> {
@@ -295,21 +308,7 @@ fun ProfileScreen(
                 profile = profile,
                 onBackClick = { activeSubScreen = ProfileSubScreen.NONE },
                 onSelectSpot = { spotName ->
-                    if (profile != null) {
-                        viewModel.onEvent(
-                            ProfileEvent.UpdateProfile(
-                                fullName = profile.fullName,
-                                universityName = profile.universityName,
-                                degreeProgram = profile.degreeProgram,
-                                academicYear = profile.academicYear,
-                                campusResidence = profile.campusResidence,
-                                phoneNumber = profile.phoneNumber,
-                                bio = profile.bio,
-                                interests = profile.interests,
-                                avatarUrl = profile.avatarUrl
-                            )
-                        )
-                    }
+                    viewModel.onEvent(ProfileEvent.SelectRendezvousPoint(spotName))
                 },
                 onShowFeedback = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -425,6 +424,19 @@ fun ProfileScreen(
             }
 
             // -------------------------------------------------------------
+            // 2b. Mascot Mood & Vibe Check Card (interactive mascot status)
+            // -------------------------------------------------------------
+            item {
+                com.campus.network.core.ui.components.TodayVibeCard(
+                    onClick = {
+                        com.campus.network.core.ui.components.MoodCheckIn.openNow(
+                            com.campus.network.core.ui.components.MoodSource.PROFILE
+                        )
+                    }
+                )
+            }
+
+            // -------------------------------------------------------------
             // 3. Quick Action Cards (Favourites & Money)
             // -------------------------------------------------------------
             item {
@@ -529,8 +541,10 @@ fun ProfileScreen(
             // -------------------------------------------------------------
             item {
                 ProfileStorageCard(
-                    usedBytes = profile?.storageUsedBytes ?: 0L,
-                    quotaBytes = profile?.storageQuotaBytes ?: 1_073_741_824L,
+                    usedBytes = uiState.storage.usedBytes,
+                    quotaBytes = uiState.storage.quotaBytes.takeIf { it > 0L }
+                        ?: AccountStorageUsage.DEFAULT_QUOTA_BYTES,
+                    isLoading = uiState.isStorageLoading,
                     onClearCache = { viewModel.onEvent(ProfileEvent.ClearCache) },
                     onUpgradeStorage = { activeSubScreen = ProfileSubScreen.STORAGE_MANAGER }
                 )
@@ -1375,12 +1389,12 @@ private fun LuxuryGoldProfileCard(
 private fun ProfileStorageCard(
     usedBytes: Long,
     quotaBytes: Long,
+    isLoading: Boolean = false,
     onClearCache: () -> Unit,
     onUpgradeStorage: () -> Unit
 ) {
-    val usedMb = usedBytes.toFloat() / (1024f * 1024f)
-    val quotaMb = quotaBytes.toFloat() / (1024f * 1024f)
     val percentage = if (quotaBytes > 0) (usedBytes.toFloat() / quotaBytes.toFloat()).coerceIn(0f, 1f) else 0f
+    val quotaGb = quotaBytes.toFloat() / (1024f * 1024f * 1024f)
 
     // Color code at every level:
     // Green (Safe: < 60%)
@@ -1436,7 +1450,7 @@ private fun ProfileStorageCard(
                             color = Color(0xFF0F172A)
                         )
                         Text(
-                            text = "Allocated per student database tier",
+                            text = if (isLoading) "Syncing live account usage..." else "Live usage from your Patriarch account",
                             fontSize = 11.5.sp,
                             color = Color(0xFF64748B)
                         )
@@ -1467,13 +1481,13 @@ private fun ProfileStorageCard(
                 verticalAlignment = Alignment.Bottom
             ) {
                 Text(
-                    text = String.format("%.1f MB used", usedMb),
+                    text = if (isLoading) "Refreshing usage..." else "${formatStorageSize(usedBytes)} used",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF1E293B)
                 )
                 Text(
-                    text = String.format("Quota: %.1f GB (%.0f%%)", quotaMb / 1024f, percentage * 100f),
+                    text = String.format("Quota: %.1f GB (%.0f%%)", quotaGb, percentage * 100f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF64748B)
@@ -1858,7 +1872,8 @@ private fun EditProfileDrawerSheet(
                             isUploadingAvatar = true
                             avatarUploadError = null
                             uploadScope.launch {
-                                val result = com.campus.network.core.network.CloudinaryUploader().uploadFromUri(context, uri)
+                                val result = com.campus.network.core.network.CloudinaryUploader()
+                                    .uploadFromUri(context, uri, category = "avatar")
                                 isUploadingAvatar = false
                                 if (result.isSuccess) {
                                     avatarUrl = result.getOrThrow()

@@ -156,6 +156,7 @@ fun ChannelChatScreen(
     viewModel: ChannelsViewModel,
     onBackClick: () -> Unit,
     onChannelProfileClick: () -> Unit,
+    isActivePage: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -205,7 +206,7 @@ fun ChannelChatScreen(
         }
     }
 
-    BackHandler {
+    BackHandler(enabled = isActivePage) {
         if (isVoiceRecordingActive) {
             transcriber.cancel()
             isVoiceRecordingActive = false
@@ -542,7 +543,7 @@ fun ChannelChatScreen(
                                 var hasError = false
                                 var errorMessage = ""
                                 for (uri in mediaToSend) {
-                                    val res = uploader.uploadFromUri(context, uri)
+                                    val res = uploader.uploadFromUri(context, uri, category = "chat_media")
                                     if (res.isSuccess) {
                                         uploaded.add(res.getOrThrow())
                                     } else {

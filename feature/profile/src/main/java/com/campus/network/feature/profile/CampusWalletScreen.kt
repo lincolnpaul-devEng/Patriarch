@@ -552,12 +552,10 @@ fun CampusWalletScreen(
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = {
-                                        activeHolds = activeHolds.filterNot { it.id == hold.id }
                                         val releasedAmt = hold.amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
                                         if (releasedAmt > 0.0) {
                                             onReleaseVault(releasedAmt)
                                         }
-                                        onShowFeedback("Confirmed handover! Payment successfully disbursed to peer.")
                                     },
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -733,20 +731,8 @@ fun CampusWalletScreen(
                         val amount = depositAmountText.toDoubleOrNull() ?: 0.0
                         if (amount > 0) {
                             onDeposit(amount)
-                            transactions = listOf(
-                                WalletTransaction(
-                                    id = "tx-${System.currentTimeMillis()}",
-                                    title = "Wallet Top Up",
-                                    timestamp = "Just now",
-                                    amount = "+$currency ${String.format("%,.2f", amount)}",
-                                    isCredit = true,
-                                    status = "Completed",
-                                    note = "Mobile Money Deposit"
-                                )
-                            ) + transactions
                             showDepositDialog = false
                             depositAmountText = ""
-                            onShowFeedback("Deposit initiated! +$currency ${String.format("%,.2f", amount)} added to wallet.")
                         } else {
                             onShowFeedback("Please enter a valid amount.")
                         }
@@ -802,20 +788,8 @@ fun CampusWalletScreen(
                             onShowFeedback("Please enter a valid amount.")
                         } else if (amount <= availableBalance) {
                             onWithdraw(amount)
-                            transactions = listOf(
-                                WalletTransaction(
-                                    id = "tx-${System.currentTimeMillis()}",
-                                    title = "Disbursement",
-                                    timestamp = "Just now",
-                                    amount = "-$currency ${String.format("%,.2f", amount)}",
-                                    isCredit = false,
-                                    status = "Completed",
-                                    note = "Payout to $withdrawPhoneText"
-                                )
-                            ) + transactions
                             showWithdrawDialog = false
                             withdrawAmountText = ""
-                            onShowFeedback("Withdrawal initiated! $currency ${String.format("%,.2f", amount)} sent to $withdrawPhoneText.")
                         } else {
                             onShowFeedback("Insufficient available balance.")
                         }

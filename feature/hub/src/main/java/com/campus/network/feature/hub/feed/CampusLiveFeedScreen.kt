@@ -73,6 +73,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -82,6 +83,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.campus.network.core.network.call.LiveMediaConnectionState
+import com.campus.network.core.network.call.LiveMediaState
+import com.campus.network.core.network.call.LiveStreamMediaRegistry
+import com.campus.network.feature.hub.liveroom.ViewerLiveVideoSurface
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -121,6 +130,7 @@ data class CampusLiveFeedStory(
     val broadcasterAvatarRes: Int = 0,
     val broadcasterAvatarUrl: String? = null,
     val viewerCount: String = "1",
+    val likeCount: Int = 0,
     val isLive: Boolean = true,
     val title: String,
     val description: String,
@@ -218,26 +228,53 @@ fun CampusLiveFeedScreen(
     val realActiveStreams by (liveStreamRepository?.getActiveStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
     val realAllStreams by (liveStreamRepository?.getAllStreams()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
     val realServers by (serverRepository?.getServers()?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) })
+    val context = LocalContext.current
 
-    LaunchedEffect(liveStreamRepository) {
-        liveStreamRepository?.syncRemoteLiveStreams()
+    // Session dwell tracker for live feed viewing
+    com.campus.network.core.ui.components.MoodSessionTracker(
+        source = com.campus.network.core.ui.components.MoodSource.LIVE_FEED
+    )
+
+    var isInitialSyncInFlight by remember(initialStoryId) {
+        mutableStateOf(liveStreamRepository != null)
+    }
+
+    LaunchedEffect(liveStreamRepository, initialStoryId) {
+        isInitialSyncInFlight = liveStreamRepository != null
+        runCatching { liveStreamRepository?.syncRemoteLiveStreams() }
+        isInitialSyncInFlight = false
     }
     val activeProfileName = activeProfile?.stableUserId()?.let { userId ->
         (knownProfiles[userId] ?: knownProfiles.values.firstOrNull {
             it.stableUserId().equals(userId, ignoreCase = true)
         })?.fullName?.takeIf(String::isRealProfileDisplayName)
-    }
+    } ?: activeProfile?.fullName?.takeIf(String::isRealProfileDisplayName)
 
-    val combinedStories = remember(stories, realActiveStreams, activeProfile) {
-        val streamStories = realActiveStreams.map { s ->
+    val combinedStories = remember(stories, realActiveStreams, realAllStreams, initialStoryId, activeProfile, knownProfiles) {
+        val targetFromAll = if (
+            initialStoryId.isNotBlank() &&
+            !initialStoryId.equals("founders", ignoreCase = true) &&
+            realActiveStreams.none { it.id.equals(initialStoryId, ignoreCase = true) }
+        ) {
+            realAllStreams.filter { it.id.equals(initialStoryId, ignoreCase = true) }
+        } else {
+            emptyList()
+        }
+        val mergedStreams = (realActiveStreams + targetFromAll).distinctBy { it.id }
+        val streamStories = mergedStreams.map { s ->
             val isMyStream = s.broadcasterId.equals(activeProfile?.stableUserId(), ignoreCase = true)
+            val resolvedAvatarUrl = s.broadcasterAvatarUrl?.takeIf { it.isNotBlank() && !it.startsWith("avatar_") }
+                ?: knownProfiles[s.broadcasterId]?.avatarUrl
+                ?: knownProfiles[s.broadcasterId.lowercase()]?.avatarUrl
+                ?: (if (isMyStream) activeProfile?.avatarUrl else null)
             CampusLiveFeedStory(
                 id = s.id,
                 broadcasterId = s.broadcasterId,
                 broadcasterName = s.broadcasterName,
                 broadcasterHandle = s.broadcasterHandle,
-                broadcasterAvatarUrl = s.broadcasterAvatarUrl ?: (if (isMyStream) activeProfile?.avatarUrl else null),
+                broadcasterAvatarUrl = resolvedAvatarUrl,
                 viewerCount = s.viewerCount.coerceAtLeast(1).toString(),
+                likeCount = s.likeCount,
                 isLive = s.isLive,
                 title = s.title,
                 description = s.description,
@@ -248,7 +285,7 @@ fun CampusLiveFeedScreen(
                 isMe = isMyStream
             )
         }
-        val remainingDefaults = stories.filter { def -> realActiveStreams.none { it.id == def.id } }
+        val remainingDefaults = stories.filter { def -> mergedStreams.none { it.id == def.id } }
         streamStories + remainingDefaults
     }
 
@@ -257,14 +294,51 @@ fun CampusLiveFeedScreen(
         initialPage = initialIndex,
         pageCount = { combinedStories.size }
     )
+    var hasAlignedInitialStory by remember(initialStoryId) { mutableStateOf(false) }
+    LaunchedEffect(combinedStories, initialStoryId) {
+        if (!hasAlignedInitialStory && combinedStories.isNotEmpty()) {
+            val targetIdx = combinedStories.indexOfFirst { it.id.equals(initialStoryId, ignoreCase = true) }
+            if (targetIdx >= 0) {
+                hasAlignedInitialStory = true
+                if (pagerState.currentPage != targetIdx) {
+                    pagerState.scrollToPage(targetIdx)
+                }
+            }
+        }
+    }
     var profileStory by remember { mutableStateOf<CampusLiveFeedStory?>(null) }
+
+    val currentActiveStoryId = combinedStories.getOrNull(pagerState.currentPage)?.id
+    DisposableEffect(currentActiveStoryId) {
+        com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleStreamId =
+            currentActiveStoryId
+        onDispose {
+            if (com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleStreamId == currentActiveStoryId) {
+                com.campus.network.core.ui.notifications.CampusSystemNotificationCenter.activeVisibleStreamId = null
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        if (combinedStories.isEmpty()) {
+        if (combinedStories.isEmpty() && isInitialSyncInFlight) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Joining live broadcast…",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
+            }
+        } else if (combinedStories.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -336,10 +410,17 @@ fun CampusLiveFeedScreen(
                 val story = combinedStories[pageIndex]
                 SingleLiveFeedPage(
                     story = story,
+                    isCurrentPage = pagerState.currentPage == pageIndex,
                     activeProfile = activeProfile,
                     currentProfileName = activeProfileName,
                     liveStreamRepository = liveStreamRepository,
-                    onClose = onNavigateBack,
+                    onClose = {
+                        com.campus.network.core.ui.components.MoodCheckIn.request(
+                            context,
+                            com.campus.network.core.ui.components.MoodSource.LIVE_FEED
+                        )
+                        onNavigateBack()
+                    },
                     onBroadcasterClick = { profileStory = story }
                 )
             }
@@ -363,16 +444,42 @@ fun CampusLiveFeedScreen(
 @Composable
 private fun SingleLiveFeedPage(
     story: CampusLiveFeedStory,
+    isCurrentPage: Boolean,
     activeProfile: com.campus.network.core.model.StudentProfile? = null,
     currentProfileName: String? = null,
     liveStreamRepository: com.campus.network.core.data.LiveStreamRepository? = null,
     onClose: () -> Unit,
     onBroadcasterClick: () -> Unit
 ) {
-    val comments = remember(story.id) { mutableStateListOf<LiveStoryComment>().apply { addAll(story.initialComments) } }
+    val liveStreamRow by (
+        liveStreamRepository?.getStreamById(story.id)?.collectAsState(initial = null)
+            ?: remember { mutableStateOf<com.campus.network.core.model.LiveStream?>(null) }
+        )
+    val isCurrentlyLive = liveStreamRow?.isLive ?: story.isLive
+    val liveViewerCount = (liveStreamRow?.viewerCount ?: story.viewerCount.toIntOrNull() ?: 1).coerceAtLeast(1).toString()
+    val liveLikeCount = liveStreamRow?.likeCount ?: story.likeCount
+
+    val persistedComments by (
+        liveStreamRepository?.getCommentsForStream(story.id)?.collectAsState(initial = emptyList())
+            ?: remember { mutableStateOf(emptyList()) }
+        )
+    val localGifComments = remember(story.id) { mutableStateListOf<LiveStoryComment>() }
+    val comments = remember(persistedComments, localGifComments.size, story.initialComments) {
+        val repoComments = persistedComments.map { c ->
+            LiveStoryComment(
+                id = c.id,
+                userName = c.senderName.ifBlank { "Student" },
+                userAvatarRes = 0,
+                commentText = c.commentText,
+                avatarUrl = c.senderAvatarUrl
+            )
+        }
+        val extraGifs = localGifComments.filter { gif -> repoComments.none { it.id == gif.id } }
+        if (repoComments.isEmpty() && extraGifs.isEmpty()) story.initialComments else repoComments + extraGifs
+    }
+
     var commentText by remember { mutableStateOf("") }
-    var likeCount by remember { mutableIntStateOf(0) }
-    var isLiked by remember { mutableStateOf(false) }
+    var isLiked by remember(story.id) { mutableStateOf(false) }
     var isEmojiDrawerOpen by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -383,25 +490,62 @@ private fun SingleLiveFeedPage(
     val commentListState = rememberLazyListState()
     val interactionSource = remember { MutableInteractionSource() }
 
+    val mediaManager = remember { LiveStreamMediaRegistry.resolve() }
+    val mediaState by (
+        mediaManager?.state?.collectAsStateWithLifecycle()
+            ?: remember { mutableStateOf(LiveMediaState()) }
+        )
+    var hasRemoteParticipant by remember(story.id) { mutableStateOf(false) }
+    var hasRemoteVideo by remember(story.id) { mutableStateOf(false) }
+    var hasIncrementedViewer by remember(story.id, isCurrentPage) { mutableStateOf(false) }
+
     BackHandler(enabled = isEmojiDrawerOpen) {
         isEmojiDrawerOpen = false
     }
 
     if (liveStreamRepository != null) {
         LaunchedEffect(story.id) {
-            liveStreamRepository.getCommentsForStream(story.id).collect { list ->
-                list.forEach { c ->
-                    if (comments.none { it.id == c.id }) {
-                        comments.add(
-                            LiveStoryComment(
-                                id = c.id,
-                                userName = c.senderName,
-                                userAvatarRes = 0,
-                                commentText = c.commentText,
-                                avatarUrl = c.senderAvatarUrl
-                            )
-                        )
+            liveStreamRepository.syncRemoteCommentsForStream(story.id)
+        }
+    }
+
+    LaunchedEffect(comments.size) {
+        if (comments.isNotEmpty()) {
+            runCatching { commentListState.animateScrollToItem(comments.size - 1) }
+        }
+    }
+
+    LaunchedEffect(story.id, isCurrentPage, isCurrentlyLive, activeProfile?.stableUserId()) {
+        if (!isCurrentPage || !isCurrentlyLive) {
+            if (mediaState.streamId == story.id) {
+                mediaManager?.leaveStream(story.id)
+            }
+            return@LaunchedEffect
+        }
+        val uid = activeProfile?.stableUserId().orEmpty()
+        val uname = currentProfileName ?: activeProfile?.fullName.orEmpty()
+        if (uid.isNotBlank()) {
+            mediaManager?.joinAsViewer(
+                streamId = story.id,
+                localUserId = uid,
+                displayName = uname.ifBlank { uid }
+            )
+        }
+        if (liveStreamRepository != null && !hasIncrementedViewer) {
+            hasIncrementedViewer = true
+            liveStreamRepository.joinStreamAsViewer(story.id)
+        }
+    }
+
+    DisposableEffect(story.id, isCurrentPage) {
+        onDispose {
+            if (isCurrentPage) {
+                val joinedViewer = hasIncrementedViewer
+                CoroutineScope(Dispatchers.IO + NonCancellable).launch {
+                    if (joinedViewer) {
+                        runCatching { liveStreamRepository?.leaveStreamAsViewer(story.id) }
                     }
+                    runCatching { mediaManager?.leaveStream(story.id) }
                 }
             }
         }
@@ -421,7 +565,6 @@ private fun SingleLiveFeedPage(
     val heartParticles = remember { mutableStateListOf<HeartParticle>() }
 
     fun spawnHeart() {
-        likeCount++
         isLiked = true
         if (liveStreamRepository != null) {
             coroutineScope.launch {
@@ -446,56 +589,53 @@ private fun SingleLiveFeedPage(
     }
 
     fun submitComment() {
-        if (commentText.isNotBlank()) {
-            val authorName = currentProfileName.orEmpty()
+        val trimmed = commentText.trim()
+        if (trimmed.isNotEmpty()) {
+            val authorName = currentProfileName
+                ?: activeProfile?.fullName?.takeIf(String::isRealProfileDisplayName)
+                .orEmpty()
             val authorId = activeProfile?.stableUserId().orEmpty()
             if (authorName.isBlank() || authorId.isBlank()) return
             val authorAvatar = activeProfile?.avatarUrl
-            val trimmed = commentText.trim()
-            val commentId = "user_${System.currentTimeMillis()}"
-            comments.add(
-                LiveStoryComment(
-                    id = commentId,
-                    userName = authorName,
-                    userAvatarRes = 0,
-                    commentText = trimmed,
-                    avatarUrl = authorAvatar
-                )
-            )
             if (liveStreamRepository != null) {
                 coroutineScope.launch {
-                    liveStreamRepository.postComment(
-                        streamId = story.id,
-                        senderId = authorId,
-                        senderAvatarRes = 0,
-                        commentText = trimmed,
-                        senderAvatarUrl = authorAvatar,
-                        senderDisplayName = authorName
-                    )
+                    val posted = runCatching {
+                        liveStreamRepository.postComment(
+                            streamId = story.id,
+                            senderId = authorId,
+                            senderAvatarRes = 0,
+                            commentText = trimmed,
+                            senderAvatarUrl = authorAvatar,
+                            senderDisplayName = authorName
+                        )
+                    }.getOrNull()
+                    if (posted == null || posted.syncStatus != "SYNCED") {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Could not post comment to the remote database. Please check your connection and try again.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
+            } else {
+                localGifComments.add(
+                    LiveStoryComment(
+                        id = "user_${System.currentTimeMillis()}",
+                        userName = authorName,
+                        userAvatarRes = 0,
+                        commentText = trimmed,
+                        avatarUrl = authorAvatar
+                    )
+                )
             }
             commentText = ""
             focusManager.clearFocus()
             keyboardController?.hide()
             isEmojiDrawerOpen = false
-            coroutineScope.launch {
-                delay(100)
-                commentListState.animateScrollToItem(comments.size - 1)
-            }
         }
     }
 
     val networkState = rememberCampusNetworkState()
-    var isStreamOptimizing by remember(story.id) { mutableStateOf(true) }
-
-    LaunchedEffect(story.id, networkState.isOnline, networkState.isSlowNetwork) {
-        isStreamOptimizing = true
-        val bufferMs = if (networkState.isSlowNetwork) 1450L else 950L
-        delay(bufferMs)
-        if (networkState.isOnline) {
-            isStreamOptimizing = false
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -511,13 +651,36 @@ private fun SingleLiveFeedPage(
                 )
             }
     ) {
-        // 1. Fullscreen Photographic / Stream Backdrop
-        Image(
-            painter = painterResource(story.backdropImageRes),
-            contentDescription = story.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+        // 1. Photographic fallback underneath real live WebRTC video
+        val backdropModel = story.backdropImageUrl?.takeIf { it.isNotBlank() }
+            ?: story.broadcasterAvatarUrl?.takeIf { story.backdropImageRes == 0 && it.isNotBlank() }
+        if (backdropModel != null) {
+            AsyncImage(
+                model = backdropModel,
+                contentDescription = story.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Image(
+                painter = painterResource(story.backdropImageRes),
+                contentDescription = story.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        if (isCurrentPage && isCurrentlyLive && mediaState.streamId == story.id) {
+            ViewerLiveVideoSurface(
+                call = mediaState.activeCall,
+                broadcasterUserId = story.broadcasterId,
+                modifier = Modifier.fillMaxSize(),
+                onRemoteVideoState = { hasPeer, hasVideo ->
+                    hasRemoteParticipant = hasPeer
+                    hasRemoteVideo = hasVideo
+                }
+            )
+        }
 
         // 2. High-End Editorial Vignette Gradients (Top & Bottom)
         Box(
@@ -536,9 +699,13 @@ private fun SingleLiveFeedPage(
                 )
         )
 
-        // 2b. Cog Animated Loader Overlay ("Optimizing video playback...") matching Paramount+ reference
+        // 2b. Real stream status / connecting / ended states
+        val isConnectingVideo = isCurrentlyLive &&
+            isCurrentPage &&
+            mediaState.streamId == story.id &&
+            mediaState.connectionState == LiveMediaConnectionState.CONNECTING
         AnimatedVisibility(
-            visible = isStreamOptimizing || !networkState.isOnline,
+            visible = !networkState.isOnline || isConnectingVideo,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(350)),
             modifier = Modifier.fillMaxSize()
@@ -547,10 +714,84 @@ private fun SingleLiveFeedPage(
                 message = if (!networkState.isOnline) {
                     "Waiting for network to resume stream..."
                 } else {
-                    "Optimizing video playback..."
+                    "Connecting to live broadcast..."
                 },
                 modifier = Modifier.fillMaxSize()
             )
+        }
+
+        if (!isCurrentlyLive) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Broadcast has ended",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Button(
+                        onClick = onClose,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = HomescreenInk
+                        ),
+                        shape = CircleShape
+                    ) {
+                        Text("Back to Live Room", color = HomescreenInk, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else if (isCurrentPage && mediaState.streamId == story.id && mediaState.connectionState == LiveMediaConnectionState.FAILED) {
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.7f),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 64.dp)
+                    .clickable {
+                        val uid = activeProfile?.stableUserId().orEmpty()
+                        val uname = currentProfileName ?: activeProfile?.fullName.orEmpty()
+                        if (uid.isNotBlank()) {
+                            coroutineScope.launch {
+                                mediaManager?.joinAsViewer(story.id, uid, uname.ifBlank { uid })
+                            }
+                        }
+                    }
+            ) {
+                Text(
+                    text = "Video reconnecting · Tap to retry",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                )
+            }
+        } else if (isCurrentPage && mediaState.streamId == story.id && mediaState.connectionState == LiveMediaConnectionState.LIVE && !hasRemoteVideo) {
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.55f),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 64.dp)
+            ) {
+                Text(
+                    text = if (hasRemoteParticipant) "Host camera off · audio live" else "Waiting for host video…",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+            }
         }
 
         // 3. Floating Heart Particles Engine (Drifting up along the right edge)
@@ -643,7 +884,7 @@ private fun SingleLiveFeedPage(
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = story.viewerCount,
+                                text = liveViewerCount,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -840,22 +1081,31 @@ private fun SingleLiveFeedPage(
                         )
                     }
 
-                    // Like / Heart Button (Spawns floating hearts)
-                    IconButton(
+                    // Like / Heart Button (Persisted to database + floating hearts)
+                    Surface(
                         onClick = { spawnHeart() },
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isLiked) Color(0xFFDD2476).copy(alpha = 0.35f) else Color.White.copy(alpha = 0.20f)
-                            )
+                        shape = CircleShape,
+                        color = if (isLiked) Color(0xFFDD2476).copy(alpha = 0.45f) else Color.White.copy(alpha = 0.20f),
+                        modifier = Modifier.height(44.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Like",
-                            tint = if (isLiked) Color(0xFFFF512F) else Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Like",
+                                tint = if (isLiked) Color(0xFFFF512F) else Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = liveLikeCount.toString(),
+                                color = Color.White,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -878,10 +1128,12 @@ private fun SingleLiveFeedPage(
                             commentText += emoji
                         },
                         onGifPicked = { gif ->
-                            val authorName = currentProfileName.orEmpty()
+                            val authorName = currentProfileName
+                                ?: activeProfile?.fullName?.takeIf(String::isRealProfileDisplayName)
+                                .orEmpty()
                             if (authorName.isNotBlank()) {
                                 val authorAvatar = activeProfile?.avatarUrl
-                                comments.add(
+                                localGifComments.add(
                                     LiveStoryComment(
                                         id = "user_${System.currentTimeMillis()}",
                                         userName = authorName,
@@ -895,7 +1147,9 @@ private fun SingleLiveFeedPage(
                             isEmojiDrawerOpen = false
                             coroutineScope.launch {
                                 delay(100)
-                                commentListState.animateScrollToItem(comments.size - 1)
+                                if (comments.isNotEmpty()) {
+                                    commentListState.animateScrollToItem(comments.size - 1)
+                                }
                             }
                         }
                     )

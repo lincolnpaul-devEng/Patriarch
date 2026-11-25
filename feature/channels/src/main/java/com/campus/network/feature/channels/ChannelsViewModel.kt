@@ -1280,36 +1280,34 @@ class ChannelsViewModel(
                 _isRulesSheetOpen.value = false
             }
             is ChannelsEvent.CreateServerRule -> {
-                val nextIdx = (_currentServerRules.value.maxOfOrNull { it.ruleIndex } ?: 0) + 1
-                val newRule = ServerRule(
-                    id = "rule_${event.serverId}_$nextIdx",
-                    serverId = event.serverId,
-                    ruleIndex = nextIdx,
-                    title = event.title,
-                    description = event.description
-                )
-                _currentServerRules.value = _currentServerRules.value + newRule
-                _feedbackMessage.value = "Added rule: ${event.title}"
-
-                serverRepository?.let { repo ->
-                    viewModelScope.launch {
-                        val result = repo.createRule(event.serverId, event.title, event.description)
-                        result.onFailure { err ->
-                            _feedbackMessage.value = "Failed to sync rule to cloud: ${err.localizedMessage ?: "Network error"}"
-                        }
+                val repo = serverRepository
+                if (repo == null) {
+                    _feedbackMessage.value = "Could not add rule: server repository unavailable."
+                    return
+                }
+                viewModelScope.launch {
+                    val result = repo.createRule(event.serverId, event.title, event.description)
+                    result.onSuccess { createdRule ->
+                        _currentServerRules.value = (_currentServerRules.value + createdRule).distinctBy { it.id }
+                        _feedbackMessage.value = "Added rule: ${createdRule.title}"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not save rule to the remote database: ${err.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
             is ChannelsEvent.DeleteServerRule -> {
-                _currentServerRules.value = _currentServerRules.value.filter { it.id != event.ruleId }
-                _feedbackMessage.value = "Rule removed"
-
-                serverRepository?.let { repo ->
-                    viewModelScope.launch {
-                        val result = repo.deleteRule(event.ruleId)
-                        result.onFailure { err ->
-                            _feedbackMessage.value = "Failed to delete rule remotely: ${err.localizedMessage ?: "Network error"}"
-                        }
+                val repo = serverRepository
+                if (repo == null) {
+                    _feedbackMessage.value = "Could not delete rule: server repository unavailable."
+                    return
+                }
+                viewModelScope.launch {
+                    val result = repo.deleteRule(event.ruleId)
+                    result.onSuccess {
+                        _currentServerRules.value = _currentServerRules.value.filter { it.id != event.ruleId }
+                        _feedbackMessage.value = "Rule removed"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not delete rule from the remote database: ${err.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
@@ -1552,20 +1550,13 @@ class ChannelsViewModel(
                 val memberId = event.memberId
                 val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
                     ?: _serverMembers.value.values.flatten().find { it.id == memberId }
-                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
-                    members.map { mem ->
-                        if (mem.id == memberId) {
-                            mem.copy(friendStatus = FriendRequestStatus.REQUEST_SENT)
-                        } else mem
-                    }
-                }
-                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
-                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.REQUEST_SENT) else it
-                }
                 val me = _currentProfile.value
                 val myId = me?.studentId?.takeIf { it.isNotBlank() }
                     ?: me?.universityEmail?.takeIf { it.isNotBlank() }
-                    ?: return
+                if (myId.isNullOrBlank()) {
+                    _feedbackMessage.value = "Sign in to send friend requests."
+                    return
+                }
                 val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
                 if (peerUserId.isNotBlank()) {
                     viewModelScope.launch {
@@ -1577,9 +1568,23 @@ class ChannelsViewModel(
                                     serverId = member?.serverId
                                 )
                         }
-                        _feedbackMessage.value = result.fold(
-                            { "Friend request sent to $it!" },
-                            { "Friend request could not be sent." }
+                        result.fold(
+                            onSuccess = { friendName ->
+                                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                                    members.map { mem ->
+                                        if (mem.id == memberId) {
+                                            mem.copy(friendStatus = FriendRequestStatus.REQUEST_SENT)
+                                        } else mem
+                                    }
+                                }
+                                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.REQUEST_SENT) else it
+                                }
+                                _feedbackMessage.value = "Friend request sent to $friendName!"
+                            },
+                            onFailure = { err ->
+                                _feedbackMessage.value = "Could not send friend request: ${err.localizedMessage ?: "Please check your connection and try again."}"
+                            }
                         )
                     }
                 }
@@ -1589,25 +1594,34 @@ class ChannelsViewModel(
                 val memberId = event.memberId
                 val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
                     ?: _serverMembers.value.values.flatten().find { it.id == memberId }
-                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
-                    members.map { mem ->
-                        if (mem.id == memberId) {
-                            mem.copy(friendStatus = FriendRequestStatus.NONE)
-                        } else mem
-                    }
-                }
-                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
-                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
-                }
-                _feedbackMessage.value = "Friend request cancelled."
                 val me = _currentProfile.value
                 val myId = me?.studentId?.takeIf { it.isNotBlank() }
                     ?: me?.universityEmail?.takeIf { it.isNotBlank() }
                 val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
-                if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
-                    viewModelScope.launch {
-                        serverRepository?.declineOrRemoveFriend(userId = myId, friendUserId = peerUserId)
-                    }
+                if (myId.isNullOrBlank() || peerUserId.isBlank() || serverRepository == null) {
+                    _feedbackMessage.value = "Could not cancel friend request."
+                    return
+                }
+                viewModelScope.launch {
+                    val result = serverRepository.declineOrRemoveFriend(userId = myId, friendUserId = peerUserId)
+                    result.fold(
+                        onSuccess = {
+                            _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                                members.map { mem ->
+                                    if (mem.id == memberId) {
+                                        mem.copy(friendStatus = FriendRequestStatus.NONE)
+                                    } else mem
+                                }
+                            }
+                            _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                                if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
+                            }
+                            _feedbackMessage.value = "Friend request cancelled."
+                        },
+                        onFailure = { err ->
+                            _feedbackMessage.value = "Could not cancel friend request: ${err.localizedMessage ?: "Please check your connection and try again."}"
+                        }
+                    )
                 }
             }
 
@@ -1615,31 +1629,37 @@ class ChannelsViewModel(
                 val memberId = event.memberId
                 val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
                     ?: _serverMembers.value.values.flatten().find { it.id == memberId }
-                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
-                    members.map { mem ->
-                        if (mem.id == memberId) {
-                            mem.copy(friendStatus = FriendRequestStatus.FRIENDS)
-                        } else mem
-                    }
-                }
-                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
-                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.FRIENDS) else it
-                }
                 val me = _currentProfile.value
                 val myId = me?.studentId?.takeIf { it.isNotBlank() }
                     ?: me?.universityEmail?.takeIf { it.isNotBlank() }
                 val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
-                if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
-                    viewModelScope.launch {
-                        val result = runCatching {
-                            (serverRepository ?: error("Friend services are unavailable"))
-                                .acceptFriendRequest(userId = myId, friendUserId = peerUserId)
-                        }
-                        _feedbackMessage.value = result.fold(
-                            { "You are now friends with $it!" },
-                            { "Friend request could not be accepted." }
-                        )
+                if (myId.isNullOrBlank() || peerUserId.isBlank()) {
+                    _feedbackMessage.value = "Sign in to accept friend requests."
+                    return
+                }
+                viewModelScope.launch {
+                    val result = runCatching {
+                        (serverRepository ?: error("Friend services are unavailable"))
+                            .acceptFriendRequest(userId = myId, friendUserId = peerUserId)
                     }
+                    result.fold(
+                        onSuccess = { friendName ->
+                            _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                                members.map { mem ->
+                                    if (mem.id == memberId) {
+                                        mem.copy(friendStatus = FriendRequestStatus.FRIENDS)
+                                    } else mem
+                                }
+                            }
+                            _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                                if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.FRIENDS) else it
+                            }
+                            _feedbackMessage.value = "You are now friends with $friendName!"
+                        },
+                        onFailure = { err ->
+                            _feedbackMessage.value = "Could not accept friend request: ${err.localizedMessage ?: "Please check your connection and try again."}"
+                        }
+                    )
                 }
             }
 
@@ -1647,25 +1667,34 @@ class ChannelsViewModel(
                 val memberId = event.memberId
                 val member = _selectedMemberForProfile.value?.takeIf { it.id == memberId }
                     ?: _serverMembers.value.values.flatten().find { it.id == memberId }
-                _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
-                    members.map { mem ->
-                        if (mem.id == memberId) {
-                            mem.copy(friendStatus = FriendRequestStatus.NONE)
-                        } else mem
-                    }
-                }
-                _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
-                    if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
-                }
-                _feedbackMessage.value = "Friend request declined."
                 val me = _currentProfile.value
                 val myId = me?.studentId?.takeIf { it.isNotBlank() }
                     ?: me?.universityEmail?.takeIf { it.isNotBlank() }
                 val peerUserId = extractMemberUserId(member, memberId, member?.serverId.orEmpty())
-                if (!myId.isNullOrBlank() && peerUserId.isNotBlank()) {
-                    viewModelScope.launch {
-                        serverRepository?.declineOrRemoveFriend(userId = myId, friendUserId = peerUserId)
-                    }
+                if (myId.isNullOrBlank() || peerUserId.isBlank() || serverRepository == null) {
+                    _feedbackMessage.value = "Could not decline friend request."
+                    return
+                }
+                viewModelScope.launch {
+                    val result = serverRepository.declineOrRemoveFriend(userId = myId, friendUserId = peerUserId)
+                    result.fold(
+                        onSuccess = {
+                            _serverMembers.value = _serverMembers.value.mapValues { (_, members) ->
+                                members.map { mem ->
+                                    if (mem.id == memberId) {
+                                        mem.copy(friendStatus = FriendRequestStatus.NONE)
+                                    } else mem
+                                }
+                            }
+                            _selectedMemberForProfile.value = _selectedMemberForProfile.value?.let {
+                                if (it.id == memberId) it.copy(friendStatus = FriendRequestStatus.NONE) else it
+                            }
+                            _feedbackMessage.value = "Friend request declined."
+                        },
+                        onFailure = { err ->
+                            _feedbackMessage.value = "Could not decline friend request: ${err.localizedMessage ?: "Please check your connection and try again."}"
+                        }
+                    )
                 }
             }
 
@@ -1678,30 +1707,49 @@ class ChannelsViewModel(
             }
 
             is ChannelsEvent.SavePerServerProfile -> {
-                val profile = PerServerProfile(
-                    serverId = event.serverId,
-                    nickname = event.nickname,
-                    tag = event.tag,
-                    tagColorHex = event.tagColorHex
-                )
-                _perServerProfiles.value = _perServerProfiles.value + (event.serverId to profile)
-
-                _serverMembers.value = _serverMembers.value.mapValues { (sId, members) ->
-                    if (sId == event.serverId) {
-                        members.map { mem ->
-                            val selfName = _currentProfile.value?.fullName?.ifBlank { "You" } ?: "You"
-                            val selfFirst = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You"
-                            if (mem.name.contains(selfFirst, ignoreCase = true) || mem.name.contains(selfName, ignoreCase = true)) {
-                                mem.copy(
-                                    serverNickname = event.nickname,
-                                    serverTag = event.tag,
-                                    serverTagColorHex = event.tagColorHex
-                                )
-                            } else mem
-                        }
-                    } else members
+                val repo = serverRepository
+                val userId = _currentProfile.value?.stableUserId().orEmpty()
+                if (repo == null || userId.isBlank()) {
+                    _feedbackMessage.value = "Sign in to update your server profile."
+                    return
                 }
-                _feedbackMessage.value = "Updated server profile tag [${event.tag.uppercase()}]!"
+                viewModelScope.launch {
+                    val result = repo.savePerServerProfile(
+                        serverId = event.serverId,
+                        userId = userId,
+                        nickname = event.nickname,
+                        tag = event.tag,
+                        tagColorHex = event.tagColorHex
+                    )
+                    result.onSuccess {
+                        val profile = PerServerProfile(
+                            serverId = event.serverId,
+                            nickname = event.nickname,
+                            tag = event.tag,
+                            tagColorHex = event.tagColorHex
+                        )
+                        _perServerProfiles.value = _perServerProfiles.value + (event.serverId to profile)
+
+                        _serverMembers.value = _serverMembers.value.mapValues { (sId, members) ->
+                            if (sId == event.serverId) {
+                                members.map { mem ->
+                                    val selfName = _currentProfile.value?.fullName?.ifBlank { "You" } ?: "You"
+                                    val selfFirst = _currentProfile.value?.firstName?.ifBlank { "You" } ?: "You"
+                                    if (mem.name.contains(selfFirst, ignoreCase = true) || mem.name.contains(selfName, ignoreCase = true) || mem.isSelf) {
+                                        mem.copy(
+                                            serverNickname = event.nickname,
+                                            serverTag = event.tag,
+                                            serverTagColorHex = event.tagColorHex
+                                        )
+                                    } else mem
+                                }
+                            } else members
+                        }
+                        _feedbackMessage.value = "Updated server profile tag [${event.tag.uppercase()}]!"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not update server profile: ${err.localizedMessage ?: "Please check your connection and try again."}"
+                    }
+                }
             }
 
             is ChannelsEvent.OpenEditServerSettings -> {
@@ -1714,31 +1762,34 @@ class ChannelsViewModel(
 
             is ChannelsEvent.UpdateServerSettings -> {
                 _isEditServerSettingsOpen.value = false
-                _serversList.value = _serversList.value.map { srv ->
-                    if (srv.id == event.serverId) {
-                        srv.copy(
-                            name = event.name.trim().ifEmpty { srv.name },
-                            categoryText = event.category.trim().ifEmpty { srv.categoryText },
-                            iconResName = event.avatarResName.ifEmpty { srv.iconResName },
-                            bannerResName = event.bannerResName ?: srv.bannerResName
-                        )
-                    } else srv
+                val repo = serverRepository
+                if (repo == null) {
+                    _feedbackMessage.value = "Could not update server settings: server repository unavailable."
+                    return
                 }
-                serverRepository?.let { repo ->
-                    viewModelScope.launch {
-                        val result = repo.updateServerProfile(
-                            serverId = event.serverId,
-                            name = event.name,
-                            description = event.description,
-                            category = event.category,
-                            avatarResName = event.avatarResName,
-                            bannerResName = event.bannerResName
-                        )
-                        result.onSuccess {
-                            _feedbackMessage.value = "Server settings updated"
-                        }.onFailure { err ->
-                            _feedbackMessage.value = "Settings saved locally, but cloud update failed: ${err.localizedMessage ?: "Network error"}"
+                viewModelScope.launch {
+                    val result = repo.updateServerProfile(
+                        serverId = event.serverId,
+                        name = event.name,
+                        description = event.description,
+                        category = event.category,
+                        avatarResName = event.avatarResName,
+                        bannerResName = event.bannerResName
+                    )
+                    result.onSuccess {
+                        _serversList.value = _serversList.value.map { srv ->
+                            if (srv.id == event.serverId) {
+                                srv.copy(
+                                    name = event.name.trim().ifEmpty { srv.name },
+                                    categoryText = event.category.trim().ifEmpty { srv.categoryText },
+                                    iconResName = event.avatarResName.ifEmpty { srv.iconResName },
+                                    bannerResName = event.bannerResName ?: srv.bannerResName
+                                )
+                            } else srv
                         }
+                        _feedbackMessage.value = "Server settings updated"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not update server settings on the remote database: ${err.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
@@ -1751,35 +1802,40 @@ class ChannelsViewModel(
                     ServerRoleType.MEMBER -> Triple("Member", 0xFF5C6470, com.campus.network.core.model.ServerMemberRole.MEMBER)
                     ServerRoleType.OWNER -> Triple("Server Owner", 0xFFEAB308, com.campus.network.core.model.ServerMemberRole.OWNER)
                 }
-                val members = _serverMembers.value[event.serverId].orEmpty()
-                val updatedMembers = members.map { mem ->
-                    if (mem.id == event.memberId) {
-                        mem.copy(
-                            role = mem.role.copy(
-                                name = roleTitle,
-                                roleType = event.newRole,
-                                colorHex = roleColor,
-                                isOwner = (event.newRole == ServerRoleType.OWNER)
-                            )
-                        )
-                    } else mem
+                val repo = serverRepository
+                if (repo == null) {
+                    _feedbackMessage.value = "Could not update member role: server repository unavailable."
+                    return
                 }
-                _serverMembers.value = _serverMembers.value + (event.serverId to updatedMembers)
-                if (_selectedMemberForProfile.value?.id == event.memberId) {
-                    _selectedMemberForProfile.value = updatedMembers.find { it.id == event.memberId }
-                }
-                _feedbackMessage.value = "Role updated to $roleTitle"
-                serverRepository?.let { repo ->
-                    viewModelScope.launch {
-                        runCatching {
-                            repo.updateMemberRole(
-                                serverId = event.serverId,
-                                userId = event.memberId,
-                                role = domainRole,
-                                roleTitle = roleTitle,
-                                roleColorHex = roleColor
-                            )
+                viewModelScope.launch {
+                    val result = repo.updateMemberRole(
+                        serverId = event.serverId,
+                        userId = event.memberId,
+                        role = domainRole,
+                        roleTitle = roleTitle,
+                        roleColorHex = roleColor
+                    )
+                    result.onSuccess {
+                        val members = _serverMembers.value[event.serverId].orEmpty()
+                        val updatedMembers = members.map { mem ->
+                            if (mem.id == event.memberId) {
+                                mem.copy(
+                                    role = mem.role.copy(
+                                        name = roleTitle,
+                                        roleType = event.newRole,
+                                        colorHex = roleColor,
+                                        isOwner = (event.newRole == ServerRoleType.OWNER)
+                                    )
+                                )
+                            } else mem
                         }
+                        _serverMembers.value = _serverMembers.value + (event.serverId to updatedMembers)
+                        if (_selectedMemberForProfile.value?.id == event.memberId) {
+                            _selectedMemberForProfile.value = updatedMembers.find { it.id == event.memberId }
+                        }
+                        _feedbackMessage.value = "Role updated to $roleTitle"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not update member role on the remote database: ${err.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
@@ -1801,44 +1857,52 @@ class ChannelsViewModel(
 
             is ChannelsEvent.DeleteServer -> {
                 val targetServerId = event.serverId
-                _isServerProfileDrawerOpen.value = false
-                _joinedServerIds.value = _joinedServerIds.value - targetServerId
-                _serversList.value = _serversList.value.filterNot { it.id == targetServerId }
-                val remaining = _serversList.value.filter { it.id in _joinedServerIds.value }
-                if (_selectedServerId.value == targetServerId) {
-                    val nextServer = remaining.firstOrNull()
-                    _selectedServerId.value = nextServer?.id.orEmpty()
-                    _selectedChannelId.value = nextServer?.channels?.firstOrNull()?.id.orEmpty()
+                val repo = serverRepository
+                if (repo == null) {
+                    _feedbackMessage.value = "Could not delete server: server repository unavailable."
+                    return
                 }
-                _feedbackMessage.value = "Server deleted"
-                serverRepository?.let { repo ->
-                    viewModelScope.launch {
-                        runCatching {
-                            repo.deleteServer(targetServerId)
+                viewModelScope.launch {
+                    val result = repo.deleteServer(targetServerId)
+                    result.onSuccess {
+                        _isServerProfileDrawerOpen.value = false
+                        _joinedServerIds.value = _joinedServerIds.value - targetServerId
+                        _serversList.value = _serversList.value.filterNot { it.id == targetServerId }
+                        val remaining = _serversList.value.filter { it.id in _joinedServerIds.value }
+                        if (_selectedServerId.value == targetServerId) {
+                            val nextServer = remaining.firstOrNull()
+                            _selectedServerId.value = nextServer?.id.orEmpty()
+                            _selectedChannelId.value = nextServer?.channels?.firstOrNull()?.id.orEmpty()
                         }
+                        _feedbackMessage.value = "Server deleted"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not delete server from the remote database: ${err.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }
 
             is ChannelsEvent.LeaveServer -> {
                 val targetServerId = event.serverId
-                _isServerProfileDrawerOpen.value = false
-                _joinedServerIds.value = _joinedServerIds.value - targetServerId
-                val remaining = _serversList.value.filter { it.id in _joinedServerIds.value }
-                if (_selectedServerId.value == targetServerId) {
-                    val nextServer = remaining.firstOrNull()
-                    _selectedServerId.value = nextServer?.id.orEmpty()
-                    _selectedChannelId.value = nextServer?.channels?.firstOrNull()?.id.orEmpty()
+                val repo = serverRepository
+                val currentStudentId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: ""
+                if (repo == null || currentStudentId.isBlank()) {
+                    _feedbackMessage.value = "Could not leave server: please verify your account session."
+                    return
                 }
-                _feedbackMessage.value = "Left server"
-                serverRepository?.let { repo ->
-                    viewModelScope.launch {
-                        val currentStudentId = _currentProfile.value?.studentId?.ifBlank { _currentProfile.value?.universityEmail } ?: ""
-                        if (currentStudentId.isNotBlank()) {
-                            runCatching {
-                                repo.removeMember(targetServerId, currentStudentId)
-                            }
+                viewModelScope.launch {
+                    val result = repo.removeMember(targetServerId, currentStudentId)
+                    result.onSuccess {
+                        _isServerProfileDrawerOpen.value = false
+                        _joinedServerIds.value = _joinedServerIds.value - targetServerId
+                        val remaining = _serversList.value.filter { it.id in _joinedServerIds.value }
+                        if (_selectedServerId.value == targetServerId) {
+                            val nextServer = remaining.firstOrNull()
+                            _selectedServerId.value = nextServer?.id.orEmpty()
+                            _selectedChannelId.value = nextServer?.channels?.firstOrNull()?.id.orEmpty()
                         }
+                        _feedbackMessage.value = "Left server"
+                    }.onFailure { err ->
+                        _feedbackMessage.value = "Could not leave server on the remote database: ${err.localizedMessage ?: "Please check your connection and try again."}"
                     }
                 }
             }

@@ -5,8 +5,12 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -35,14 +39,31 @@ internal fun GoLiveCameraPreview(
         }
     }
 
+    var boundProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
+    DisposableEffect(lifecycleOwner) {
+        onDispose {
+            runCatching { boundProvider?.unbindAll() }
+            boundProvider = null
+        }
+    }
+
     LaunchedEffect(useFront) {
         val future = ProcessCameraProvider.getInstance(context)
-        val provider = suspendCancellableCoroutine<ProcessCameraProvider> { cont ->
+        val provider = suspendCancellableCoroutine<ProcessCameraProvider?> { cont ->
             future.addListener(
-                { cont.resume(future.get()) },
+                {
+                    if (cont.isActive) {
+                        cont.resume(runCatching { future.get() }.getOrNull())
+                    }
+                },
                 ContextCompat.getMainExecutor(context)
             )
+        } ?: run {
+            onUnavailable()
+            return@LaunchedEffect
         }
+        boundProvider = provider
         val preferred = if (useFront) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
         val other = if (useFront) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         val selector = when {

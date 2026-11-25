@@ -1,10 +1,12 @@
 package com.campus.network.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
@@ -30,6 +31,7 @@ import com.campus.network.feature.channels.ChannelsViewModel
 import com.campus.network.feature.hub.HubViewModel
 import com.campus.network.feature.hub.feed.CampusLiveFeedScreen
 import com.campus.network.feature.hub.golive.GoLiveScreen
+import com.campus.network.feature.hub.liveroom.LiveRoomScreen
 import com.campus.network.feature.hub.notifications.NotificationsScreen
 import com.campus.network.feature.hub.notifications.NotificationSettingsScreen
 import com.campus.network.feature.map.MapScreen
@@ -50,6 +52,38 @@ import com.campus.network.ui.auth.VerifyScreen
 import com.campus.network.ui.onboarding.OnboardingSurveyScreen
 import kotlinx.coroutines.launch
 
+internal enum class SafeBackAction {
+    IGNORE_STALE,
+    POP_BACK_STACK,
+    NAVIGATE_FALLBACK
+}
+
+internal fun resolveSafeBackAction(
+    fromBaseRoute: String,
+    currentRoute: String?,
+    previousRoute: String?,
+    fallbackRoute: String
+): SafeBackAction {
+    val normalizedFromBase = fromBaseRoute.substringBefore("?").substringBefore("/")
+    val currentBase = currentRoute?.substringBefore("?")?.substringBefore("/")
+    if (currentBase != null && currentBase != normalizedFromBase) {
+        return SafeBackAction.IGNORE_STALE
+    }
+    val prevBase = previousRoute?.substringBefore("?")?.substringBefore("/")
+    val blockedBackTargets = setOf(
+        Screen.Splash.route,
+        Screen.Onboarding.route,
+        Screen.OnboardingTransition.route
+    )
+    val fallbackBase = fallbackRoute.substringBefore("?").substringBefore("/")
+    val isBlockedAuthReturn = fallbackBase != Screen.Auth.route && prevBase == Screen.Auth.route
+    return if (prevBase != null && prevBase !in blockedBackTargets && !isBlockedAuthReturn) {
+        SafeBackAction.POP_BACK_STACK
+    } else {
+        SafeBackAction.NAVIGATE_FALLBACK
+    }
+}
+
 /**
  * Cohesive 5-Tab Jetpack Compose NavHost Navigation Graph.
  * Transitions configured for zero jitter / instantaneous 60+ FPS frame cadence.
@@ -62,6 +96,7 @@ fun CampusNavHost(
     modifier: Modifier = Modifier,
     messagesViewModel: MessagesViewModel? = null,
     channelsViewModel: ChannelsViewModel? = null,
+    mapViewModel: MapViewModel? = null,
     onToggleBottomBar: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -71,7 +106,6 @@ fun CampusNavHost(
 
     // App-scoped repositories (single instances owned by the AppContainer)
     val studentProfileRepository = container.studentProfileRepository
-    val flashMeetRepository = container.flashMeetRepository
     val academicChannelsRepository = container.academicChannelsRepository
     val campusHubRepository = container.hubRepository
     val rendezvousRepository = container.rendezvousRepository
@@ -80,7 +114,6 @@ fun CampusNavHost(
 
     // Context-scoped helpers (not app-scoped state)
     val directoryRepository = remember(context) { CampusDirectoryRepository(context.applicationContext) }
-    val placesRepository = remember { com.campus.network.core.data.PlacesRepository() }
 
     // Scoped ViewModels managed by ViewModelProvider to survive configuration changes
     val resolvedMessagesViewModel: MessagesViewModel = messagesViewModel ?: viewModel(
@@ -113,14 +146,8 @@ fun CampusNavHost(
         }
     )
 
-    val mapViewModel: MapViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MapViewModel(flashMeetRepository, placesRepository, studentProfileRepository) as T
-            }
-        }
-    )
+    val resolvedMapViewModel: MapViewModel = mapViewModel
+        ?: androidx.hilt.navigation.compose.hiltViewModel()
 
     val marketViewModel: HubViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -160,6 +187,8 @@ fun CampusNavHost(
         val route = currentEntry?.destination?.route ?: return@LaunchedEffect
         val baseRoute = route.substringBefore("?").substringBefore("/")
         val setupRoutes = setOf("splash", "onboarding", "onboarding_transition", "auth", "verify")
+        val isProfileLoaded = currentProfile != null &&
+            (currentProfile?.universityEmail?.isNotBlank() == true || currentProfile?.studentId?.isNotBlank() == true)
         val surveyComplete = currentProfile?.onboardingPreferences?.hasCompletedSurvey == true
         val tier = com.campus.network.core.security.CampusSecurityGuard.evaluateSessionAccessTier(
             profile = currentProfile,
@@ -167,17 +196,17 @@ fun CampusNavHost(
             isGuestMode = isGuest
         )
         val target = when {
-            isAuthenticated && !surveyComplete && baseRoute !in setupRoutes &&
+            isAuthenticated && isProfileLoaded && !surveyComplete && baseRoute !in setupRoutes &&
                 baseRoute != Screen.OnboardingSurvey.route -> Screen.OnboardingSurvey.route
-            isAuthenticated && surveyComplete && baseRoute == Screen.OnboardingSurvey.route -> Screen.Hub.route
+            isAuthenticated && isProfileLoaded && surveyComplete && baseRoute == Screen.OnboardingSurvey.route -> Screen.Hub.route
             !com.campus.network.core.model.CampusSecurityPolicy.canAccessRoute(route, tier) &&
                 tier == com.campus.network.core.model.CampusAccessTier.UNAUTHENTICATED -> Screen.Auth.route
             !com.campus.network.core.model.CampusSecurityPolicy.canAccessRoute(route, tier) -> Screen.Hub.route
             else -> null
         }
-        if (target != null) {
+        if (target != null && baseRoute != target.substringBefore("?")) {
             navController.navigate(target) {
-                popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                popUpTo(0) { inclusive = true }
                 launchSingleTop = true
             }
             if (tier == com.campus.network.core.model.CampusAccessTier.GUEST_READ_ONLY) {
@@ -186,6 +215,35 @@ fun CampusNavHost(
                     "Verify your university email to use this feature.",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
+            }
+        }
+    }
+
+    fun navigateBackSafely(
+        fromBaseRoute: String,
+        fallbackRoute: String = Screen.Hub.route
+    ) {
+        val action = resolveSafeBackAction(
+            fromBaseRoute = fromBaseRoute,
+            currentRoute = navController.currentBackStackEntry?.destination?.route,
+            previousRoute = navController.previousBackStackEntry?.destination?.route,
+            fallbackRoute = fallbackRoute
+        )
+        when (action) {
+            SafeBackAction.IGNORE_STALE -> Unit
+            SafeBackAction.POP_BACK_STACK -> {
+                if (!navController.popBackStack()) {
+                    navController.navigate(fallbackRoute) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            }
+            SafeBackAction.NAVIGATE_FALLBACK -> {
+                navController.navigate(fallbackRoute) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
             }
         }
     }
@@ -215,13 +273,17 @@ fun CampusNavHost(
                         val email = savedSession?.email?.trim()?.ifBlank { null }
 
                         if (email.isNullOrBlank()) {
+                            if (navController.currentBackStackEntry?.destination?.route != Screen.Splash.route) {
+                                return@launch
+                            }
                             val targetRoute = if (authClient.hasSeenIntroOnboarding()) {
                                 Screen.Auth.route
                             } else {
                                 Screen.Onboarding.route
                             }
                             navController.navigate(targetRoute) {
-                                popUpTo(Screen.Splash.route) { inclusive = true }
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
                             }
                             return@launch
                         }
@@ -237,6 +299,10 @@ fun CampusNavHost(
                             resolvedChannelsViewModel.refreshServers()
                         }
 
+                        if (navController.currentBackStackEntry?.destination?.route != Screen.Splash.route) {
+                            return@launch
+                        }
+
                         val isSurveyDone =
                             studentProfileRepository.getProfileSync()?.onboardingPreferences?.hasCompletedSurvey == true
 
@@ -247,7 +313,8 @@ fun CampusNavHost(
                         }
 
                         navController.navigate(targetRoute) {
-                            popUpTo(Screen.Splash.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
                         }
                     }
                 }
@@ -258,7 +325,9 @@ fun CampusNavHost(
         composable(route = Screen.Onboarding.route) {
             OnboardingScreen(
                 onNextClick = {
-                    navController.navigate(Screen.OnboardingTransition.route)
+                    navController.navigate(Screen.OnboardingTransition.route) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -269,7 +338,8 @@ fun CampusNavHost(
                 onTransitionComplete = {
                     authClient.setHasSeenIntroOnboarding(true)
                     navController.navigate(Screen.Auth.route) {
-                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
@@ -307,7 +377,8 @@ fun CampusNavHost(
 
                     val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
                     navController.navigate(nextDestination) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
                 onNavigateToVerify = { target, isPhone ->
@@ -330,6 +401,9 @@ fun CampusNavHost(
                 }
             )
         ) { backStackEntry ->
+            BackHandler {
+                navigateBackSafely("verify", fallbackRoute = Screen.Auth.route)
+            }
             val rawTarget = backStackEntry.arguments?.getString("target") ?: ""
             val target = try {
                 java.net.URLDecoder.decode(rawTarget, "UTF-8")
@@ -342,7 +416,7 @@ fun CampusNavHost(
                 target = target,
                 isPhone = isPhone,
                 onBack = {
-                    navController.popBackStack()
+                    navigateBackSafely("verify", fallbackRoute = Screen.Auth.route)
                 },
                 onVerificationSuccess = { sessionUser ->
                     coroutineScope.launch {
@@ -366,7 +440,8 @@ fun CampusNavHost(
 
                         val nextDestination = if (isSurveyDone) Screen.Hub.route else Screen.OnboardingSurvey.route
                         navController.navigate(nextDestination) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
                         }
                     }
                 }
@@ -380,7 +455,8 @@ fun CampusNavHost(
                 directoryRepository = directoryRepository,
                 onSurveyCompleted = {
                     navController.navigate(Screen.Hub.route) {
-                        popUpTo(Screen.OnboardingSurvey.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
@@ -389,7 +465,7 @@ fun CampusNavHost(
         composable(route = Screen.Map.route) {
             com.campus.network.ui.MainSwipeablePagerScreen(
                 currentProfile = currentProfile,
-                mapViewModel = mapViewModel,
+                mapViewModel = resolvedMapViewModel,
                 channelsViewModel = resolvedChannelsViewModel,
                 messagesViewModel = resolvedMessagesViewModel,
                 profileViewModel = profileViewModel,
@@ -407,7 +483,7 @@ fun CampusNavHost(
         composable(route = Screen.Channels.route) {
             com.campus.network.ui.MainSwipeablePagerScreen(
                 currentProfile = currentProfile,
-                mapViewModel = mapViewModel,
+                mapViewModel = resolvedMapViewModel,
                 channelsViewModel = resolvedChannelsViewModel,
                 messagesViewModel = resolvedMessagesViewModel,
                 profileViewModel = profileViewModel,
@@ -425,7 +501,7 @@ fun CampusNavHost(
         composable(route = Screen.Messages.route) {
             com.campus.network.ui.MainSwipeablePagerScreen(
                 currentProfile = currentProfile,
-                mapViewModel = mapViewModel,
+                mapViewModel = resolvedMapViewModel,
                 channelsViewModel = resolvedChannelsViewModel,
                 messagesViewModel = resolvedMessagesViewModel,
                 profileViewModel = profileViewModel,
@@ -443,7 +519,7 @@ fun CampusNavHost(
         composable(route = Screen.Hub.route) {
             com.campus.network.ui.MainSwipeablePagerScreen(
                 currentProfile = currentProfile,
-                mapViewModel = mapViewModel,
+                mapViewModel = resolvedMapViewModel,
                 channelsViewModel = resolvedChannelsViewModel,
                 messagesViewModel = resolvedMessagesViewModel,
                 profileViewModel = profileViewModel,
@@ -459,23 +535,24 @@ fun CampusNavHost(
 
         // Dedicated Notifications Screen (Reference Image 1)
         composable(route = Screen.Notifications.route) {
+            BackHandler {
+                navigateBackSafely(Screen.Notifications.route, fallbackRoute = Screen.Hub.route)
+            }
             val p = currentProfile
             val activeUserId = p?.studentId?.takeIf { it.isNotBlank() } ?: p?.universityEmail?.takeIf { it.isNotBlank() }.orEmpty()
             val activeEmail = p?.universityEmail.orEmpty()
             NotificationsScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    navigateBackSafely(Screen.Notifications.route, fallbackRoute = Screen.Hub.route)
+                },
                 onNavigateToSettings = { navController.navigate(Screen.NotificationSettings.route) },
                 currentUserId = activeUserId,
                 currentUserEmail = activeEmail,
                 serverRepository = serverRepository,
                 onNavigateToMapMeet = { lat, lng ->
-                    mapViewModel.onEvent(com.campus.network.feature.map.MapEvent.FocusCoordinatesOnMap(lat, lng))
+                    resolvedMapViewModel.onEvent(com.campus.network.feature.map.MapEvent.FocusCoordinatesOnMap(lat, lng))
                     navController.navigate(Screen.Map.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
+                        popUpTo(0) { inclusive = true }
                     }
                 },
                 onNavigateToMessages = { peerId, peerName ->
@@ -489,20 +566,27 @@ fun CampusNavHost(
                         )
                     }
                     navController.navigate(Screen.Messages.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
+                        popUpTo(0) { inclusive = true }
                     }
                 },
                 onNavigateToHub = {
                     navController.navigate(Screen.Hub.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToLiveStream = { streamId ->
+                    navController.navigate(Screen.LiveFeed.createRoute(streamId.ifBlank { "founders" })) {
                         launchSingleTop = true
-                        restoreState = true
+                    }
+                },
+                onNavigateToMarket = { itemId ->
+                    navController.navigate(Screen.Market.createRoute(itemId)) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToChannels = {
+                    navController.navigate(Screen.Channels.route) {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
@@ -510,17 +594,48 @@ fun CampusNavHost(
 
         // Notification Settings Screen (Reference Image 2)
         composable(route = Screen.NotificationSettings.route) {
+            BackHandler {
+                navigateBackSafely(
+                    fromBaseRoute = Screen.NotificationSettings.route,
+                    fallbackRoute = Screen.Notifications.route
+                )
+            }
             NotificationSettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = {
+                    navigateBackSafely(
+                        fromBaseRoute = Screen.NotificationSettings.route,
+                        fallbackRoute = Screen.Notifications.route
+                    )
+                }
             )
         }
 
         // Market: replaces the deleted snack store + dead HubScreen marketplace with the real campus marketplace.
-        composable(route = Screen.Market.route) {
+        composable(
+            route = Screen.Market.route,
+            arguments = listOf(
+                navArgument("itemId") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                    nullable = true
+                }
+            )
+        ) { backStackEntry ->
+            BackHandler {
+                navigateBackSafely(Screen.Market.route, fallbackRoute = Screen.Hub.route)
+            }
+            val deepLinkItemId = backStackEntry.arguments?.getString("itemId").orEmpty()
+            LaunchedEffect(deepLinkItemId) {
+                if (deepLinkItemId.isNotBlank()) {
+                    marketViewModel.openMarketItemFromNotification(deepLinkItemId)
+                }
+            }
             com.campus.network.feature.hub.market.MarketScreen(
                 viewModel = marketViewModel,
                 rendezvousRepository = rendezvousRepository,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    navigateBackSafely(Screen.Market.route, fallbackRoute = Screen.Hub.route)
+                },
                 onNavigateToMySelling = { navController.navigate(Screen.MySelling.route) },
                 onOpenProduct = { /* Phase 3: product detail + checkout flow */ },
                 onOpenGig = { /* Phase 3: gig detail flow */ }
@@ -528,10 +643,15 @@ fun CampusNavHost(
         }
 
         composable(route = Screen.MySelling.route) {
+            BackHandler {
+                navigateBackSafely(Screen.MySelling.route, fallbackRoute = Screen.Market.createRoute())
+            }
             com.campus.network.feature.hub.market.MySellingScreen(
                 viewModel = marketViewModel,
                 repository = campusHubRepository,
-                onBack = { navController.popBackStack() }
+                onBack = {
+                    navigateBackSafely(Screen.MySelling.route, fallbackRoute = Screen.Market.createRoute())
+                }
             )
         }
 
@@ -539,7 +659,7 @@ fun CampusNavHost(
         composable(route = Screen.Profile.route) {
             com.campus.network.ui.MainSwipeablePagerScreen(
                 currentProfile = currentProfile,
-                mapViewModel = mapViewModel,
+                mapViewModel = resolvedMapViewModel,
                 channelsViewModel = resolvedChannelsViewModel,
                 messagesViewModel = resolvedMessagesViewModel,
                 profileViewModel = profileViewModel,
@@ -553,12 +673,41 @@ fun CampusNavHost(
             )
         }
 
+        // Live Room: stage + community grid wired to active streams and campus peers
+        composable(route = Screen.LiveRoom.route) {
+            BackHandler {
+                navigateBackSafely(Screen.LiveRoom.route, fallbackRoute = Screen.Hub.route)
+            }
+            LiveRoomScreen(
+                studentProfileRepository = studentProfileRepository,
+                liveStreamRepository = liveStreamRepository,
+                onNavigateBack = {
+                    navigateBackSafely(Screen.LiveRoom.route, fallbackRoute = Screen.Hub.route)
+                },
+                onNavigateToCreateLive = {
+                    navController.navigate(Screen.GoLive.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onOpenLiveStream = { streamId ->
+                    navController.navigate(Screen.LiveFeed.createRoute(streamId)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
         // Go Live flow: permissions -> details -> countdown -> live -> summary
         composable(route = Screen.GoLive.route) {
+            BackHandler {
+                navigateBackSafely(Screen.GoLive.route, fallbackRoute = Screen.Hub.route)
+            }
             GoLiveScreen(
                 studentProfileRepository = studentProfileRepository,
                 liveStreamRepository = liveStreamRepository,
-                onExit = { navController.popBackStack() }
+                onExit = {
+                    navigateBackSafely(Screen.GoLive.route, fallbackRoute = Screen.Hub.route)
+                }
             )
         }
 
@@ -572,13 +721,18 @@ fun CampusNavHost(
                 }
             )
         ) { backStackEntry ->
+            BackHandler {
+                navigateBackSafely("campus_live_feed", fallbackRoute = Screen.Hub.route)
+            }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: "founders"
             CampusLiveFeedScreen(
                 initialStoryId = storyId,
                 studentProfileRepository = studentProfileRepository,
                 liveStreamRepository = liveStreamRepository,
                 serverRepository = serverRepository,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = {
+                    navigateBackSafely("campus_live_feed", fallbackRoute = Screen.Hub.route)
+                }
             )
         }
     }

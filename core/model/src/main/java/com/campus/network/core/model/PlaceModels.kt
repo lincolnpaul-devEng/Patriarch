@@ -25,12 +25,60 @@ data class CampusPlace(
     val hasWifi: Boolean = true,
     val hasPowerOutlets: Boolean = true,
     val iconResName: String = "",
+    val imageUrl: String? = null,
     val imagesResNames: List<String> = emptyList(),
     val savedByUsers: List<SavedByUser> = emptyList(),
     val stats: PlaceStats = PlaceStats(saves = 0, stars = 0, likes = 0, dislikes = 0),
     val isSavedToTry: Boolean = false,
     val hasBeen: Boolean = false,
-    val likedByFriend: String? = null
+    val likedByFriend: String? = null,
+    val reviews: List<PlaceReview> = emptyList()
+)
+
+data class PlaceReview(
+    val id: String,
+    val placeId: String,
+    val userId: String,
+    val authorName: String,
+    val comment: String,
+    val createdAtEpochMs: Long
+)
+
+data class FriendLiveLocation(
+    val userId: String,
+    val displayName: String,
+    val avatarUrl: String? = null,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Float? = null,
+    val heading: Float? = null,
+    val speedKmh: Float? = null,
+    val stationarySinceEpochMs: Long = 0L,
+    val privacyScope: LocationPrivacyScope = LocationPrivacyScope.VERIFIED_CAMPUS_PEERS,
+    val expiresAtEpochMs: Long = 0L,
+    val updatedAtEpochMs: Long = 0L
+)
+
+data class CampusEventRecord(
+    val id: String,
+    val creatorId: String,
+    val title: String,
+    val hostName: String,
+    val description: String,
+    val locationName: String,
+    val fullAddress: String,
+    val latitude: Double,
+    val longitude: Double,
+    val startTimeIso: String,
+    val startTimeEpochMs: Long,
+    val category: String,
+    val priceLabel: String?,
+    val maxCapacity: Int,
+    val attendeeCount: Int,
+    val artworkKey: String,
+    val bannerUrl: String? = null,
+    val isUserRegistered: Boolean = false,
+    val attendeeNames: List<String> = emptyList()
 )
 
 enum class PlaceCategory(val label: String) {

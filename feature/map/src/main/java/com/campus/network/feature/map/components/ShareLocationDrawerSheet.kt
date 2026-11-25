@@ -1,6 +1,5 @@
 package com.campus.network.feature.map.components
 
-import com.campus.network.core.ui.components.HomescreenOrange
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -23,12 +22,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ShareLocation
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,27 +60,18 @@ import androidx.compose.ui.unit.sp
 import com.campus.network.core.model.CampusSecurityPolicy
 import com.campus.network.core.model.LocationPrivacyScope
 import com.campus.network.core.ui.components.CampusSuccessSnackBanner
+import com.campus.network.core.ui.components.HomescreenOrange
 import kotlinx.coroutines.delay
 
-/**
- * Share Location Drawer Sheet matching Reference Image 0 & Image 1:
- * - Implemented with ModalBottomSheet to completely hide the bottom tab navigation
- * - Top drag handle pill
- * - Center group/person add icon
- * - "Share location" title
- * - "Anyone with this link can view and share [Name]'s location until you end sharing."
- * - Rounded input container with shareable URL & copy button
- * - Black "Share link" button
- * - Red "End sharing for all" button (swapped smoothly with green success banner upon copying)
- * - Green "Link copied" snack banner matching Image 1 exactly
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShareLocationDrawerSheet(
     userName: String = "",
-    shareUrl: String = "https://community.tryfi.com/share/loc_849204",
+    shareUrl: String? = null,
+    isSharingActive: Boolean = false,
     scope: LocationPrivacyScope = LocationPrivacyScope.VERIFIED_CAMPUS_PEERS,
     onScopeChange: (LocationPrivacyScope) -> Unit = {},
+    onStartSharing: () -> Unit = {},
     onDismiss: () -> Unit,
     onEndSharing: () -> Unit,
     modifier: Modifier = Modifier,
@@ -87,7 +80,9 @@ fun ShareLocationDrawerSheet(
     val context = LocalContext.current
     var isCopied by remember { mutableStateOf(false) }
 
-    // Auto-dismiss copied banner after 3 seconds
+    val canBroadcast = isSharingActive && scope.allowsCoordinatesBroadcast && !shareUrl.isNullOrBlank()
+    val subjectName = userName.ifBlank { "Your" }
+
     LaunchedEffect(isCopied) {
         if (isCopied) {
             delay(3000)
@@ -96,6 +91,7 @@ fun ShareLocationDrawerSheet(
     }
 
     fun copyUrl() {
+        if (!canBroadcast || shareUrl.isNullOrBlank()) return
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Location Link", shareUrl)
         clipboard.setPrimaryClip(clip)
@@ -103,13 +99,16 @@ fun ShareLocationDrawerSheet(
     }
 
     fun shareUrlExternally() {
+        if (!canBroadcast || shareUrl.isNullOrBlank()) return
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, "View and share $userName's live campus location: $shareUrl")
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "View $subjectName live campus location on Patriarch: $shareUrl"
+            )
             type = "text/plain"
         }
-        val shareIntent = Intent.createChooser(sendIntent, "Share Location Link")
-        context.startActivity(shareIntent)
+        context.startActivity(Intent.createChooser(sendIntent, "Share Location Link"))
         isCopied = true
     }
 
@@ -124,12 +123,12 @@ fun ShareLocationDrawerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp)
                 .padding(top = 12.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Drag Handle
             Box(
                 modifier = Modifier
                     .width(40.dp)
@@ -138,45 +137,46 @@ fun ShareLocationDrawerSheet(
                     .background(Color(0xFFCBD5E1))
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Center User Add Icon with Sub-badge
             Box(
                 modifier = Modifier
                     .size(54.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFF8FAFC)),
+                    .background(if (canBroadcast) Color(0xFFDCFCE7) else Color(0xFFF8FAFC)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.PersonAdd,
+                    imageVector = if (canBroadcast) Icons.Default.ShareLocation else Icons.Default.PersonAdd,
                     contentDescription = null,
-                    tint = Color(0xFF0F172A),
+                    tint = if (canBroadcast) Color(0xFF15803D) else Color(0xFF0F172A),
                     modifier = Modifier.size(28.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Title: "Share location"
             Text(
-                text = "Share location",
+                text = if (canBroadcast) "Live location active" else "Share location",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A),
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Subtitle
             Text(
-                text = "Choose who can see ${userName}’s live location. You can change or revoke this at any time.",
-                fontSize = 14.5.sp,
-                color = Color(0xFF64748B),
-                lineHeight = 21.sp,
+                text = if (scope == LocationPrivacyScope.GHOST_MODE_HIDDEN || !isSharingActive) {
+                    "Choose who can see your live location on campus. You can revoke access at any time."
+                } else {
+                    "Streaming live to authorized peers under ${scope.badgeLabel}."
+                },
+                fontSize = 14.sp,
+                color = Color(0xFF475569),
+                lineHeight = 20.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -224,14 +224,19 @@ fun ShareLocationDrawerSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Link container box with copy icon
+            val displayLinkText = when {
+                !scope.allowsCoordinatesBroadcast -> "Sharing paused (Ghost Mode)"
+                !isSharingActive || shareUrl.isNullOrBlank() -> "Start sharing to generate a private session link"
+                else -> shareUrl
+            }
+
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFF8FAFC),
+                color = if (canBroadcast) Color(0xFFF8FAFC) else Color(0xFFF1F5F9),
                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { copyUrl() }
+                    .clickable(enabled = canBroadcast) { copyUrl() }
             ) {
                 Row(
                     modifier = Modifier
@@ -241,43 +246,69 @@ fun ShareLocationDrawerSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = shareUrl,
-                        fontSize = 14.5.sp,
+                        text = displayLinkText,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF0F172A),
+                        color = if (canBroadcast) Color(0xFF0F172A) else Color(0xFF64748B),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
 
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy Link",
-                        tint = Color(0xFF0F172A),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    if (canBroadcast) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy Link",
+                            tint = Color(0xFF0F172A),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Black Pill "Share link" Button
-            Button(
-                onClick = { shareUrlExternally() },
-                shape = RoundedCornerShape(26.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF0F172A),
-                    contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+            if (!isSharingActive && scope.allowsCoordinatesBroadcast) {
+                Button(
+                    onClick = onStartSharing,
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0F172A),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ShareLocation,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Start Live Sharing",
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            } else {
+                Button(
+                    onClick = { shareUrlExternally() },
+                    enabled = canBroadcast,
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0F172A),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF94A3B8),
+                        disabledContentColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
@@ -287,8 +318,8 @@ fun ShareLocationDrawerSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Share link",
-                        fontSize = 15.5.sp,
+                        text = if (canBroadcast) "Share link" else "Sharing Paused (Ghost Mode)",
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -297,12 +328,9 @@ fun ShareLocationDrawerSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Either green success banner or red "End sharing for all" button (Image 0 vs Image 1)
             AnimatedContent(
                 targetState = isCopied,
-                transitionSpec = {
-                    fadeIn().togetherWith(fadeOut())
-                },
+                transitionSpec = { fadeIn().togetherWith(fadeOut()) },
                 label = "bannerOrEndSharing"
             ) { copied ->
                 if (copied) {
@@ -314,7 +342,7 @@ fun ShareLocationDrawerSheet(
                             .fillMaxWidth()
                             .height(50.dp)
                     )
-                } else {
+                } else if (isSharingActive) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -335,6 +363,8 @@ fun ShareLocationDrawerSheet(
                             )
                         }
                     }
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }

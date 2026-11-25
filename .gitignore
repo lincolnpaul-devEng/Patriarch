@@ -17,3 +17,21 @@ secrets.properties
 *.apk
 *.aab
 
+.firebase/
+
+# Compiled release binaries staged for hosting/distribution
+public/*.bin
+public/*.apk
+public/*.aab
+
+# Release signing keystores (keep local only)
+*.jks
+*.keystore
+
+# Firebase & Supabase CLI temporary/debug artifacts
+firebase-debug.log*
+supabase/.temp/
+
+# Editor auto-backup files
+*.blend1
+*.blend2

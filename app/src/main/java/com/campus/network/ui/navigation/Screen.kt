@@ -96,6 +96,12 @@ sealed class Screen(
         fun createRoute(storyId: String): String = "campus_live_feed?storyId=$storyId"
     }
 
+    data object LiveRoom : Screen(
+        route = "live_room",
+        title = "Live Room",
+        icon = Icons.Default.Home
+    )
+
     data object GoLive : Screen(
         route = "go_live",
         title = "Go Live",
@@ -115,10 +121,13 @@ sealed class Screen(
     )
 
     data object Market : Screen(
-        route = "market",
+        route = "market?itemId={itemId}",
         title = "Market",
         icon = Icons.Default.Home
-    )
+    ) {
+        fun createRoute(itemId: String? = null): String =
+            if (itemId.isNullOrBlank()) "market?itemId=" else "market?itemId=$itemId"
+    }
 
     data object MySelling : Screen(
         route = "my_selling",

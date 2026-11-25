@@ -6,39 +6,101 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.unit.dp
 
 val HomescreenPurple = Color(0xFFA969FE)
 val HomescreenInk = Color(0xFF0B0612)
 val HomescreenOrange = Color(0xFFFF4D32)
 
+/**
+ * Matches the exact outer frame geometry of `FittedScreen` on the Home screen:
+ *  - Uniformly matches the scaled `52.dp` corner radius (`52.dp * s` where `s = minOf(maxWidth / 393.dp, maxHeight / 852.dp)`)
+ *  - Matches the top/bottom black letterbox inset (`(maxHeight - 852.dp * s) / 2`) so the top and bottom
+ *    rounded corners start at the exact same Y-coordinates as the Home screen
+ *  - Also draws a solid black outer mask above all child layers (including AndroidView/SurfaceView maps)
+ *    so the 4 rounded corners are never covered by hardware surfaces.
+ */
+@Composable
+fun HomescreenRoundedFrame(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        val s = minOf(maxWidth / 393.dp, maxHeight / 852.dp)
+        val frameHeight = (852.dp * s).coerceAtMost(maxHeight)
+        val cornerRadius = 52.dp * s
+        val cornerShape = RoundedCornerShape(cornerRadius)
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .height(frameHeight)
+                .clip(cornerShape)
+                .drawWithContent {
+                    drawContent()
+                    val rPx = cornerRadius.toPx()
+                    val maskPath = Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addRect(Rect(Offset.Zero, size))
+                        addRoundRect(
+                            RoundRect(
+                                rect = Rect(Offset.Zero, Size(size.width, size.height)),
+                                cornerRadius = CornerRadius(rPx, rPx)
+                            )
+                        )
+                    }
+                    drawPath(path = maskPath, color = Color.Black)
+                }
+        ) {
+            content()
+        }
+    }
+}
+
 @Composable
 fun HomescreenBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HomescreenPurple)
-            .homescreenDotGrid()
-    ) {
-        content()
+    HomescreenRoundedFrame(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(HomescreenPurple)
+                .homescreenDotGrid()
+        ) {
+            content()
+        }
     }
 }
 
